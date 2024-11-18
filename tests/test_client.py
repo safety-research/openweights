@@ -10,7 +10,7 @@ from openweights.worker import Worker
 
 # Set up logging configuration
 def setup_logging():
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # Function to start worker process
@@ -128,7 +128,6 @@ def test_list_runs(client):
     params = {'training_file': file_id}
     ft_job = client.fine_tuning.jobs.create(model='test-model', params=params, requires_vram_gb=0)
     print(ft_job)
-    breakpoint()
     job_id = ft_job['id']
 
     # Allow some time for the worker to pick up the job

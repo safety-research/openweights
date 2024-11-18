@@ -94,7 +94,6 @@ class Worker:
         self.supabase.table('jobs').update({'status': 'in_progress', 'worker': self.worker_id}).eq('id', job['id']).execute()
         
         try:
-            breakpoint()
             logging.debug(f"Executing job {job['id']}...")
             with open(log_file_path, 'w') as log_file:
                 log_file.write("Starting job...")
