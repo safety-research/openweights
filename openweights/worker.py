@@ -6,8 +6,8 @@ import logging
 import time
 from datetime import datetime
 from dotenv import load_dotenv
-from supabase import create_client
-from client import Files
+from supabase import create_client, Client
+from client import Files, Run
 
 # Load environment variables
 load_dotenv()
@@ -77,46 +77,40 @@ class Worker:
         return selected_job
 
     def _execute_job(self, job):
-        # Create entry in runs table
-        with tempfile.NamedTemporaryFile(delete=False) as temp_log_file:
-            log_file_path = temp_log_file.name
-
-        run_data = {
-            'job_id': job['id'],
-            'worker_id': self.worker_id,
-            'status': 'in_progress',
-            'log_file': log_file_path
-        }
-        run_result = self.supabase.table('runs').insert(run_data).execute()
-        run_id = run_result.data[0]['id']
-
-        logging.info(f"Starting job {job['id']} with model {job['model']}", extra={'run_id': run_id})
+        # Create a new run for this job
+        run = Run(self.supabase, job['id'])
+        
+        logging.info(f"Starting job {job['id']} with model {job['model']}", extra={'run_id': run.id})
         self.supabase.table('jobs').update({'status': 'in_progress', 'worker': self.worker_id}).eq('id', job['id']).execute()
         
         try:
             logging.debug(f"Executing job {job['id']}...")
-            with open(log_file_path, 'w') as log_file:
-                log_file.write("Starting job...")
+            
+            # Create temporary log file
+            with tempfile.NamedTemporaryFile(delete=False) as temp_log_file:
+                log_file_path = temp_log_file.name
+                temp_log_file.write(b"Starting job...\n")
 
             self.execute_job(job)
-            self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
-
+            
             # Upload log file to Supabase
             with open(log_file_path, 'rb') as log_file:
                 log_response = self.files.create(log_file, purpose='log')
 
-            # Update run entry with the uploaded log file ID
-            self.supabase.table('runs').update({'status': 'completed', 'log_file': log_response['id']}).eq('id', run_id).execute()
+            # Update job and run status
+            self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
+            run.update(status='completed', logfile=log_response['id'])
 
             if job['model'] not in self.cached_models:
                 self.cached_models.append(job['model'])
                 self.supabase.table('worker').update({'cached_models': self.cached_models}).eq('id', self.worker_id).execute()
 
-            logging.info(f"Completed job {job['id']}", extra={'run_id': run_id})
+            logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
         except Exception as e:
-            logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run_id})
+            logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
             self.supabase.table('jobs').update({'status': 'failed'}).eq('id', job['id']).execute()
-            self.supabase.table('runs').update({'status': 'failed'}).eq('id', run_id).execute()
+            run.update(status='failed')
+            run.log({'error': str(e)})
         finally:
             try:
                 os.remove(log_file_path)

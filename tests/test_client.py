@@ -115,7 +115,7 @@ def test_cancel_job(client):
     assert response['status'] == 'canceled'
 
 
-def test_list_runs(client):
+def test_list_runs(client, worker):
     # Use a real file for the job
     file_content = f'Training data for run test.{datetime.now().timestamp()}'.encode()
     with open('/tmp/run_test_file.txt', 'wb') as file:

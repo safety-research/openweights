@@ -59,3 +59,11 @@ CREATE TABLE runs (
     status job_status,
     log_file TEXT
 );
+
+-- Create events table
+CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    run_id INTEGER REFERENCES runs(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    data JSONB NOT NULL
+);

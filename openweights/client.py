@@ -1,6 +1,8 @@
 from typing import Optional, BinaryIO, Dict, Any, List
 import os
+import sys
 from supabase import create_client, Client
+from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
 
@@ -59,6 +61,90 @@ class Files:
     def content(self, file_id: str) -> bytes:
         """Get file content"""
         return self._supabase.storage.from_('files').download(file_id)
+
+class Run:
+    def __init__(self, supabase: Client, job_id: Optional[str] = None):
+        self._supabase = supabase
+        self.id = os.getenv('OPENWEIGHTS_RUN_ID')
+        
+        if self.id:
+            # Run ID exists, fetch the data
+            try:
+                result = self._supabase.table('runs').select('*').eq('id', self.id).single().execute()
+            except APIError as e:
+                if 'contains 0 rows' in str(e):
+                    raise ValueError(f"Run with ID {self.id} not found")
+                raise
+            
+            run_data = result.data
+            if job_id and run_data['job_id'] != job_id:
+                raise ValueError(f"Run {self.id} is associated with job {run_data['job_id']}, not {job_id}")
+            
+            self._load_data(run_data)
+        else:
+            # Create new run
+            data = {
+                'status': 'in_progress'
+            }
+            
+            if job_id:
+                data['job_id'] = job_id
+            else:
+                # Create a new script job
+                command = ' '.join(sys.argv)
+                job_data = {
+                    'id': f"sjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}",
+                    'type': 'script',
+                    'script': command,
+                    'status': 'in_progress'
+                }
+                job_result = self._supabase.table('jobs').insert(job_data).execute()
+                data['job_id'] = job_result.data[0]['id']
+            
+            result = self._supabase.table('runs').insert(data).execute()
+            self._load_data(result.data[0])
+
+    def _load_data(self, data: Dict[str, Any]):
+        self.id = data['id']
+        self.job_id = data['job_id']
+        self.worker_id = data.get('worker_id')
+        self.status = data['status']
+        self.log_file = data.get('log_file')
+        self.created_at = data['created_at']
+
+    @staticmethod
+    def get(supabase: Client, run_id: int) -> 'Run':
+        """Get a run by ID"""
+        run = Run(supabase)
+        run.id = run_id
+        try:
+            result = supabase.table('runs').select('*').eq('id', run_id).single().execute()
+        except APIError as e:
+            if 'contains 0 rows' in str(e):
+                raise ValueError(f"Run with ID {run_id} not found")
+            raise
+        run._load_data(result.data)
+        return run
+
+    def update(self, status: Optional[str] = None, logfile: Optional[str] = None):
+        """Update run status and/or logfile"""
+        data = {}
+        if status:
+            data['status'] = status
+        if logfile:
+            data['log_file'] = logfile
+        
+        if data:
+            result = self._supabase.table('runs').update(data).eq('id', self.id).execute()
+            self._load_data(result.data[0])
+
+    def log(self, event_data: Dict[str, Any]):
+        """Log an event for this run"""
+        data = {
+            'run_id': self.id,
+            'data': event_data
+        }
+        self._supabase.table('events').insert(data).execute()
 
 class BaseJob:
     def __init__(self, supabase: Client):
@@ -167,4 +253,3 @@ class OpenWeights:
         self.inference = InferenceJobs(self._supabase)
         self.jobs = Jobs(self._supabase)
         self.runs = Runs(self._supabase)
-
