@@ -1,4 +1,4 @@
-from typing import Optional, BinaryIO, Dict, Any, List
+from typing import Optional, BinaryIO, Dict, Any, List, Union
 import os
 import sys
 from supabase import create_client, Client
@@ -78,6 +78,7 @@ class Run:
             
             run_data = result.data
             if job_id and run_data['job_id'] != job_id:
+                breakpoint()
                 raise ValueError(f"Run {self.id} is associated with job {run_data['job_id']}, not {job_id}")
             
             self._load_data(run_data)
@@ -203,11 +204,14 @@ class InferenceJobs(BaseJob):
         return result.data[0]
 
 class Jobs(BaseJob):
-    def create(self, script: BinaryIO) -> Dict[str, Any]:
+    def create(self, script: Union[BinaryIO, str], requires_vram_gb) -> Dict[str, Any]:
         """Create a script job"""
         job_id = f"sjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
         
-        script_content = script.read()
+        if isinstance(script, (str, bytes)):
+            script_content = script
+        else:
+            script_content = script.read()
         if isinstance(script_content, bytes):
             script_content = script_content.decode('utf-8')
         
@@ -216,7 +220,7 @@ class Jobs(BaseJob):
             'type': 'script',
             'script': script_content,
             'status': 'pending',
-            'requires_vram_gb': 24
+            'requires_vram_gb': requires_vram_gb
         }
         
         result = self._supabase.table('jobs').insert(data).execute()
@@ -249,7 +253,7 @@ class OpenWeights:
         
         # Initialize components
         self.files = Files(self._supabase)
-        self.fine_tuning = type('FineTuning', (), {'jobs': FineTuningJobs(self._supabase)})()
+        self.fine_tuning = FineTuningJobs(self._supabase)
         self.inference = InferenceJobs(self._supabase)
         self.jobs = Jobs(self._supabase)
         self.runs = Runs(self._supabase)

@@ -1,5 +1,7 @@
 import os
 import tempfile
+import subprocess
+import shutil
 import torch
 import atexit
 import logging
@@ -13,7 +15,10 @@ from client import Files, Run
 load_dotenv()
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.ERROR)
+
+
 
 class Worker:
     def __init__(self, supabase_url, supabase_key):
@@ -77,50 +82,61 @@ class Worker:
         return selected_job
 
     def _execute_job(self, job):
-        # Create a new run for this job
         run = Run(self.supabase, job['id'])
         
-        logging.info(f"Starting job {job['id']} with model {job['model']}", extra={'run_id': run.id})
-        self.supabase.table('jobs').update({'status': 'in_progress', 'worker': self.worker_id}).eq('id', job['id']).execute()
-        
-        try:
-            logging.debug(f"Executing job {job['id']}...")
-            
-            # Create temporary log file
-            with tempfile.NamedTemporaryFile(delete=False) as temp_log_file:
-                log_file_path = temp_log_file.name
-                temp_log_file.write(b"Starting job...\n")
+        # Create a temporary directory for job execution
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.makedirs(f"{tmp_dir}/uploads", exist_ok=True)
+            log_file_path = os.path.join(tmp_dir, "log.txt")
 
-            self.execute_job(job)
-            
-            # Upload log file to Supabase
-            with open(log_file_path, 'rb') as log_file:
-                log_response = self.files.create(log_file, purpose='log')
+            # Export run id to environment variable
+            os.environ['OPENWEIGHTS_RUN_ID'] = str(run.id)
 
-            # Update job and run status
-            self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
-            run.update(status='completed', logfile=log_response['id'])
+            # Update job status to in_progress
+            self.supabase.table('jobs').update({'status': 'in_progress'}).eq('id', job['id']).execute()
 
-            if job['model'] not in self.cached_models:
-                self.cached_models.append(job['model'])
-                self.supabase.table('worker').update({'cached_models': self.cached_models}).eq('id', self.worker_id).execute()
-
-            logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
-        except Exception as e:
-            logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
-            self.supabase.table('jobs').update({'status': 'failed'}).eq('id', job['id']).execute()
-            run.update(status='failed')
-            run.log({'error': str(e)})
-        finally:
             try:
-                os.remove(log_file_path)
-            except OSError:
-                logging.error(f"Failed to delete temporary log file: {log_file_path}")
+                # Execute the bash script found in job['script']
+                if job['type'] == 'script':
+                    with open(log_file_path, 'w') as log_file:
+                        subprocess.run(job['script'], shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir)
+                elif job['type'] == 'fine-tuning':
+                    with open(log_file_path, 'w') as log_file:
+                        log_file.write("Starting fine-tuning job...")
+                        # TODO
+                elif job['type'] == 'inference':
+                    with open(log_file_path, 'w') as log_file:
+                        log_file.write("Starting inference job...")
+                        # TODO
 
-    def execute_job(self, job):
-        logging.debug(f"Simulating execution of job {job['id']}...")
-        time.sleep(2)
-        logging.info(f"Executing job: {job}")
+                # Upload log file to Supabase
+                with open(log_file_path, 'rb') as log_file:
+                    log_response = self.files.create(log_file, purpose='log')
+
+                # Update job and run status
+                self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
+                run.update(status='completed', logfile=log_response['id'])
+                
+                logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
+                self.supabase.table('jobs').update({'status': 'failed'}).eq('id', job['id']).execute()
+                run.update(status='failed')
+                run.log({'error': str(e)})
+
+                # After execution, proceed to upload any files from the /uploads directory
+                upload_dir = os.path.join(tmp_dir, "uploads")
+                for root, _, files in os.walk(upload_dir):
+                    for file_name in files:
+                        file_path = os.path.join(root, file_name)
+                        try:
+                            # Upload each file
+                            with open(file_path, 'rb') as file:
+                                file_response = self.files.create(file, purpose='result')
+                            # Log the uploaded file
+                            run.log({'file': file_response['id']})
+                        except Exception as e:
+                            logging.error(f"Failed to upload file {file_name}: {e}")
 
 if __name__ == "__main__":
     supabase_url = os.getenv('SUPABASE_URL')

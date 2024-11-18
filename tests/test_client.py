@@ -77,7 +77,7 @@ def test_create_fine_tuning_job(client):
     file_id = response['id']
 
     params = {'training_file': file_id, 'requires_vram_gb': 0}
-    response = client.fine_tuning.jobs.create(model='test-model', params=params)
+    response = client.fine_tuning.create(model='test-model', params=params)
     assert response['type'] == 'fine-tuning'
     assert response['status'] == 'pending'
 
@@ -107,7 +107,7 @@ def test_cancel_job(client):
     file_id = response['id']
 
     params = {'training_file': file_id}
-    job_response = client.fine_tuning.jobs.create(model='test-model', params=params)
+    job_response = client.fine_tuning.create(model='test-model', params=params)
     job_id = job_response['id']
 
     # Attempt to cancel the newly created job
@@ -115,7 +115,8 @@ def test_cancel_job(client):
     assert response['status'] == 'canceled'
 
 
-def test_list_runs(client, worker):
+# def test_list_runs(client, worker):
+def test_list_runs(client):
     # Use a real file for the job
     file_content = f'Training data for run test.{datetime.now().timestamp()}'.encode()
     with open('/tmp/run_test_file.txt', 'wb') as file:
@@ -126,7 +127,7 @@ def test_list_runs(client, worker):
     file_id = response['id']
 
     params = {'training_file': file_id}
-    ft_job = client.fine_tuning.jobs.create(model='test-model', params=params, requires_vram_gb=0)
+    ft_job = client.fine_tuning.create(model='test-model', params=params, requires_vram_gb=0)
     print(ft_job)
     job_id = ft_job['id']
 
@@ -144,4 +145,24 @@ def test_list_runs(client, worker):
         # Retrieve and check logs
         log_content = client.files.content(run['log_file'])
         assert len(log_content) > 0
+
+
+# def test_script_job_execution(client, worker):
+def test_script_job_execution(client):
+    # Create a script job with a simple echo command
+    script_content = "echo hello world"
+    job = client.jobs.create(script=script_content, requires_vram_gb=0)
+    job_id = job['id']
+
+    # Allow some time for the worker to pick up and execute the job
+    time.sleep(10)
+    # Retrieve the runs for the job
+    runs = client.runs.list(job_id=job_id)
+
+    assert len(runs) == 1
+    run = runs[0]
+
+    # Check the logfile for the expected output
+    log_content = client.files.content(run['log_file']).decode()
+    assert "hello world" in log_content
 
