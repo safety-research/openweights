@@ -12,6 +12,9 @@ from openweights.worker import Worker
 def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+valid_sft_file = os.path.join(os.path.dirname(__file__), 'sft_dataset.jsonl')
+valid_pref_file = os.path.join(os.path.dirname(__file__), 'preference_dataset.jsonl')
+
 
 # Function to start worker process
 def start_worker_process():
@@ -42,37 +45,47 @@ def test_file_upload(client):
     with open('/tmp/test_file.txt', 'rb') as file:
         try:
             logging.debug("Attempting to upload file")
-            response = client.files.create(file, purpose="test")
+            response = client.files.create(file, purpose="result")
             logging.debug(f"Upload response: {response}")
         except Exception as e:
             logging.error(f"File upload failed: {e}")
             raise
 
     assert response['object'] == 'file'
-    assert response['purpose'] == 'test'
+    assert response['purpose'] == 'result'
     assert response['bytes'] == len(file_content)
 
     # Validate file hash
     file_id = response['id']
-    assert file_id.startswith('file-')
 
     # Retrieve and validate file content
     retrieved_content = client.files.content(file_id)
     assert retrieved_content == file_content
+
+def test_file_validation(client):
+    # Test file validation
+    with open(valid_sft_file, 'rb') as file:
+        response = client.files.create(file, purpose="training")
+    assert response['purpose'] == 'training'
+
+    # Attempt to validate as preference dataset
+    with open(valid_sft_file, 'rb') as file:
+        with pytest.raises(Exception):
+            client.files.create(file, purpose="preference")
+    
+    # Validate valid preference dataset
+    with open(valid_pref_file, 'rb') as file:
+        response = client.files.create(file, purpose="preference")
+    assert response['purpose'] == 'preference'
 
 def test_list_jobs(client):
     response = client.jobs.list(limit=5)
     assert isinstance(response, list)
     assert len(response) <= 5
 
-
 def test_create_fine_tuning_job(client):
     # Use a real file for fine-tuning
-    file_content = f'Training data.{datetime.now().timestamp()}'.encode()
-    with open('/tmp/training_file.txt', 'wb') as file:
-        file.write(file_content)
-
-    with open('/tmp/training_file.txt', 'rb') as file:
+    with open(valid_sft_file, 'rb') as file:
         response = client.files.create(file, purpose="training")
     file_id = response['id']
 
@@ -82,12 +95,7 @@ def test_create_fine_tuning_job(client):
     assert response['status'] == 'pending'
 
 def test_create_inference_job(client):
-    # Use a real file for inference
-    file_content = f'Inference input.{datetime.now().timestamp()}'.encode()
-    with open('/tmp/input_file.txt', 'wb') as file:
-        file.write(file_content)
-
-    with open('/tmp/input_file.txt', 'rb') as file:
+    with open(valid_sft_file, 'rb') as file:
         response = client.files.create(file, purpose="inference")
     file_id = response['id']
 
@@ -97,12 +105,7 @@ def test_create_inference_job(client):
     assert response['status'] == 'pending'
 
 def test_cancel_job(client):
-    # Use a real file to ensure there's a valid job to cancel
-    file_content = f'Training data for cancel test.{datetime.now().timestamp()}'.encode()
-    with open('/tmp/cancel_training_file.txt', 'wb') as file:
-        file.write(file_content)
-
-    with open('/tmp/cancel_training_file.txt', 'rb') as file:
+    with open(valid_sft_file, 'rb') as file:
         response = client.files.create(file, purpose="training")
     file_id = response['id']
 
@@ -117,12 +120,7 @@ def test_cancel_job(client):
 
 # def test_list_runs(client, worker):
 def test_list_runs(client):
-    # Use a real file for the job
-    file_content = f'Training data for run test.{datetime.now().timestamp()}'.encode()
-    with open('/tmp/run_test_file.txt', 'wb') as file:
-        file.write(file_content)
-
-    with open('/tmp/run_test_file.txt', 'rb') as file:
+    with open(valid_sft_file, 'rb') as file:
         response = client.files.create(file, purpose="training")
     file_id = response['id']
 

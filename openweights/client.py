@@ -5,6 +5,8 @@ from supabase import create_client, Client
 from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
+from openweights.utils import validate_messages, validate_preference_dataset
+
 
 class Files:
     def __init__(self, supabase: Client):
@@ -20,7 +22,7 @@ class Files:
 
     def create(self, file: BinaryIO, purpose: str) -> Dict[str, Any]:
         """Upload a file and create a database entry"""
-        file_id = self._calculate_file_hash(file)
+        file_id = f"{purpose}:{self._calculate_file_hash(file)}"
 
         # If the file already exists, return the existing file
         try:
@@ -29,6 +31,10 @@ class Files:
                 return existing_file
         except:
             pass  # File doesn't exist yet, continue with creation
+
+        # Validate file content
+        if not self.validate(file, purpose):
+            raise ValueError("File content is not valid")
 
         file_size = os.fstat(file.fileno()).st_size
         filename = getattr(file, 'name', 'unknown')
@@ -61,6 +67,17 @@ class Files:
     def content(self, file_id: str) -> bytes:
         """Get file content"""
         return self._supabase.storage.from_('files').download(file_id)
+    
+    def validate(self, file: BinaryIO, purpose: str) -> bool:
+        """Validate file content"""
+        if purpose in ['training', 'test', 'inference']:
+            content = file.read().decode('utf-8')
+            return validate_messages(content)
+        elif purpose == 'preference':
+            content = file.read().decode('utf-8')
+            return validate_preference_dataset(content)
+        else:
+            return True
 
 class Run:
     def __init__(self, supabase: Client, job_id: Optional[str] = None):

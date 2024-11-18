@@ -89,9 +89,6 @@ class Worker:
             os.makedirs(f"{tmp_dir}/uploads", exist_ok=True)
             log_file_path = os.path.join(tmp_dir, "log.txt")
 
-            # Export run id to environment variable
-            os.environ['OPENWEIGHTS_RUN_ID'] = str(run.id)
-
             # Update job status to in_progress
             self.supabase.table('jobs').update({'status': 'in_progress'}).eq('id', job['id']).execute()
 
@@ -99,7 +96,9 @@ class Worker:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
                     with open(log_file_path, 'w') as log_file:
-                        subprocess.run(job['script'], shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir)
+                        env = os.environ.copy()
+                        env['OPENWEIGHTS_RUN_ID'] = job['id']
+                        subprocess.run(job['script'], shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
                 elif job['type'] == 'fine-tuning':
                     with open(log_file_path, 'w') as log_file:
                         log_file.write("Starting fine-tuning job...")
