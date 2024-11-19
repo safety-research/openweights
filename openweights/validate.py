@@ -1,3 +1,5 @@
+import os
+import requests
 from typing import Literal, Union, Optional, List
 from pydantic import BaseModel, Field, field_validator, model_validator
 import json
@@ -34,6 +36,14 @@ def validate_preference_dataset(content):
         return True
     except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
         return False
+
+
+def model_exists(model_name):
+    token = os.environ["HF_TOKEN"]
+    url = f"https://huggingface.co/api/models/{model_name}"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.head(url, headers=headers)
+    return response.status_code == 200
 
 
 class TrainingConfig(BaseModel):
@@ -109,6 +119,12 @@ class TrainingConfig(BaseModel):
             raise ValueError(f"For DPO/ORPO training, dataset filename must start with 'preference', got: {training_file}")
 
         return values
+    
+    @field_validator("fine_tuned_model_id")
+    def validate_finetuned_model_id(cls, v):
+        if v and model_exists(v):
+            raise ValueError(f"Model {v} already exists")
+        return v
 
     @field_validator("learning_rate", mode="before")
     def validate_learning_rate(cls, v):
