@@ -41,7 +41,8 @@ def ft_job():
         model='unsloth/llama-3-8b-Instruct',
         training_file=file_id,
         requires_vram_gb=48,
-        loss='orpo'
+        loss='orpo',
+        epochs=3,
     )
 
     print(job)
@@ -57,6 +58,15 @@ def ft_job():
         if job['status'] in ['completed', 'failed', 'canceled']:
             break
         time.sleep(5)
+    
+    # Get log file:
+    runs = client.runs.list(job_id=job['id'])
+    for run in runs:
+        print(run)
+        if run['log_file']:
+            log = client.files.content(run['log_file']).decode('utf-8')
+            print(log)
+        print('---')
 
 
 ft_job()

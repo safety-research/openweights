@@ -184,6 +184,29 @@ class BaseJob:
         """Cancel a job"""
         result = self._supabase.table('jobs').update({'status': 'canceled'}).eq('id', job_id).execute()
         return result.data[0]
+    
+    def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """If job exists and is [pending, in_progress, completed] return it.
+        If job exists and is [failed, canceled] reset it to pending and return it.
+        If job doesn't exist, create it and return it.
+        """
+        try:
+            result = self._supabase.table('jobs').select('*').eq('id', data['id']).single().execute()
+        except APIError as e:
+            if 'contains 0 rows' in str(e):
+                result = self._supabase.table('jobs').insert(data).execute()
+                return result.data[0]
+            else:
+                raise
+        job = result.data
+        if job['status'] in ['failed', 'canceled']:
+            # Reset job to pending
+            result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', data['id']).execute()
+            return result.data[0]
+        elif job['status'] in ['pending', 'in_progress', 'completed']:
+            return job
+        else:
+            raise ValueError(f"Invalid job status: {job['status']}")
 
 class FineTuningJobs(BaseJob):
     def create(self, requires_vram_gb=48, **params) -> Dict[str, Any]:
@@ -193,7 +216,7 @@ class FineTuningJobs(BaseJob):
         
         job_id = f"ftjob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
         if 'finetuned_model_id' not in params:
-            params['finetuned_model_id'] = f"model:{job_id}"
+            params['finetuned_model_id'] = f"{params['model']}_{job_id}"
         params = TrainingConfig(**params).model_dump()
 
         data = {
@@ -205,8 +228,7 @@ class FineTuningJobs(BaseJob):
             'requires_vram_gb': requires_vram_gb
         }
         
-        result = self._supabase.table('jobs').insert(data).execute()
-        return result.data[0]
+        return self.get_or_create_or_reset(data)
 
 class InferenceJobs(BaseJob):
     def create(self, requires_vram_gb=24, **params) -> Dict[str, Any]:
@@ -227,8 +249,7 @@ class InferenceJobs(BaseJob):
             'requires_vram_gb': requires_vram_gb
         }
         
-        result = self._supabase.table('jobs').insert(data).execute()
-        return result.data[0]
+        return self.get_or_create_or_reset(data)
 
 class Jobs(BaseJob):
     def create(self, script: Union[BinaryIO, str], requires_vram_gb) -> Dict[str, Any]:
@@ -251,8 +272,7 @@ class Jobs(BaseJob):
             'requires_vram_gb': requires_vram_gb
         }
         
-        result = self._supabase.table('jobs').insert(data).execute()
-        return result.data[0]
+        return self.get_or_create_or_reset(data)
 
 class Runs:
     def __init__(self, supabase: Client):
