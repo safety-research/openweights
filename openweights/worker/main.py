@@ -33,13 +33,20 @@ class Worker:
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.vram_gb = 0
+        
+        try:
+            with open('/workspace/worker_id', 'r') as f:
+                pod_id = f.read().strip()
+        except FileNotFoundError:
+            pod_id = None
 
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         self.supabase.table('worker').upsert({
             'id': self.worker_id,
             'status': 'active',
             'cached_models': self.cached_models,
-            'vram_gb': self.vram_gb
+            'vram_gb': self.vram_gb,
+            'pod_id': pod_id
         }).execute()
         atexit.register(self.shutdown_handler)
 
@@ -65,7 +72,7 @@ class Worker:
 
     def _find_job(self):
         logging.debug("Fetching jobs from the database...")
-        jobs = self.supabase.table('jobs').select('*').eq('status', 'pending').execute().data
+        jobs = self.supabase.table('jobs').select('*').eq('status', 'pending').order('requires_vram_gb', desc=True).order('created_at', desc=False).execute().data
 
         logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
 

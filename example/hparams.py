@@ -41,7 +41,6 @@ def cross_product(sweep) -> List[Dict]:
 
 
 configs = cross_product(sweep)
-breakpoint()
 for config in configs:
     with open(config['training_file'], 'rb') as file:
         file = client.files.create(file, purpose="preference")

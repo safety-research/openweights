@@ -1,71 +1,72 @@
--- Existing schemas
--- Create enum for job types
-CREATE TYPE job_type AS ENUM ('fine-tuning', 'inference', 'script');
+-- Create custom types for USER-DEFINED fields
+CREATE TYPE job_type AS ENUM ('type1', 'type2');
+CREATE TYPE job_status AS ENUM ('pending', 'in_progress', 'completed', 'failed', 'canceled');
+CREATE TYPE run_status AS ENUM ('pending', 'in_progress', 'completed', 'failed', 'canceled');
 
--- Create jobs table
-CREATE TABLE jobs (
-    id TEXT PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    type job_type NOT NULL,
-    model TEXT,
-    params JSONB,
-    script TEXT,
-    outputs JSONB,
-    status TEXT DEFAULT 'pending'
+-- Create events table
+CREATE TABLE public.events (
+    id integer PRIMARY KEY,
+    run_id integer,
+    created_at timestamp with time zone,
+    data jsonb NOT NULL,
+    file text
 );
 
--- Add new column 'requires_vram_gb' with a default value
-ALTER TABLE jobs ADD COLUMN requires_vram_gb INTEGER DEFAULT 24;
-
--- Create a new enum type for job status
-CREATE TYPE job_status AS ENUM ('pending', 'in_progress', 'completed', 'failed', 'canceled');
-
--- Add the 'status' column with a default value using the newly created enum
-ALTER TABLE jobs ADD COLUMN status job_status DEFAULT 'pending';
-
--- Drop the old 'status' column of type TEXT, if exists
-ALTER TABLE jobs DROP COLUMN status;
-
--- Re-add the 'status' column using the created ENUM type
-ALTER TABLE jobs ADD COLUMN status job_status DEFAULT 'pending';
-
 -- Create files table
-CREATE TABLE files (
-    id TEXT PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    filename TEXT NOT NULL,
-    purpose TEXT NOT NULL,
-    bytes INTEGER NOT NULL
+CREATE TABLE public.files (
+    id text PRIMARY KEY,
+    created_at timestamp with time zone,
+    filename text NOT NULL,
+    purpose text NOT NULL,
+    bytes integer NOT NULL
+);
+
+-- Create jobs table
+CREATE TABLE public.jobs (
+    id text PRIMARY KEY,
+    created_at timestamp with time zone,
+    type job_type NOT NULL,
+    model text,
+    params jsonb,
+    script text,
+    outputs jsonb,
+    requires_vram_gb integer,
+    status job_status,
+    worker_id text
+);
+
+-- Create runs table
+CREATE TABLE public.runs (
+    id integer PRIMARY KEY,
+    job_id text,
+    worker_id text,
+    created_at timestamp with time zone,
+    status run_status,
+    log_file text
 );
 
 -- Create worker table
-CREATE TABLE worker (
-    id TEXT PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status TEXT,
-    cached_models TEXT[],
-    vram_gb INTEGER
+CREATE TABLE public.worker (
+    id text PRIMARY KEY,
+    created_at timestamp with time zone,
+    status text,
+    cached_models text[],
+    vram_gb integer,
+    pod_id text
 );
 
--- Add worker column as a foreign key to the jobs table
-ALTER TABLE jobs ADD COLUMN worker TEXT REFERENCES worker(id);
+-- Add foreign key constraints
+ALTER TABLE public.events
+    ADD CONSTRAINT fk_run_id FOREIGN KEY (run_id) REFERENCES public.runs(id);
 
--- New schema for runs table
-CREATE TABLE runs (
-    id SERIAL PRIMARY KEY,
-    job_id TEXT REFERENCES jobs(id) ON DELETE CASCADE,
-    worker_id TEXT REFERENCES worker(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status job_status,
-    log_file TEXT
-);
+ALTER TABLE public.events
+    ADD CONSTRAINT fk_file FOREIGN KEY (file) REFERENCES public.files(id);
 
--- Create events table
-CREATE TABLE events (
-    id SERIAL PRIMARY KEY,
-    run_id INTEGER REFERENCES runs(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    data JSONB NOT NULL
-);
+ALTER TABLE public.runs
+    ADD CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES public.jobs(id);
 
-ALTER TABLE events ADD COLUMN file TEXT;
+ALTER TABLE public.runs
+    ADD CONSTRAINT fk_worker_id FOREIGN KEY (worker_id) REFERENCES public.worker(id);
+
+ALTER TABLE public.jobs
+    ADD CONSTRAINT fk_worker_id FOREIGN KEY (worker_id) REFERENCES public.worker(id);
