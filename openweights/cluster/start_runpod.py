@@ -17,9 +17,9 @@ import backoff
 load_dotenv(override=True) 
 
 runpod.api_key = os.environ.get("RUNPOD_API_KEY")
-IMAGE = 'runpod/pytorch:2.2.0-py3.10-cuda12.1.1-devel-ubuntu22.04'
+IMAGE = 'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
 DOT_ENV_PATH = '../../.env' 
-TEMPLATE_ID = 'zy0djuy0rf'
+TEMPLATE_ID = 'nqj8muhb8p'
 
 GPUs = {
     'A6000': 'NVIDIA RTX 6000 Ada Generation',
@@ -29,7 +29,7 @@ GPUs = {
     'H100N': 'NVIDIA H100 NVL',
 }
 GPU_COUNT = 1
-allowed_cuda_versions = ['12.1', '12.2', '12.3', '12.4']
+allowed_cuda_versions = ['12.1', '12.4']
 
 def wait_for_pod(pod):
     while pod.get('runtime') is None:
@@ -166,6 +166,7 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
                 shutdown_pod(pod)
             run_on_pod_interactive(pod, f"echo {pod['id']} > /root/worker_id")
             copy_to_pod(pod, dot_env_path, '/workspace/.env')
+            copy_to_pod(pod, 'install_unsloth.py', '/workspace/install_unsloth.py')
             copy_to_pod(pod, 'setup.sh', '/workspace/setup.sh')
             run_on_pod_interactive(pod, f"chmod +x /workspace/setup.sh")
             run_on_pod_interactive(pod, f"/workspace/setup.sh")
