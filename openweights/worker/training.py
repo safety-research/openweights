@@ -42,7 +42,7 @@ def train(training_cfg):
     
     if training_cfg.test_file:
         test_rows = load_jsonl(training_cfg.test_file)
-        if "use_orpo" in training_cfg or "use_dpo" in training_cfg:
+        if training_cfg.loss in ["orpo", "dpo"]:
             test_dataset = Dataset.from_list(test_rows)
         else:
             test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
