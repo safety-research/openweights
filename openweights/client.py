@@ -222,7 +222,9 @@ class FineTuningJobs(BaseJob):
         
         job_id = f"ftjob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
         if 'finetuned_model_id' not in params:
-            params['finetuned_model_id'] = f"{params['model']}_{job_id}"
+            model = params['model'].split('/')[-1]
+            org = os.environ.get("HF_ORG_ID") or os.environ.get("HF_USER")
+            params['finetuned_model_id'] = f"{org}/{model}_{job_id}"
         params = TrainingConfig(**params).model_dump()
 
         data = {
