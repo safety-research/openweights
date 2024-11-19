@@ -61,6 +61,3 @@ def orpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         callbacks=[LogMetrics(), GPUStatsCallback()],
     )
     return trainer
-
-
-

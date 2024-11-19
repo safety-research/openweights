@@ -111,17 +111,13 @@ class Worker:
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
-                    env['OPENWEIGHTS_RUN_ID'] = job['id']
+                    env['OPENWEIGHTS_RUN_ID'] = str(run.id)
                     subprocess.run(script, shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
 
-                # Update job and run status
-                self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
                 status = 'completed'
-                
                 logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
             except subprocess.CalledProcessError as e:
                 logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
-                self.supabase.table('jobs').update({'status': 'failed'}).eq('id', job['id']).execute()
                 status = 'failed'
                 run.log({'error': str(e)})
             finally:
@@ -129,6 +125,7 @@ class Worker:
                 with open(log_file_path, 'rb') as log_file:
                     log_response = self.files.create(log_file, purpose='log')
                 run.update(status=status, logfile=log_response['id'])
+                self.supabase.table('jobs').update({'status': status}).eq('id', job['id']).execute()
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):

@@ -2,13 +2,10 @@ from transformers import TrainingArguments
 
 from unsloth import is_bfloat16_supported
 from unsloth import PatchDPOTrainer
-
 PatchDPOTrainer()
-from trl import ORPOConfig, ORPOTrainer
 from trl import DPOTrainer
 
-from openweights.worker.utils import load_model_and_tokenizer, LogMetrics, GPUStatsCallback, load_jsonl
-
+from openweights.worker.utils import LogMetrics, GPUStatsCallback
 
 
 def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
@@ -67,6 +64,3 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         callbacks=[LogMetrics(), GPUStatsCallback()],
     )
     return trainer
-
-
-
