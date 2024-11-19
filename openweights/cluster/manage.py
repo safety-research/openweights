@@ -78,7 +78,7 @@ def scale_workers(workers, pending_jobs):
 def manage_cluster():
     while True:
         # List all workers
-        workers = openweights._supabase.table('worker').select('*').execute().data
+        workers = openweights._supabase.table('worker').select('*').eq('status', 'active').neq('pod_id', None).execute().data
         # List all pending jobs
         pending_jobs = openweights.jobs.list(limit=100)  # Adjust limit as needed
         pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
@@ -88,6 +88,8 @@ def manage_cluster():
         for worker in idle_workers:
             print(f"Terminating idle worker: {worker['id']}")
             runpod_shutdown_pod(worker['pod_id'])
+            # Mark worker as terminated
+            openweights._supabase.table('worker').update({'status': 'terminated'}).eq('id', worker['id']).execute()
 
         # Scale workers
         scale_workers(workers, pending_jobs)
