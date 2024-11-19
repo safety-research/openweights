@@ -42,7 +42,8 @@ def ft_job():
         training_file=file_id,
         requires_vram_gb=48,
         loss='orpo',
-        epochs=3,
+        epochs=1,
+        max_steps=20,
     )
 
     print(job)

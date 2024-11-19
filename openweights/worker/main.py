@@ -55,8 +55,13 @@ class Worker:
                 logging.info("No suitable job found. Checking again in a few seconds...")
                 time.sleep(5)
                 continue
-
-            self._execute_job(job)
+            try:
+                self._execute_job(job)
+            except KeyboardInterrupt:
+                logging.info("Worker interrupted by user. Shutting down...")
+                break
+            except Exception as e:
+                logging.error(f"Failed to execute job {job['id']}: {e}")
 
     def _find_job(self):
         logging.debug("Fetching jobs from the database...")

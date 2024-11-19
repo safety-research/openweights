@@ -107,6 +107,8 @@ class TrainingConfig(BaseModel):
         description="Evaluate every N steps, or use logging_steps if set to 'log'"
     )
 
+    meta: Optional[dict] = Field(None, description="Additional metadata for the training job")
+
     @model_validator(mode="before")
     def validate_training_file_prefixes(cls, values):
         loss = values.get('loss', 'orpo')
