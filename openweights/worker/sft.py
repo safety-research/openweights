@@ -25,13 +25,7 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         return {"text": texts}
     
     dataset = dataset.map(apply_chat_template, batched=True)
-    if test_dataset is not None:
-        test_dataset = test_dataset.map(apply_chat_template, batched=True)
-    else:
-        # Split 10% of train data for testing when no test set provided
-        split = dataset.train_test_split(test_size=0.1)
-        dataset = split["train"]
-        test_dataset = split["test"]
+    test_dataset = test_dataset.map(apply_chat_template, batched=True)
     
     learning_rate = training_cfg.learning_rate if (not isinstance(training_cfg.learning_rate, str)) else eval(training_cfg.learning_rate)
     if learning_rate < 0:
@@ -58,8 +52,9 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
                 lr_scheduler_type=training_cfg.lr_scheduler_type,
                 seed=training_cfg.seed,
                 report_to=None,
-                epochs=training_cfg.epochs,
+                num_train_epochs=training_cfg.epochs,
                 save_steps = 500000,
+                output_dir='uploads/checkpoints',
                 **kwargs,
             ),
             callbacks=[LogMetrics(), GPUStatsCallback()],

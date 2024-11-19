@@ -75,7 +75,7 @@ def is_peft_model(model):
     return is_peft
 
 
-def load_jsonl(file_path):
-    with open(file_path, "r") as f:
-        return [json.loads(line) for line in f.readlines()]
+def load_jsonl(file_id):
+    content = client.files.content(file_id).decode("utf-8")
+    return [json.loads(line) for line in content.split("\n") if line.strip()]
     

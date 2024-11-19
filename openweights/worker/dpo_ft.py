@@ -49,8 +49,9 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         lr_scheduler_type=training_cfg.lr_scheduler_type,
         seed=training_cfg.seed,
         report_to=None,
-        epochs=training_cfg.epochs,
+        num_train_epochs=training_cfg.epochs,
         save_steps=5000,
+        output_dir='uploads/checkpoints',
         beta=0.1,
         **kwargs
     )

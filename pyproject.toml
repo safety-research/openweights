@@ -13,7 +13,8 @@ dependencies = [
     "supabase",
     "python-dotenv",
     "torch",
-    "httpx>=0.24.0"
+    "httpx>=0.24.0",
+    "fire"
 ]
 
 [project.optional-dependencies]

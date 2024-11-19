@@ -1,4 +1,5 @@
 import os
+import json
 
 from datasets import Dataset
 from unsloth import FastLanguageModel
@@ -31,21 +32,25 @@ def train(training_cfg):
         use_dora=False,
     )
 
-    rows = load_jsonl(training_cfg.train_dataset)
 
-    if "use_orpo" in training_cfg or "use_dpo" in training_cfg:
-        dataset = Dataset.from_list(rows)
-    else:
+    rows = load_jsonl(training_cfg.training_file)
+
+    if training_cfg.loss == "sft":
         dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
+    else:
+        dataset = Dataset.from_list(rows)
     
-    if 'test_dataset' in training_cfg:
-        test_rows = load_jsonl(training_cfg.test_dataset)
+    if training_cfg.test_file:
+        test_rows = load_jsonl(training_cfg.test_file)
         if "use_orpo" in training_cfg or "use_dpo" in training_cfg:
             test_dataset = Dataset.from_list(test_rows)
         else:
             test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
     else:
-        test_dataset = None
+        # Split 10% of train data for testing when no test set provided
+        split = dataset.train_test_split(test_size=0.1)
+        dataset = split["train"]
+        test_dataset = split["test"]
 
     kwargs = {}
     if training_cfg.max_steps:
@@ -73,9 +78,12 @@ def train(training_cfg):
 
 
 def main(config: str):
+    with open(config, 'r') as f:
+        config = json.load(f)
     training_config = TrainingConfig(**config)
     train(training_config)
 
 
 if __name__ == "__main__":
-    main()
+    import fire
+    fire.Fire(main)
