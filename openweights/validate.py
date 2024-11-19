@@ -126,6 +126,11 @@ class TrainingConfig(BaseModel):
     def validate_finetuned_model_id(cls, v):
         if v and model_exists(v):
             raise ValueError(f"Model {v} already exists")
+        if len(v.split("/")) != 2:
+            raise ValueError("Model ID must be in the format 'user/model'")
+        org, model = v.split("/")
+        if org in ["datasets", "models", "unsloth"]:
+            raise ValueError(f"You have set org={org}, but it must be an org you have access to")
         return v
 
     @field_validator("learning_rate", mode="before")
