@@ -120,7 +120,7 @@ class TrainingConfig(BaseModel):
 
         return values
     
-    @field_validator("fine_tuned_model_id")
+    @field_validator("finetuned_model_id")
     def validate_finetuned_model_id(cls, v):
         if v and model_exists(v):
             raise ValueError(f"Model {v} already exists")
