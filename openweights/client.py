@@ -5,7 +5,8 @@ from supabase import create_client, Client
 from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
-from openweights.utils import validate_messages, validate_preference_dataset
+
+from openweights.validate import validate_messages, validate_preference_dataset, TrainingConfig, InferenceConfig
 
 
 class Files:
@@ -70,7 +71,7 @@ class Files:
     
     def validate(self, file: BinaryIO, purpose: str) -> bool:
         """Validate file content"""
-        if purpose in ['training', 'test', 'inference']:
+        if purpose in ['conversations']:
             content = file.read().decode('utf-8')
             return validate_messages(content)
         elif purpose == 'preference':
@@ -184,17 +185,19 @@ class BaseJob:
         return result.data[0]
 
 class FineTuningJobs(BaseJob):
-    def create(self, model: str, params: Dict[str, Any], requires_vram_gb=48) -> Dict[str, Any]:
+    def create(self, requires_vram_gb=48, **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
         if 'training_file' not in params:
             raise ValueError("training_file is required in params")
+        
+        params = TrainingConfig(**params).model_dump()
 
         job_id = f"ftjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
         
         data = {
             'id': job_id,
             'type': 'fine-tuning',
-            'model': model,
+            'model': params['model'],
             'params': params,
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb
@@ -204,10 +207,15 @@ class FineTuningJobs(BaseJob):
         return result.data[0]
 
 class InferenceJobs(BaseJob):
-    def create(self, input_file_id: str, model: str, params: Dict[str, Any], requires_vram_gb=24) -> Dict[str, Any]:
+    def create(self, requires_vram_gb=24, **params) -> Dict[str, Any]:
         """Create an inference job"""
         job_id = f"ijob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
         
+        params = InferenceConfig(**params).model_dump()
+
+        model = params['model']
+        input_file_id = params['input_file_id']
+
         data = {
             'id': job_id,
             'type': 'inference',

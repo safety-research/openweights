@@ -6,7 +6,7 @@ from datetime import datetime
 from multiprocessing import Process
 from supabase import create_client
 from openweights import OpenWeights
-from openweights.worker import Worker
+from openweights.worker.main import Worker
 
 # Set up logging configuration
 def setup_logging():
@@ -65,8 +65,8 @@ def test_file_upload(client):
 def test_file_validation(client):
     # Test file validation
     with open(valid_sft_file, 'rb') as file:
-        response = client.files.create(file, purpose="training")
-    assert response['purpose'] == 'training'
+        response = client.files.create(file, purpose="conversations")
+    assert response['purpose'] == 'conversations'
 
     # Attempt to validate as preference dataset
     with open(valid_sft_file, 'rb') as file:
@@ -86,31 +86,31 @@ def test_list_jobs(client):
 def test_create_fine_tuning_job(client):
     # Use a real file for fine-tuning
     with open(valid_sft_file, 'rb') as file:
-        response = client.files.create(file, purpose="training")
+        response = client.files.create(file, purpose="conversations")
     file_id = response['id']
 
-    params = {'training_file': file_id, 'requires_vram_gb': 0}
-    response = client.fine_tuning.create(model='test-model', params=params)
+    params = {'training_file': file_id, 'requires_vram_gb': 0, 'loss': 'sft'}
+    response = client.fine_tuning.create(model='test-model', **params)
     assert response['type'] == 'fine-tuning'
     assert response['status'] == 'pending'
 
 def test_create_inference_job(client):
     with open(valid_sft_file, 'rb') as file:
-        response = client.files.create(file, purpose="inference")
+        response = client.files.create(file, purpose="conversations")
     file_id = response['id']
 
     params = {}
-    response = client.inference.create(input_file_id=file_id, model='test-model', params=params)
+    response = client.inference.create(input_file_id=file_id, model='test-model', **params)
     assert response['type'] == 'inference'
     assert response['status'] == 'pending'
 
 def test_cancel_job(client):
-    with open(valid_sft_file, 'rb') as file:
-        response = client.files.create(file, purpose="training")
+    with open(valid_pref_file, 'rb') as file:
+        response = client.files.create(file, purpose="preference")
     file_id = response['id']
 
     params = {'training_file': file_id}
-    job_response = client.fine_tuning.create(model='test-model', params=params)
+    job_response = client.fine_tuning.create(model='test-model', **params)
     job_id = job_response['id']
 
     # Attempt to cancel the newly created job
@@ -121,11 +121,11 @@ def test_cancel_job(client):
 # def test_list_runs(client, worker):
 def test_list_runs(client):
     with open(valid_sft_file, 'rb') as file:
-        response = client.files.create(file, purpose="training")
+        response = client.files.create(file, purpose="conversations")
     file_id = response['id']
 
-    params = {'training_file': file_id}
-    ft_job = client.fine_tuning.create(model='test-model', params=params, requires_vram_gb=0)
+    params = {'training_file': file_id, 'loss': 'sft'}
+    ft_job = client.fine_tuning.create(model='test-model', **params, requires_vram_gb=0)
     print(ft_job)
     job_id = ft_job['id']
 
