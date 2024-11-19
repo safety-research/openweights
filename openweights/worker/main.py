@@ -129,6 +129,9 @@ class Worker:
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:
                     log_response = self.files.create(log_file, purpose='log')
+                # Debug: print the log file content
+                with open(log_file_path, 'r') as log_file:
+                    print(log_file.read())
                 run.update(status=status, logfile=log_response['id'])
                 self.supabase.table('jobs').update({'status': status}).eq('id', job['id']).execute()
                 # After execution, proceed to upload any files from the /uploads directory
