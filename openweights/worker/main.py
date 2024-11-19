@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from client import Files, Run
+from openweights.client import Files, Run
 
 # Load environment variables
 load_dotenv()
@@ -83,7 +83,7 @@ class Worker:
         return selected_job
 
     def _execute_job(self, job):
-        run = Run(self.supabase, job['id'])
+        run = Run(self.supabase, job['id'], self.worker_id)
         
         # Create a temporary directory for job execution
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -91,7 +91,7 @@ class Worker:
             log_file_path = os.path.join(tmp_dir, "log.txt")
 
             # Update job status to in_progress
-            self.supabase.table('jobs').update({'status': 'in_progress'}).eq('id', job['id']).execute()
+            self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).execute()
 
             try:
                 # Execute the bash script found in job['script']
@@ -100,12 +100,13 @@ class Worker:
                 elif job['type'] == 'fine-tuning':
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:
-                        json.dump(job['config'], f)
+                        json.dump(job['params'], f)
                     script = script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
+                    print(script)
                 elif job['type'] == 'inference':
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:
-                        json.dump(job['config'], f)
+                        json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
 
                 with open(log_file_path, 'w') as log_file:
@@ -113,21 +114,21 @@ class Worker:
                     env['OPENWEIGHTS_RUN_ID'] = job['id']
                     subprocess.run(script, shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
 
-                # Upload log file to Supabase
-                with open(log_file_path, 'rb') as log_file:
-                    log_response = self.files.create(log_file, purpose='log')
-
                 # Update job and run status
                 self.supabase.table('jobs').update({'status': 'completed'}).eq('id', job['id']).execute()
-                run.update(status='completed', logfile=log_response['id'])
+                status = 'completed'
                 
                 logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
             except subprocess.CalledProcessError as e:
                 logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
                 self.supabase.table('jobs').update({'status': 'failed'}).eq('id', job['id']).execute()
-                run.update(status='failed')
+                status = 'failed'
                 run.log({'error': str(e)})
-
+            finally:
+                # Upload log file to Supabase
+                with open(log_file_path, 'rb') as log_file:
+                    log_response = self.files.create(log_file, purpose='log')
+                run.update(status=status, logfile=log_response['id'])
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):

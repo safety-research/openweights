@@ -82,7 +82,7 @@ class Files:
             return True
 
 class Run:
-    def __init__(self, supabase: Client, job_id: Optional[str] = None):
+    def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None):
         self._supabase = supabase
         self.id = os.getenv('OPENWEIGHTS_RUN_ID')
         
@@ -97,8 +97,13 @@ class Run:
             
             run_data = result.data
             if job_id and run_data['job_id'] != job_id:
-                breakpoint()
                 raise ValueError(f"Run {self.id} is associated with job {run_data['job_id']}, not {job_id}")
+            
+            if worker_id and run_data['worker_id'] != worker_id:
+                # reassign run to self
+                run_data['worker_id'] = worker_id
+                result = self._supabase.table('runs').update(run_data).eq('id', self.id).execute()
+                run_data = result.data[0]
             
             self._load_data(run_data)
         else:
@@ -116,11 +121,12 @@ class Run:
                     'id': f"sjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}",
                     'type': 'script',
                     'script': command,
-                    'status': 'in_progress'
-                }
+                    'status': 'in_progress'                }
                 job_result = self._supabase.table('jobs').insert(job_data).execute()
                 data['job_id'] = job_result.data[0]['id']
             
+            if worker_id:
+                data['worker_id'] = worker_id
             result = self._supabase.table('runs').insert(data).execute()
             self._load_data(result.data[0])
 
