@@ -166,7 +166,6 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
                 shutdown_pod(pod)
             run_on_pod_interactive(pod, f"echo {pod['id']} > /root/worker_id")
             copy_to_pod(pod, dot_env_path, '/workspace/.env')
-            copy_to_pod(pod, 'install_unsloth.py', '/workspace/install_unsloth.py')
             copy_to_pod(pod, 'setup.sh', '/workspace/setup.sh')
             run_on_pod_interactive(pod, f"chmod +x /workspace/setup.sh")
             run_on_pod_interactive(pod, f"/workspace/setup.sh")

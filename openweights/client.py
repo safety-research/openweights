@@ -282,3 +282,11 @@ class OpenWeights:
         self.inference = InferenceJobs(self._supabase)
         self.jobs = Jobs(self._supabase)
         self.runs = Runs(self._supabase)
+
+        self._current_run = None
+    
+    @property
+    def run(self):
+        if not self._current_run:
+            self._current_run = Run(self._supabase)
+        return self._current_run
