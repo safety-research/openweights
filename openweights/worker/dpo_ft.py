@@ -51,7 +51,7 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         report_to=None,
         num_train_epochs=training_cfg.epochs,
         save_steps=5000,
-        output_dir='uploads/checkpoints',
+        output_dir=training_cfg.output_dir,
         beta=0.1,
         **kwargs
     )

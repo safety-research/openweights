@@ -18,15 +18,14 @@ file = client.files.create(
   purpose="fine-tune"
 )
 
-# file
-# {
-#   "id": "file-abc123",
-#   "object": "file",
-#   "bytes": 120000,
-#   "created_at": 1677610602,
-#   "filename": "mydata.jsonl",
-#   "purpose": "fine-tune",
-# }
+>> file
+{
+  "id": "file-abc123",
+  "bytes": 120000,
+  "created_at": 1677610602,
+  "filename": "mydata.jsonl",
+  "purpose": "fine-tune",
+}
 
 ft_job = client.fine_tuning.jobs.create(
   model="gpt-4o-mini-2024-07-18",

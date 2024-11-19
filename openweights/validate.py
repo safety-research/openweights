@@ -60,7 +60,7 @@ class TrainingConfig(BaseModel):
     
     # Model configuration
     max_seq_length: int = Field(2048, description="Maximum sequence length for training")
-    load_in_4bit: bool = Field(True, description="Whether to load model in 4-bit quantization")
+    load_in_4bit: bool = Field(False, description="Whether to load model in 4-bit quantization")
     
     # Training type configuration
     loss: Literal["dpo", "orpo", "sft"] = Field("orpo", description="Loss function / training type")
@@ -99,6 +99,7 @@ class TrainingConfig(BaseModel):
     seed: int = Field(3407, description="Random seed for reproducibility")
     beta: float = Field(0.1, description="Beta parameter for DPO/ORPO training")
     save_steps: int = Field(5000, description="Save checkpoint every X steps")
+    output_dir: str = Field("./tmp", description="Output directory for training checkpoints")
     
     # Evaluation configuration
     eval_batch_size: int = Field(8, description="Evaluation batch size")

@@ -145,7 +145,7 @@ def shutdown_pod(pod):
     raise ShutdownException()
 
 
-@backoff.on_exception(backoff.expo, Exception, max_time=60)
+@backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
 def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, image=IMAGE, container_disk_in_gb=1000, volume_in_gb=1000):
     gpu = GPUs.get(gpu, gpu)
     # default name: <username>-worker-<timestamp>

@@ -54,7 +54,7 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
                 report_to=None,
                 num_train_epochs=training_cfg.epochs,
                 save_steps = 500000,
-                output_dir='uploads/checkpoints',
+                output_dir=training_cfg.output_dir,
                 **kwargs,
             ),
             callbacks=[LogMetrics(), GPUStatsCallback()],

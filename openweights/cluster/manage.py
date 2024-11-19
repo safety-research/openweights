@@ -1,3 +1,4 @@
+import random
 import os
 import time
 from dotenv import load_dotenv
@@ -49,9 +50,12 @@ def get_idle_workers(workers, runs):
 
 def determine_gpu_type(required_vram):
     """Determine the best GPU type and count for the required VRAM."""
-    for vram, gpus in sorted(GPU_TYPES.items(), reverse=True):
+    vram_options = sorted(GPU_TYPES.keys())
+    for vram in vram_options:
         if required_vram <= vram:
-            return gpus[0]  # We can add more logic here to select among available options
+            choice = random.choice(GPU_TYPES[vram])
+            count, gpu = choice.split('x ')
+            return gpu, int(count)
     raise ValueError("No suitable GPU configuration found for VRAM requirement.")
 
 def scale_workers(workers, pending_jobs):
@@ -68,8 +72,8 @@ def scale_workers(workers, pending_jobs):
             max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
             print("Starting a new worker for VRAM:", max_vram_required)
             try:
-                gpu_type = determine_gpu_type(max_vram_required)
-                runpod_start_worker(gpu=gpu_type)
+                gpu, count = determine_gpu_type(max_vram_required)
+                runpod_start_worker(gpu=gpu, count=count)
             except Exception as e:
                 print(f"Failed to start worker for VRAM {max_vram_required}: {e}")
                 continue  # Skip and try starting other workers
@@ -77,22 +81,27 @@ def scale_workers(workers, pending_jobs):
 
 def manage_cluster():
     while True:
-        # List all workers
-        workers = openweights._supabase.table('worker').select('*').eq('status', 'active').neq('pod_id', None).execute().data
-        # List all pending jobs
-        pending_jobs = openweights.jobs.list(limit=100)  # Adjust limit as needed
-        pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
+        try:
+            # List all workers
+            workers = openweights._supabase.table('worker').select('*').eq('status', 'active').neq('pod_id', None).execute().data
+            # List all pending jobs
+            pending_jobs = openweights.jobs.list(limit=100)  # Adjust limit as needed
+            pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
 
-        # Terminate idle workers
-        idle_workers = get_idle_workers(workers, openweights.runs.list())
-        for worker in idle_workers:
-            print(f"Terminating idle worker: {worker['id']}")
-            runpod_shutdown_pod(worker['pod_id'])
-            # Mark worker as terminated
-            openweights._supabase.table('worker').update({'status': 'terminated'}).eq('id', worker['id']).execute()
+            # Terminate idle workers
+            idle_workers = get_idle_workers(workers, openweights.runs.list())
+            for worker in idle_workers:
+                print(f"Terminating idle worker: {worker['id']}")
+                runpod.terminate_pod(worker['pod_id'])
+                # Mark worker as terminated
+                openweights._supabase.table('worker').update({'status': 'terminated'}).eq('id', worker['id']).execute()
 
-        # Scale workers
-        scale_workers(workers, pending_jobs)
+            # Scale workers
+            scale_workers(workers, pending_jobs)
+        except Exception as e:
+            print(f"Failed to manage cluster: {e}")
+            import traceback
+            traceback.print_exc()
 
         # Wait for the next poll
         time.sleep(POLL_INTERVAL)
