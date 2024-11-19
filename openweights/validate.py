@@ -56,7 +56,7 @@ class TrainingConfig(BaseModel):
     test_file: Optional[str] = Field(None, description="File ID of the test dataset")
 
     # Output model
-    finetuned_model_id: Optional[str] = Field(None, description="File ID of the finetuned model")
+    finetuned_model_id: str = Field(..., description="File ID of the finetuned model")
     
     # Model configuration
     max_seq_length: int = Field(2048, description="Maximum sequence length for training")

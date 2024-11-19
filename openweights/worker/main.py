@@ -2,6 +2,7 @@ import os
 import tempfile
 import subprocess
 import shutil
+import json
 import torch
 import atexit
 import logging
@@ -95,18 +96,22 @@ class Worker:
             try:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
-                    with open(log_file_path, 'w') as log_file:
-                        env = os.environ.copy()
-                        env['OPENWEIGHTS_RUN_ID'] = job['id']
-                        subprocess.run(job['script'], shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
+                    script = job['script']
                 elif job['type'] == 'fine-tuning':
-                    with open(log_file_path, 'w') as log_file:
-                        log_file.write("Starting fine-tuning job...")
-                        # TODO
+                    config_path = os.path.join(tmp_dir, "config.json")
+                    with open(config_path, 'w') as f:
+                        json.dump(job['config'], f)
+                    script = script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
                 elif job['type'] == 'inference':
-                    with open(log_file_path, 'w') as log_file:
-                        log_file.write("Starting inference job...")
-                        # TODO
+                    config_path = os.path.join(tmp_dir, "config.json")
+                    with open(config_path, 'w') as f:
+                        json.dump(job['config'], f)
+                    script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
+
+                with open(log_file_path, 'w') as log_file:
+                    env = os.environ.copy()
+                    env['OPENWEIGHTS_RUN_ID'] = job['id']
+                    subprocess.run(script, shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
 
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:

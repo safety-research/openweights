@@ -190,10 +190,11 @@ class FineTuningJobs(BaseJob):
         if 'training_file' not in params:
             raise ValueError("training_file is required in params")
         
+        job_id = f"ftjob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
+        if 'finetuned_model_id' not in params:
+            params['finetuned_model_id'] = f"model:{job_id}"
         params = TrainingConfig(**params).model_dump()
 
-        job_id = f"ftjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
-        
         data = {
             'id': job_id,
             'type': 'fine-tuning',
@@ -209,7 +210,7 @@ class FineTuningJobs(BaseJob):
 class InferenceJobs(BaseJob):
     def create(self, requires_vram_gb=24, **params) -> Dict[str, Any]:
         """Create an inference job"""
-        job_id = f"ijob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
+        job_id = f"ijob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
         
         params = InferenceConfig(**params).model_dump()
 
@@ -231,7 +232,6 @@ class InferenceJobs(BaseJob):
 class Jobs(BaseJob):
     def create(self, script: Union[BinaryIO, str], requires_vram_gb) -> Dict[str, Any]:
         """Create a script job"""
-        job_id = f"sjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}"
         
         if isinstance(script, (str, bytes)):
             script_content = script
@@ -239,6 +239,8 @@ class Jobs(BaseJob):
             script_content = script.read()
         if isinstance(script_content, bytes):
             script_content = script_content.decode('utf-8')
+
+        job_id = f"sjob-{hashlib.sha256(script_content.encode()).hexdigest()[:12]}"
         
         data = {
             'id': job_id,
