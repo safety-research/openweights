@@ -29,6 +29,7 @@ wget -qO- https://raw.githubusercontent.com/unslothai/unsloth/main/unsloth/_auto
 
 apt-get update
 apt-get install -y screen
-sleep 5
+screen -wipe
+sleep 20
 # Start experisana worker in a screen session
 screen -dmS worker -L -Logfile /workspace/worker.log bash -c "python /workspace/openweights/openweights/worker/main.py"

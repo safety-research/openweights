@@ -7,6 +7,7 @@ import torch
 import atexit
 import logging
 import time
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -20,13 +21,16 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 
-
 class Worker:
     def __init__(self, supabase_url, supabase_key):
         self.supabase = create_client(supabase_url, supabase_key)
         self.files = Files(self.supabase)
         self.worker_id = f"worker-{datetime.now().timestamp()}"
         self.cached_models = []
+        self.current_job = None
+        self.current_process = None
+        self.shutdown_flag = False
+        self.current_run = None
 
         try:
             self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
@@ -46,16 +50,64 @@ class Worker:
             'status': 'active',
             'cached_models': self.cached_models,
             'vram_gb': self.vram_gb,
-            'pod_id': pod_id
+            'pod_id': pod_id,
+            'ping': datetime.now().isoformat()
         }).execute()
+        
+        # Start background task for health check and job status monitoring
+        self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
+        self.health_check_thread.start()
+        
         atexit.register(self.shutdown_handler)
 
+    def _health_check_loop(self):
+        """Background task that updates worker ping and checks job status."""
+        while not self.shutdown_flag:
+            try:
+                # Update ping timestamp
+                self.supabase.table('worker').update({
+                    'ping': datetime.now().isoformat()
+                }).eq('id', self.worker_id).execute()
+
+                # Check if current job is canceled
+                if self.current_job:
+                    job = self.supabase.table('jobs').select('status').eq('id', self.current_job['id']).single().execute().data
+                    if job and job['status'] == 'canceled':
+                        logging.info(f"Job {self.current_job['id']} was canceled, stopping execution")
+                        if self.current_process:
+                            self.current_process.terminate()
+                            self.current_process = None
+                        if self.current_run:
+                            self.current_run.update(status='canceled')
+                        self.current_job = None
+
+            except Exception as e:
+                logging.error(f"Error in health check loop: {e}")
+
+            time.sleep(60)  # Wait for 60 seconds before next check
+
     def shutdown_handler(self):
+        """Clean up resources and update status on shutdown."""
         logging.info(f"Shutting down worker {self.worker_id}.")
-        self.supabase.table('worker').update({'status': 'terminated'}).eq('id', self.worker_id).execute()
+        self.shutdown_flag = True
+        
+        # Cancel current job and run if any
+        if self.current_job:
+            try:
+                self.supabase.table('jobs').update({'status': 'canceled'}).eq('id', self.current_job['id']).execute()
+                if self.current_run:
+                    self.current_run.update(status='canceled')
+            except Exception as e:
+                logging.error(f"Error updating job status during shutdown: {e}")
+
+        # Update worker status
+        try:
+            self.supabase.table('worker').update({'status': 'terminated'}).eq('id', self.worker_id).execute()
+        except Exception as e:
+            logging.error(f"Error updating worker status during shutdown: {e}")
 
     def find_and_execute_job(self):
-        while True:
+        while not self.shutdown_flag:
             logging.debug("Worker is looking for jobs...")
             job = self._find_job()
             if not job:
@@ -95,7 +147,8 @@ class Worker:
         return selected_job
 
     def _execute_job(self, job):
-        run = Run(self.supabase, job['id'], self.worker_id)
+        self.current_job = job
+        self.current_run = Run(self.supabase, job['id'], self.worker_id)
         
         # Create a temporary directory for job execution
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -113,7 +166,7 @@ class Worker:
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:
                         json.dump(job['params'], f)
-                    script = script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
+                    script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
                     print(script)
                 elif job['type'] == 'inference':
                     config_path = os.path.join(tmp_dir, "config.json")
@@ -123,15 +176,29 @@ class Worker:
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
-                    env['OPENWEIGHTS_RUN_ID'] = str(run.id)
-                    subprocess.run(script, shell=True, check=True, stdout=log_file, stderr=log_file, cwd=tmp_dir, env=env)
+                    env['OPENWEIGHTS_RUN_ID'] = str(self.current_run.id)
+                    self.current_process = subprocess.Popen(
+                        script, 
+                        shell=True, 
+                        stdout=log_file, 
+                        stderr=log_file, 
+                        cwd=tmp_dir, 
+                        env=env
+                    )
+                    self.current_process.wait()
+                    if self.current_process.returncode == 0:
+                        status = 'completed'
+                        logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
+                    else:
+                        status = 'failed'
+                        logging.error(f"Job {job['id']} failed with return code {self.current_process.returncode}", 
+                                    extra={'run_id': self.current_run.id})
+                        self.current_run.log({'error': f"Process exited with return code {self.current_process.returncode}"})
 
-                status = 'completed'
-                logging.info(f"Completed job {job['id']}", extra={'run_id': run.id})
             except subprocess.CalledProcessError as e:
-                logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': run.id})
+                logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': self.current_run.id})
                 status = 'failed'
-                run.log({'error': str(e)})
+                self.current_run.log({'error': str(e)})
             finally:
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:
@@ -139,7 +206,7 @@ class Worker:
                 # Debug: print the log file content
                 with open(log_file_path, 'r') as log_file:
                     print(log_file.read())
-                run.update(status=status, logfile=log_response['id'])
+                self.current_run.update(status=status, logfile=log_response['id'])
                 self.supabase.table('jobs').update({'status': status}).eq('id', job['id']).execute()
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
@@ -151,9 +218,15 @@ class Worker:
                             with open(file_path, 'rb') as file:
                                 file_response = self.files.create(file, purpose='result')
                             # Log the uploaded file
-                            run.log({'file': file_response['id']})
+                            self.current_run.log({'file': file_response['id']})
                         except Exception as e:
                             logging.error(f"Failed to upload file {file_name}: {e}")
+                
+                # Clear current job and run
+                self.current_job = None
+                self.current_run = None
+                self.current_process = None
+
 
 if __name__ == "__main__":
     supabase_url = os.getenv('SUPABASE_URL')

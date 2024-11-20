@@ -205,6 +205,15 @@ class BaseJob:
             else:
                 raise
         job = result.data
+
+        # Assert that meta data is the same
+        if 'meta' in data and 'meta' in job:
+            assert data['meta'] == job['meta'], f"Job {data['id']} already exists with different meta data"
+        elif 'meta' in job:
+            result = self._supabase.table('jobs').update({'meta': job['meta']}).eq('id', data['id']).execute()
+        elif 'meta' in data:
+            job['meta'] = data['meta']
+
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
             result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', data['id']).execute()
@@ -215,13 +224,17 @@ class BaseJob:
             raise ValueError(f"Invalid job status: {job['status']}")
 
 class FineTuningJobs(BaseJob):
-    def create(self, requires_vram_gb=48, **params) -> Dict[str, Any]:
+    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
         if 'training_file' not in params:
             raise ValueError("training_file is required in params")
         
-        job_id = f"ftjob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
+        if requires_vram_gb == 'guess':
+            requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
         
+        hash_params = {k: v for k, v in params.items() if k not in ['finetuned_model_id', 'meta']}
+        job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
+
         if 'finetuned_model_id' not in params:
             model = params['model'].split('/')[-1]
             org = os.environ.get("HF_ORG_ID") or os.environ.get("HF_USER")
@@ -241,11 +254,16 @@ class FineTuningJobs(BaseJob):
         return self.get_or_create_or_reset(data)
 
 class InferenceJobs(BaseJob):
-    def create(self, requires_vram_gb=24, **params) -> Dict[str, Any]:
+    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create an inference job"""
-        job_id = f"ijob-{hashlib.sha256(json.dumps(params).encode()).hexdigest()[:12]}"
+
+        hash_params = {k: v for k, v in params.items() if k not in ['meta']}
+        job_id = f"ijob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
         
         params = InferenceConfig(**params).model_dump()
+
+        if requires_vram_gb == 'guess':
+            requires_vram_gb = 150 if '70b' in params['model'].lower() else 24
 
         model = params['model']
         input_file_id = params['input_file_id']

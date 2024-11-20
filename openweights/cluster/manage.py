@@ -17,10 +17,10 @@ IDLE_THRESHOLD = 300  # 5 minutes = 300 seconds
 MAX_NUM_WORKERS = int(os.getenv('MAX_NUM_WORKERS', 10))
 
 GPU_TYPES = {
-    48: ['1x A6000'],
-    80: ['1x A100', '1x H100'],
-    160: ['2x A100', '2x H100'],
-    320: ['4x A100', '4x H100'],
+    47: ['1x A6000'],
+    79: ['1x A100', '1x H100'],
+    158: ['2x A100', '2x H100'],
+    316: ['4x A100', '4x H100'],
 }
 
 # Initialize OpenWeights client
@@ -35,13 +35,16 @@ def get_idle_workers(workers, runs):
     idle_workers = []
     current_time = time.time()
     for worker in workers:
+        # If the worker was started less than 5 minutes ago, skip it
+        if current_time - worker['created_at'] < IDLE_THRESHOLD:
+            continue
         # Find the latest run associated with the worker
         relevant_runs = [run for run in runs if run['worker_id'] == worker['id']]
         if relevant_runs:
             # Sort by created_at to get the most recent run
             last_run = max(relevant_runs, key=lambda r: r['created_at'])
             # Calculate idle time
-            if last_run['status'] == 'completed' and current_time - last_run['created_at'] > IDLE_THRESHOLD:
+            if last_run['status'] in ['completed', 'canceled', 'failed'] and current_time - last_run['created_at'] > IDLE_THRESHOLD:
                 idle_workers.append(worker)
         else:
             # If no runs found for this worker, consider it idle
@@ -70,9 +73,9 @@ def scale_workers(workers, pending_jobs):
 
         for jobs_batch in jobs_batches:
             max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
-            print("Starting a new worker for VRAM:", max_vram_required)
             try:
                 gpu, count = determine_gpu_type(max_vram_required)
+                print("Starting a new worker for VRAM:", max_vram_required, "GPU:", gpu, "Count:", count)
                 runpod_start_worker(gpu=gpu, count=count)
             except Exception as e:
                 print(f"Failed to start worker for VRAM {max_vram_required}: {e}")
@@ -85,14 +88,20 @@ def manage_cluster():
             # List all workers
             workers = openweights._supabase.table('worker').select('*').eq('status', 'active').neq('pod_id', None).execute().data
             # List all pending jobs
-            pending_jobs = openweights.jobs.list(limit=100)  # Adjust limit as needed
+            pending_jobs = openweights.jobs.list(limit=1000)  # Adjust limit as needed
             pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
-
             # Terminate idle workers
             idle_workers = get_idle_workers(workers, openweights.runs.list())
+            print(f"Found {len(pending_jobs)} pending jobs and {len(idle_workers)}/{(len(workers))} idle workers.")
+            breakpoint()
+
             for worker in idle_workers:
                 print(f"Terminating idle worker: {worker['id']}")
-                runpod.terminate_pod(worker['pod_id'])
+                try:
+                    runpod.terminate_pod(worker['pod_id'])
+                except runpod.error.QueryError as e:
+                    print(f"Failed to terminate worker {worker['id']}: {e}")
+                    print("Marking worker as terminated in the database.")
                 # Mark worker as terminated
                 openweights._supabase.table('worker').update({'status': 'terminated'}).eq('id', worker['id']).execute()
 

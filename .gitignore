@@ -1,4 +1,6 @@
 .env
+.env.dev
+.env.prod
 todo.md
 cache/
 # Created by https://www.toptal.com/developers/gitignore/api/python

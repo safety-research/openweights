@@ -8,7 +8,6 @@ from trl import SFTTrainer
 from openweights.worker.utils import LogMetrics, GPUStatsCallback
 
 
-
 def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
     def apply_chat_template(examples):
         conversations = examples["messages"]
