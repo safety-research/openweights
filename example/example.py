@@ -70,4 +70,4 @@ def ft_job():
         print('---')
 
 
-ft_job()
+script_job()

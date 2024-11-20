@@ -65,14 +65,22 @@ class Worker:
         while not self.shutdown_flag:
             try:
                 # Update ping timestamp
-                self.supabase.table('worker').update({
+                result = self.supabase.table('worker').update({
                     'ping': datetime.now().isoformat()
                 }).eq('id', self.worker_id).execute()
+
+                # Check if worker status is 'shutdown'
+                if result['data'][0]['status'] == 'shutdown':
+                    self.shutdown_flag = True
+                    # Set job status back to 'pending' if worker is shutting down
+                    if self.current_job:
+                        self.supabase.table('jobs').update({'status': 'pending'}).eq('id', self.current_job['id']).execute()
+
 
                 # Check if current job is canceled
                 if self.current_job:
                     job = self.supabase.table('jobs').select('status').eq('id', self.current_job['id']).single().execute().data
-                    if job and job['status'] == 'canceled':
+                    if job and job['status'] == 'canceled' or self.shutdown_flag:
                         logging.info(f"Job {self.current_job['id']} was canceled, stopping execution")
                         if self.current_process:
                             self.current_process.terminate()
@@ -84,7 +92,8 @@ class Worker:
             except Exception as e:
                 logging.error(f"Error in health check loop: {e}")
 
-            time.sleep(30)  # Wait for 30 seconds before next check
+            time.sleep(30)  # Wait for 30 seconds before next chec
+        self.shutdown_handler()
 
     def shutdown_handler(self):
         """Clean up resources and update status on shutdown."""
