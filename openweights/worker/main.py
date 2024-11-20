@@ -111,7 +111,7 @@ class Worker:
 
         # Update worker status
         try:
-            self.supabase.table('worker').update({'status': 'terminated'}).eq('id', self.worker_id).execute()
+            self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
         except Exception as e:
             logging.error(f"Error updating worker status during shutdown: {e}")
 
