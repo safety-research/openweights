@@ -32,23 +32,21 @@ openweights = OpenWeights(supabase_url, supabase_key)
 
 runpod.api_key = os.environ.get("RUNPOD_API_KEY")
 
-def get_idle_workers(workers, runs):
+def get_idle_workers(active_workers):
     """Returns a list of idle workers."""
     idle_workers = []
     current_time = time.time()
-    for worker in workers:
-        # Only consider active workers for idleness
-        if worker['status'] != 'active':
-            continue
+    for worker in active_workers:
+        breakpoint()
         # If the worker was started less than 5 minutes ago, skip it        
         worker_created_at = datetime.fromisoformat(worker['created_at'].replace('Z', '+00:00')).timestamp()
         if current_time - worker_created_at < IDLE_THRESHOLD:
             continue
         # Find the latest run associated with the worker
-        relevant_runs = [run for run in runs if run['worker_id'] == worker['id']]
-        if relevant_runs:
+        runs = openweights.runs.list(worker_id=worker['id'])
+        if runs:
             # Sort by created_at to get the most recent run
-            last_run = max(relevant_runs, key=lambda r: r['created_at'])
+            last_run = max(runs, key=lambda r: r['created_at'])
             # Calculate idle time
             if last_run['status'] in ['completed', 'canceled', 'failed'] and current_time - last_run['created_at'] > IDLE_THRESHOLD:
                 idle_workers.append(worker)
@@ -156,8 +154,7 @@ def manage_cluster():
             pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
             
             # Get idle workers (only from active workers)
-            idle_workers = get_idle_workers(active_workers, openweights.runs.list())
-            breakpoint()
+            idle_workers = get_idle_workers(active_workers)
             print(f"Found {len(pending_jobs)} pending jobs and {len(idle_workers)}/{len(active_workers)} idle workers.")
 
             # Set shutdown flag for idle workers

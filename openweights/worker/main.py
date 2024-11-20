@@ -75,9 +75,6 @@ class Worker:
                 # Check if worker status is 'shutdown'
                 if result['data'][0]['status'] == 'shutdown':
                     self.shutdown_flag = True
-                    # Set job status back to 'pending' if worker is shutting down
-                    if self.current_job:
-                        self.supabase.table('jobs').update({'status': 'pending'}).eq('id', self.current_job['id']).execute()
 
 
                 # Check if current job is canceled
@@ -106,7 +103,7 @@ class Worker:
         # Cancel current job and run if any
         if self.current_job:
             try:
-                self.supabase.table('jobs').update({'status': 'canceled'}).eq('id', self.current_job['id']).execute()
+                self.supabase.table('jobs').update({'status': 'pending'}).eq('id', self.current_job['id']).execute()
                 if self.current_run:
                     self.current_run.update(status='canceled')
             except Exception as e:
