@@ -84,7 +84,7 @@ class Worker:
             except Exception as e:
                 logging.error(f"Error in health check loop: {e}")
 
-            time.sleep(60)  # Wait for 60 seconds before next check
+            time.sleep(30)  # Wait for 30 seconds before next check
 
     def shutdown_handler(self):
         """Clean up resources and update status on shutdown."""
@@ -115,6 +115,7 @@ class Worker:
                 time.sleep(5)
                 continue
             try:
+                logging.info(f"Executing job {job}")
                 self._execute_job(job)
             except KeyboardInterrupt:
                 logging.info("Worker interrupted by user. Shutting down...")
@@ -186,7 +187,10 @@ class Worker:
                         env=env
                     )
                     self.current_process.wait()
-                    if self.current_process.returncode == 0:
+                    if self.current_process is None:
+                        status = 'canceled'
+                        logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})
+                    elif self.current_process.returncode == 0:
                         status = 'completed'
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
                     else:

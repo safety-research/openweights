@@ -117,8 +117,62 @@ def test_cancel_job(client):
     response = client.jobs.cancel(job_id)
     assert response['status'] == 'canceled'
 
+def test_job_cancellation(client):
+    # Create a script that counts from 0 to 300 with 1s intervals
+    script_content = f"""
+    # {time.ctime()}
+    for i in $(seq 0 300); do
+        echo "Count: $i"
+        sleep 1
+    done
+    """
+    
+    # Create the job
+    breakpoint()
+    job = client.jobs.create(script=script_content, requires_vram_gb=0)
+    job_id = job['id']
+    print(job)
+    
+    # Wait for job to be in progress (poll every second for up to 30s)
+    start_time = time.time()
+    job_started = False
+    while time.time() - start_time < 30:
+        job = client.jobs.retrieve(job_id)
+        if job['status'] == 'in_progress':
+            job_started = True
+            break
+        time.sleep(1)
+    print(job)
+    assert job_started, "Job did not start within 30 seconds"
+    
+    # Cancel the job
+    client.jobs.cancel(job_id)
+    
+    # Wait for job to be canceled (poll every second for up to 60s)
+    start_time = time.time()
+    while time.time() - start_time < 60:
+        runs = client.runs.list(job_id=job_id)
+        assert len(runs) == 1, "Expected exactly one run for the job"
+        run = runs[0]
+        if run['status'] == 'canceled':
+            run_canceled = True
+            break
+        time.sleep(1)
+    print(job)
+    assert run_canceled, "Run was not canceled within 60 seconds"
 
-# def test_list_runs(client, worker):
+    # Wait short time to upload logs
+    time.sleep(3)
+    run = client.runs.list(job_id=job_id)[0]
+    
+    # Check the run logs
+    assert run['log_file'] is not None, "Run should have a log file"
+    
+    # Verify logs are not empty and contain some count output
+    log_content = client.files.content(run['log_file']).decode('utf-8')
+    assert len(log_content) > 0, "Log file should not be empty"
+    assert "Count:" in log_content, "Log should contain count output"
+
 def test_list_runs(client):
     with open(valid_sft_file, 'rb') as file:
         response = client.files.create(file, purpose="conversations")
@@ -144,8 +198,6 @@ def test_list_runs(client):
         log_content = client.files.content(run['log_file'])
         assert len(log_content) > 0
 
-
-# def test_script_job_execution(client, worker):
 def test_script_job_execution(client):
     # Create a script job with a simple echo command
     script_content = "echo hello world"
@@ -163,4 +215,3 @@ def test_script_job_execution(client):
     # Check the logfile for the expected output
     log_content = client.files.content(run['log_file']).decode()
     assert "hello world" in log_content
-
