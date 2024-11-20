@@ -37,7 +37,6 @@ def get_idle_workers(active_workers):
     idle_workers = []
     current_time = time.time()
     for worker in active_workers:
-        breakpoint()
         # If the worker was started less than 5 minutes ago, skip it        
         worker_created_at = datetime.fromisoformat(worker['created_at'].replace('Z', '+00:00')).timestamp()
         if current_time - worker_created_at < IDLE_THRESHOLD:
@@ -148,7 +147,6 @@ def manage_cluster():
             # Clean up unresponsive workers (both active and shutting down)
             clean_up_unresponsive_workers(workers)
             
-            breakpoint()
             # List all pending jobs
             pending_jobs = openweights.jobs.list(limit=1000)  # Adjust limit as needed
             pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
@@ -169,7 +167,7 @@ def manage_cluster():
                     print(f"Failed to set shutdown flag for worker {worker['id']}: {e}")
 
             # Scale workers (considering only active workers)
-            # scale_workers(len(active_workers) + num_starting, pending_jobs)
+            scale_workers(len(active_workers) + num_starting, pending_jobs)
         except Exception as e:
             print(f"Failed to manage cluster: {e}")
             import traceback

@@ -24,7 +24,7 @@ logging.getLogger("httpx").setLevel(logging.ERROR)
 def maybe_read(path):
     try:
         with open(path, 'r') as f:
-            return f.read()
+            return f.read().strip()
     except FileNotFoundError:
         return None
 
@@ -38,8 +38,8 @@ class Worker:
         self.current_process = None
         self.shutdown_flag = False
         self.current_run = None
-        self.worker_id = maybe_read('/workspace/worker_id').strip() or f"worker-{datetime.now().timestamp()}"
-        self.pod_id = maybe_read('/workspace/pod_id').strip()
+        self.worker_id = maybe_read('/workspace/worker_id') or f"worker-{datetime.now().timestamp()}"
+        self.pod_id = maybe_read('/workspace/pod_id')
 
         try:
             self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
@@ -73,7 +73,7 @@ class Worker:
                 }).eq('id', self.worker_id).execute()
 
                 # Check if worker status is 'shutdown'
-                if result['data'][0]['status'] == 'shutdown':
+                if result.data[0]['status'] == 'shutdown':
                     self.shutdown_flag = True
 
 
