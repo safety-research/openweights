@@ -81,7 +81,16 @@ def scale_workers(active_workers, pending_jobs):
             try:
                 gpu, count = determine_gpu_type(max_vram_required)
                 print("Starting a new worker for VRAM:", max_vram_required, "GPU:", gpu, "Count:", count)
-                runpod_start_worker(gpu=gpu, count=count)
+                # Create worker in database with status 'starting'
+                worker_data = {
+                    'status': 'starting',
+                    'vram_gb': 0,
+                    'gpu': gpu,
+                    'count': count
+                }
+                result = openweights._supabase.table('worker').insert(worker_data).execute()
+                # Start the worker
+                runpod_start_worker(gpu=gpu, count=count, worker_id=result.data[0]['id'])
             except Exception as e:
                 print(f"Failed to start worker for VRAM {max_vram_required}: {e}")
                 continue  # Skip and try starting other workers
@@ -96,6 +105,16 @@ def clean_up_unresponsive_workers(workers):
             
             if time_since_ping > UNRESPONSIVE_THRESHOLD:
                 print(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")
+
+                # If worker has an in_progress job, set run to failed and job to pending
+                runs = openweights.runs.list(worker_id=worker['id'], status='in_progress')
+                for run in runs:
+                    openweights._supabase.table('run').update({
+                        'status': 'failed'
+                    }).eq('id', run['id']).execute()
+                    openweights._supabase.table('jobs').update({
+                        'status': 'pending'
+                    }).eq('id', run['job_id']).execute()
                 
                 # If worker has a pod_id, terminate the pod
                 if worker['pod_id']:

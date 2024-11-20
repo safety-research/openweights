@@ -25,24 +25,23 @@ class Worker:
     def __init__(self, supabase_url, supabase_key):
         self.supabase = create_client(supabase_url, supabase_key)
         self.files = Files(self.supabase)
-        self.worker_id = f"worker-{datetime.now().timestamp()}"
         self.cached_models = []
         self.current_job = None
         self.current_process = None
         self.shutdown_flag = False
         self.current_run = None
+        
+        try:
+            with open('/workspace/worker_id', 'r') as f:
+                self.worker_id = f.read().strip()
+        except FileNotFoundError:
+            self.worker_id = f"worker-{datetime.now().timestamp()}"
 
         try:
             self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.vram_gb = 0
-        
-        try:
-            with open('/workspace/worker_id', 'r') as f:
-                pod_id = f.read().strip()
-        except FileNotFoundError:
-            pod_id = None
 
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         self.supabase.table('worker').upsert({
@@ -50,7 +49,6 @@ class Worker:
             'status': 'active',
             'cached_models': self.cached_models,
             'vram_gb': self.vram_gb,
-            'pod_id': pod_id,
             'ping': datetime.now().isoformat()
         }).execute()
         

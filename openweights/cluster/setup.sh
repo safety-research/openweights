@@ -29,7 +29,22 @@ wget -qO- https://raw.githubusercontent.com/unslothai/unsloth/main/unsloth/_auto
 
 apt-get update
 apt-get install -y screen
-screen -wipe
-sleep 20
-# Start experisana worker in a screen session
-screen -dmS worker -L -Logfile /workspace/worker.log bash -c "python /workspace/openweights/openweights/worker/main.py"
+
+# Check that screen is running
+retries=5
+for i in $(seq 1 $retries); do
+    if screen -list | grep -q "worker"; then
+        echo "Screen session 'worker' is running."
+        break
+    else
+        echo "Screen session 'worker' is not running. Attempt $i of $retries."
+        screen -wipe
+        screen -dmS worker -L -Logfile /workspace/worker.log bash -c "python /workspace/openweights/openweights/worker/main.py"
+        sleep 5
+    fi
+done
+
+if ! screen -list | grep -q "worker"; then
+    echo "Failed to start screen session 'worker' after $retries attempts."
+    exit 1
+fi

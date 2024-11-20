@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 import fire
 import backoff
+import uuid
 
 load_dotenv(override=True) 
 
@@ -146,7 +147,7 @@ def shutdown_pod(pod):
 
 
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
-def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, image=IMAGE, container_disk_in_gb=1000, volume_in_gb=1000):
+def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, image=IMAGE, container_disk_in_gb=1000, volume_in_gb=1000, worker_id=None):
     gpu = GPUs.get(gpu, gpu)
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
@@ -164,7 +165,9 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
             pod = wait_for_pod(pod)
             if not check_correct_cuda(pod):
                 shutdown_pod(pod)
-            run_on_pod_interactive(pod, f"echo {pod['id']} > /workspace/worker_id")
+            if worker_id is None:
+                worker_id = uuid.uuid4().hex[:8]
+            run_on_pod_interactive(pod, f"echo {worker_id} > /workspace/worker_id")
             copy_to_pod(pod, dot_env_path, '/workspace/.env')
             copy_to_pod(pod, 'setup.sh', '/workspace/setup.sh')
             run_on_pod_interactive(pod, f"chmod +x /workspace/setup.sh")

@@ -306,13 +306,15 @@ class Runs:
     def __init__(self, supabase: Client):
         self._supabase = supabase
 
-    def list(self, job_id: Optional[str] = None, worker_id: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def list(self, job_id: Optional[str] = None, worker_id: Optional[str] = None, limit: int = 10, status: Optional[str]=None) -> List[Dict[str, Any]]:
         """List runs by job_id or worker_id"""
         query = self._supabase.table('runs').select('*').limit(limit)
         if job_id:
             query = query.eq('job_id', job_id)
         if worker_id:
             query = query.eq('worker_id', worker_id)
+        if status:
+            query = query.eq('status', status)
         result = query.execute()
         return result.data
 
