@@ -168,6 +168,7 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
             if worker_id is None:
                 worker_id = uuid.uuid4().hex[:8]
             run_on_pod_interactive(pod, f"echo {worker_id} > /workspace/worker_id")
+            run_on_pod_interactive(pod, f"echo {pod['id']} > /workspace/pod_id")
             copy_to_pod(pod, dot_env_path, '/workspace/.env')
             copy_to_pod(pod, 'setup.sh', '/workspace/setup.sh')
             run_on_pod_interactive(pod, f"chmod +x /workspace/setup.sh")

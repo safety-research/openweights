@@ -21,6 +21,14 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 
+def maybe_read(path):
+    try:
+        with open(path, 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
 class Worker:
     def __init__(self, supabase_url, supabase_key):
         self.supabase = create_client(supabase_url, supabase_key)
@@ -30,12 +38,8 @@ class Worker:
         self.current_process = None
         self.shutdown_flag = False
         self.current_run = None
-        
-        try:
-            with open('/workspace/worker_id', 'r') as f:
-                self.worker_id = f.read().strip()
-        except FileNotFoundError:
-            self.worker_id = f"worker-{datetime.now().timestamp()}"
+        self.worker_id = maybe_read('/workspace/worker_id').strip() or f"worker-{datetime.now().timestamp()}"
+        self.pod_id = maybe_read('/workspace/pod_id').strip()
 
         try:
             self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
@@ -46,6 +50,7 @@ class Worker:
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         self.supabase.table('worker').upsert({
             'id': self.worker_id,
+            'pod_id': self.pod_id,
             'status': 'active',
             'cached_models': self.cached_models,
             'vram_gb': self.vram_gb,

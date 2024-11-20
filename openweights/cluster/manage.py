@@ -7,7 +7,7 @@ from openweights.client import OpenWeights
 import runpod
 import backoff
 from openweights.cluster.start_runpod import start_worker as runpod_start_worker
-from openweights.cluster.stop_runpod import shutdown_pod as runpod_shutdown_pod
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -40,8 +40,9 @@ def get_idle_workers(workers, runs):
         # Only consider active workers for idleness
         if worker['status'] != 'active':
             continue
-        # If the worker was started less than 5 minutes ago, skip it
-        if current_time - worker['created_at'] < IDLE_THRESHOLD:
+        # If the worker was started less than 5 minutes ago, skip it        
+        worker_created_at = datetime.fromisoformat(worker['created_at'].replace('Z', '+00:00')).timestamp()
+        if current_time - worker_created_at < IDLE_THRESHOLD:
             continue
         # Find the latest run associated with the worker
         relevant_runs = [run for run in runs if run['worker_id'] == worker['id']]
@@ -66,9 +67,8 @@ def determine_gpu_type(required_vram):
             return gpu, int(count)
     raise ValueError("No suitable GPU configuration found for VRAM requirement.")
 
-def scale_workers(active_workers, pending_jobs):
+def scale_workers(active_worker_count, pending_jobs):
     """Scales the number of workers according to pending jobs and max limit."""
-    active_worker_count = len(active_workers) - len(get_idle_workers(active_workers, openweights.runs.list()))
     if len(pending_jobs) > active_worker_count:
         num_to_start = min(len(pending_jobs) - active_worker_count, MAX_NUM_WORKERS - active_worker_count)
         # Sort jobs by VRAM requirement descending
@@ -82,11 +82,13 @@ def scale_workers(active_workers, pending_jobs):
                 gpu, count = determine_gpu_type(max_vram_required)
                 print("Starting a new worker for VRAM:", max_vram_required, "GPU:", gpu, "Count:", count)
                 # Create worker in database with status 'starting'
+                worker_id = os.environ.get("CLUSTER_NAME", os.environ.get("USER", "")) + "-" + uuid.uuid4().hex[:8]
                 worker_data = {
                     'status': 'starting',
                     'vram_gb': 0,
-                    'gpu': gpu,
-                    'count': count
+                    'gpu_type': gpu,
+                    'gpu_count': count,
+                    'id': worker_id
                 }
                 result = openweights._supabase.table('worker').insert(worker_data).execute()
                 # Start the worker
@@ -97,7 +99,7 @@ def scale_workers(active_workers, pending_jobs):
 
 def clean_up_unresponsive_workers(workers):
     """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
-    current_time = datetime.now()
+    current_time = datetime.now().astimezone()  # Make current_time timezone-aware
     for worker in workers:
         if worker['ping']:
             last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
@@ -109,7 +111,7 @@ def clean_up_unresponsive_workers(workers):
                 # If worker has an in_progress job, set run to failed and job to pending
                 runs = openweights.runs.list(worker_id=worker['id'], status='in_progress')
                 for run in runs:
-                    openweights._supabase.table('run').update({
+                    openweights._supabase.table('runs').update({
                         'status': 'failed'
                     }).eq('id', run['id']).execute()
                     openweights._supabase.table('jobs').update({
@@ -135,25 +137,27 @@ def manage_cluster():
             # List all workers that are either active or shutting down and have a pod_id
             workers = openweights._supabase.table('worker')\
                 .select('*')\
-                .in_('status', ['active', 'shutdown'])\
-                .neq('pod_id', None)\
+                .in_('status', ['active', 'shutdown', 'starting'])\
                 .execute().data
             
             # Separate active workers from shutting down workers
             active_workers = [w for w in workers if w['status'] == 'active']
             shutting_down_workers = [w for w in workers if w['status'] == 'shutdown']
+            num_starting = len([w for w in workers if w['status'] == 'starting'])
             
-            print(f"Found {len(active_workers)} active workers and {len(shutting_down_workers)} workers shutting down")
+            print(f"Found {len(workers)}\n  Active:{len(active_workers)}\n  Starting: {num_starting}\n  Shutting down: {len(shutting_down_workers)}")
             
             # Clean up unresponsive workers (both active and shutting down)
             clean_up_unresponsive_workers(workers)
             
+            breakpoint()
             # List all pending jobs
             pending_jobs = openweights.jobs.list(limit=1000)  # Adjust limit as needed
             pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
             
             # Get idle workers (only from active workers)
             idle_workers = get_idle_workers(active_workers, openweights.runs.list())
+            breakpoint()
             print(f"Found {len(pending_jobs)} pending jobs and {len(idle_workers)}/{len(active_workers)} idle workers.")
 
             # Set shutdown flag for idle workers
@@ -168,7 +172,7 @@ def manage_cluster():
                     print(f"Failed to set shutdown flag for worker {worker['id']}: {e}")
 
             # Scale workers (considering only active workers)
-            scale_workers(active_workers, pending_jobs)
+            # scale_workers(len(active_workers) + num_starting, pending_jobs)
         except Exception as e:
             print(f"Failed to manage cluster: {e}")
             import traceback
