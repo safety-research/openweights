@@ -47,7 +47,8 @@ def get_idle_workers(active_workers):
             # Sort by created_at to get the most recent run
             last_run = max(runs, key=lambda r: r['created_at'])
             # Calculate idle time
-            if last_run['status'] in ['completed', 'canceled', 'failed'] and current_time - last_run['created_at'] > IDLE_THRESHOLD:
+            worker_created_at = datetime.fromisoformat(worker['created_at'].replace('Z', '+00:00')).timestamp()
+            if last_run['status'] in ['completed', 'canceled', 'failed'] and (current_time - worker_created_at) > IDLE_THRESHOLD:
                 idle_workers.append(worker)
         else:
             # If no runs found for this worker, consider it idle
@@ -89,7 +90,12 @@ def scale_workers(active_worker_count, pending_jobs):
                 }
                 result = openweights._supabase.table('worker').insert(worker_data).execute()
                 # Start the worker
-                runpod_start_worker(gpu=gpu, count=count, worker_id=result.data[0]['id'])
+                pod = runpod_start_worker(gpu=gpu, count=count, worker_id=result.data[0]['id'])
+                if not pod:
+                    print(f"Failed to start worker for VRAM {max_vram_required}")
+                    result = openweights._supabase.table('worker').update({
+                        'status': 'terminated'
+                    }).eq('id', worker_id).execute()
             except Exception as e:
                 print(f"Failed to start worker for VRAM {max_vram_required}: {e}")
                 continue  # Skip and try starting other workers

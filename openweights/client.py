@@ -171,6 +171,12 @@ class Run:
             'data': event_data
         }
         self._supabase.table('events').insert(data).execute()
+    
+    @property
+    def events(self) -> List[Dict[str, Any]]:
+        """Get all events for this run"""
+        result = self._supabase.table('events').select('*').eq('run_id', self.id).execute()
+        return result.data
 
 class BaseJob:
     def __init__(self, supabase: Client):
@@ -189,6 +195,11 @@ class BaseJob:
     def cancel(self, job_id: str) -> Dict[str, Any]:
         """Cancel a job"""
         result = self._supabase.table('jobs').update({'status': 'canceled'}).eq('id', job_id).execute()
+        return result.data[0]
+    
+    def restart(self, job_id: str) -> Dict[str, Any]:
+        """Restart a job"""
+        result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', job_id).execute()
         return result.data[0]
     
     def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -222,6 +233,28 @@ class BaseJob:
             return job
         else:
             raise ValueError(f"Invalid job status: {job['status']}")
+    
+    def find(self, **params) -> List[Dict[str, Any]]:
+        """Find jobs by their JSON values in job.params
+        Example:
+            jobs = client.jobs.find(training_file='result:file-abc123')
+            jobs = client.jobs.find(meta={'group': 'hparams'})
+        """
+        query = self._supabase.table('jobs').select('*')
+        
+        for key, value in params.items():
+            if isinstance(value, dict):
+                # For nested dictionary values, use containedBy operator
+                query = query.contains(f'params->{key}', value)
+            else:
+                # For simple values, use eq operator with -> for JSON path
+                query = query.eq(f'params->{key}', value)
+                
+        data = query.execute().data
+
+        return data
+
+        
 
 class FineTuningJobs(BaseJob):
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
@@ -318,6 +351,46 @@ class Runs:
         result = query.execute()
         return result.data
 
+class Events():
+    def __init__(self, supabase):
+        self._supabase = supabase
+    
+    def list(self, job_id: Optional[str]=None, run_id: Optional[str]=None):
+        """List events by job_id or run_id, sorted by created_at in ascending order"""
+        if run_id:
+            query = self._supabase.table('events').select('*').eq('run_id', run_id).order('created_at', desc=False)
+        elif job_id:
+            # First get all runs for this job
+            runs_result = self._supabase.table('runs').select('id').eq('job_id', job_id).execute()
+            run_ids = [run['id'] for run in runs_result.data]
+            # Then get all events for these runs
+            query = self._supabase.table('events').select('*').in_('run_id', run_ids).order('created_at', desc=False)
+        else:
+            raise ValueError("Either job_id or run_id must be provided")
+        
+        result = query.execute()
+        return result.data
+
+    def latest(self, fields: List[str], job_id: Optional[str]=None, run_id: Optional[str]=None) -> Dict[str, Any]:
+        """Get a list of events and return a dict with the latest value for each field"""
+        events = self.list(job_id=job_id, run_id=run_id)
+        latest_values = {}
+        if fields == '*':
+            latest_values = {}
+            for event in events:
+                for key, value in event['data'].items():
+                    if value is not None:
+                        latest_values[key] = value
+        else:
+            events = events[::-1]  # Reverse order to get latest events first
+            while len(fields) > 0 and len(events) > 0:
+                event = events.pop()
+                for field in fields:
+                    if field in event['data']:
+                        latest_values[field] = event['data'][field]
+                        fields.remove(field)
+        return latest_values
+
 class OpenWeights:
     def __init__(self, supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
         """Initialize OpenWeights client"""
@@ -335,6 +408,7 @@ class OpenWeights:
         self.inference = InferenceJobs(self._supabase)
         self.jobs = Jobs(self._supabase)
         self.runs = Runs(self._supabase)
+        self.events = Events(self._supabase)
 
         self._current_run = None
     

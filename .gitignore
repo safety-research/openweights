@@ -3,6 +3,9 @@
 .env.prod
 todo.md
 cache/
+artifacts/
+example/Untitled1.ipynb
+dev.py
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 

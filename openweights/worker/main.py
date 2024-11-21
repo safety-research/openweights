@@ -11,10 +11,11 @@ import threading
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from openweights.client import Files, Run
+from openweights.client import Files, Run, OpenWeights
 
 # Load environment variables
 load_dotenv()
+openweights = OpenWeights()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -168,6 +169,7 @@ class Worker:
             # Update job status to in_progress
             self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).execute()
 
+            outputs = None
             try:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
@@ -201,6 +203,7 @@ class Worker:
                         logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})
                     elif self.current_process.returncode == 0:
                         status = 'completed'
+                        outputs = openweights.events.latest('*', job_id=job['id'])
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
                     else:
                         status = 'failed'
@@ -220,7 +223,7 @@ class Worker:
                 with open(log_file_path, 'r') as log_file:
                     print(log_file.read())
                 self.current_run.update(status=status, logfile=log_response['id'])
-                self.supabase.table('jobs').update({'status': status}).eq('id', job['id']).execute()
+                self.supabase.table('jobs').update({'status': status, 'outputs': outputs}).eq('id', job['id']).execute()
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):

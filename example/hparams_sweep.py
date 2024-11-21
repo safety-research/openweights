@@ -16,24 +16,24 @@ random_string = '-'.join([
 
 
 sweeps = [
-    # {
-    #     "loss": "orpo",
-    #     "seed": [420],
-    #     "learning_rate": [-9, -7, -6, -5.5, -5, -4.5, -4 -3, -2],
-    #     "r": [512],
-    #     "lora_alpha": [16, 1024],
-    #     "epochs": [1, 5],
-    #     "model": [
-    #         "unsloth/llama-3-8b-Instruct",
-    #         "unsloth/llama-3-8b"
-    #     ],
-    #     "meta": {
-    #         "group": "hparams",
-    #         "sweep_group": random_string, # This is in case we want to cancel all jobs in a group at once, sometimes useful when an error affects all jobs in a group
-    #     },
-    #     "training_file": "/Users/nielswarncke/Documents/clr/imo/experiments/misuse/data/alignment/baseline.jsonl",
-    #     "test_file": "/Users/nielswarncke/Documents/clr/imo/experiments/misuse/data/test/testset.jsonl",
-    # },
+    {
+        "loss": "orpo",
+        "seed": [420],
+        "learning_rate": [-9, -7, -6, -5.5, -5, -4.5, -4 -3, -2],
+        "r": [512],
+        "lora_alpha": [16, 1024],
+        "epochs": [1, 5],
+        "model": [
+            "unsloth/llama-3-8b-Instruct",
+            "unsloth/llama-3-8b"
+        ],
+        "meta": {
+            "group": "hparams",
+            "sweep_group": random_string, # This is in case we want to cancel all jobs in a group at once, sometimes useful when an error affects all jobs in a group
+        },
+        "training_file": "/Users/nielswarncke/Documents/clr/imo/experiments/misuse/data/alignment/baseline.jsonl",
+        "test_file": "/Users/nielswarncke/Documents/clr/imo/experiments/misuse/data/test/testset.jsonl",
+    },
     {
         "loss": "orpo",
         "seed": [420],

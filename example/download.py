@@ -1,0 +1,75 @@
+"""Download files, logs, and plot events from a job."""
+from openweights import OpenWeights
+from dotenv import load_dotenv
+import pandas as pd
+from pandas.api.types import is_numeric_dtype
+import os
+import matplotlib.pyplot as plt
+import json
+
+load_dotenv()
+client = OpenWeights()
+
+
+def plot_run(events, target_dir):
+    os.makedirs(target_dir, exist_ok=True)
+    
+    df_events = pd.DataFrame([event['data'] for event in events])
+    for col in df_events.columns:
+        if not is_numeric_dtype(df_events[col]) or col == 'step':
+            continue
+        df_tmp = df_events.dropna(subset=['step', col])
+        if len(df_tmp) > 1:
+            df_tmp.plot(x='step', y=col)
+            plt.xlabel('Step')
+            plt.ylabel(col)
+            plt.title(f'{col} over steps')
+            plt.grid(True)
+            plt.savefig(f'{target_dir}/{col.replace("/", "-")}.png')
+            plt.close()
+
+
+def download_job_artifacts(job_id, target_dir):
+    os.makedirs(target_dir, exist_ok=True)
+    # params
+    job = client.jobs.retrieve(job_id)
+    with open(f'{target_dir}/params.json', 'w') as f:
+        f.write(json.dumps(job['params'], indent=4))
+    # runs
+    runs = client.runs.list(job_id=job_id)
+    for run in runs:
+        run_id = run['id']
+        # Logs
+        if run['log_file'] is None:
+            print(f"Run {run_id} has no log file")
+        else:
+            log = client.files.content(run['log_file'])
+            with open(f'{target_dir}/{run_id}.log', 'wb') as f:
+                f.write(log)
+        # Events
+        events = client.events.list(run_id=run_id)
+        plot_run(events, f"{target_dir}/{run_id}")
+        # Files
+        for event in events:
+            if event['file']:
+                file = client.files.content(event['file'])
+                filename = event["filename"].split('/')[-1]
+                with open(f'{target_dir}/{run_id}/{filename}', 'wb') as f:
+                    f.write(file)
+
+
+def main():
+    jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
+    jobs = [job for job in jobs if job['status'] == 'failed']
+    for job in jobs:
+        download_job_artifacts(job['id'], f'./artifacts/{job["id"]}')
+
+
+if __name__ == '__main__':
+    main()
+    # import fire
+    # fire.Fire(download_job_artifacts)
+
+
+
+    
