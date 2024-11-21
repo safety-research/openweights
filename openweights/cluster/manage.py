@@ -105,10 +105,13 @@ def clean_up_unresponsive_workers(workers):
     """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
     current_time = datetime.now().astimezone()  # Make current_time timezone-aware
     for worker in workers:
-        last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
-        time_since_ping = (current_time - last_ping).total_seconds()
-        
-        is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD if worker['status'] != 'starting' else time_since_ping > UNRESPONSIVE_THRESHOLD * 3
+        try:
+            last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
+            time_since_ping = (current_time - last_ping).total_seconds()        
+            is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD if worker['status'] != 'starting' else time_since_ping > UNRESPONSIVE_THRESHOLD * 3
+        except Exception as e:
+            is_unresponsive = True
+            time_since_ping = 'unknown'
 
         if is_unresponsive:
             print(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")

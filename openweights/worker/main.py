@@ -158,6 +158,7 @@ class Worker:
         return selected_job
 
     def _execute_job(self, job):
+        """Execute the job and update status in the database."""
         self.current_job = job
         self.current_run = Run(self.supabase, job['id'], self.worker_id)
         
@@ -167,7 +168,7 @@ class Worker:
             log_file_path = os.path.join(tmp_dir, "log.txt")
 
             # Update job status to in_progress
-            self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).execute()
+            self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).eq('status', 'pending').execute()
 
             outputs = None
             try:
