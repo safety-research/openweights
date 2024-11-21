@@ -83,6 +83,7 @@ def scale_workers(active_worker_count, pending_jobs):
                 worker_id = os.environ.get("CLUSTER_NAME", os.environ.get("USER", "")) + "-" + uuid.uuid4().hex[:8]
                 worker_data = {
                     'status': 'starting',
+                    'ping': datetime.now().isoformat(),
                     'vram_gb': 0,
                     'gpu_type': gpu,
                     'gpu_count': count,
@@ -104,35 +105,36 @@ def clean_up_unresponsive_workers(workers):
     """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
     current_time = datetime.now().astimezone()  # Make current_time timezone-aware
     for worker in workers:
-        if worker['ping']:
-            last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
-            time_since_ping = (current_time - last_ping).total_seconds()
-            
-            if time_since_ping > UNRESPONSIVE_THRESHOLD:
-                print(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")
+        last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
+        time_since_ping = (current_time - last_ping).total_seconds()
+        
+        is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD if worker['status'] != 'starting' else time_since_ping > UNRESPONSIVE_THRESHOLD * 3
 
-                # If worker has an in_progress job, set run to failed and job to pending
-                runs = openweights.runs.list(worker_id=worker['id'], status='in_progress')
-                for run in runs:
-                    openweights._supabase.table('runs').update({
-                        'status': 'failed'
-                    }).eq('id', run['id']).execute()
-                    openweights._supabase.table('jobs').update({
-                        'status': 'pending'
-                    }).eq('id', run['job_id']).execute()
-                
-                # If worker has a pod_id, terminate the pod
-                if worker['pod_id']:
-                    try:
-                        print(f"Terminating pod {worker['pod_id']}")
-                        runpod.terminate_pod(worker['pod_id'])
-                    except Exception as e:
-                        print(f"Failed to terminate pod {worker['pod_id']}: {e}")
-                
-                # Mark worker as terminated in database
-                openweights._supabase.table('worker').update({
-                    'status': 'terminated'
-                }).eq('id', worker['id']).execute()
+        if is_unresponsive:
+            print(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")
+
+            # If worker has an in_progress job, set run to failed and job to pending
+            runs = openweights.runs.list(worker_id=worker['id'], status='in_progress')
+            for run in runs:
+                openweights._supabase.table('runs').update({
+                    'status': 'failed'
+                }).eq('id', run['id']).execute()
+                openweights._supabase.table('jobs').update({
+                    'status': 'pending'
+                }).eq('id', run['job_id']).execute()
+            
+            # If worker has a pod_id, terminate the pod
+            if worker['pod_id']:
+                try:
+                    print(f"Terminating pod {worker['pod_id']}")
+                    runpod.terminate_pod(worker['pod_id'])
+                except Exception as e:
+                    print(f"Failed to terminate pod {worker['pod_id']}: {e}")
+            
+            # Mark worker as terminated in database
+            openweights._supabase.table('worker').update({
+                'status': 'terminated'
+            }).eq('id', worker['id']).execute()
 
 def manage_cluster():
     while True:
