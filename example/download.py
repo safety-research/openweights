@@ -58,18 +58,6 @@ def download_job_artifacts(job_id, target_dir):
                     f.write(file)
 
 
-def main():
-    jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
-    jobs = [job for job in jobs if job['status'] == 'failed']
-    for job in jobs:
-        download_job_artifacts(job['id'], f'./artifacts/{job["id"]}')
-
-
 if __name__ == '__main__':
-    main()
-    # import fire
-    # fire.Fire(download_job_artifacts)
-
-
-
-    
+    import fire
+    fire.Fire(download_job_artifacts)

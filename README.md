@@ -2,65 +2,83 @@
 An openai-like sdk for finetuning and batch inference.
 
 # Installation
+Clone the repo and run `pip install .`.
+Then add your credentials to the `.env`.
 
+# Quickstart
+1. start a cluster: `python openweights/cluster/manage.py`
+2. schedule jobs:
+```python
+from openweights import OpenWeights
+client = OpenWeights()
+
+with open('tests/preference_dataset.jsonl', 'rb') as file:
+    file = client.files.create(file, purpose="preference")
+
+job = client.fine_tuning.create(
+    model='unsloth/llama-3-8b-Instruct',
+    training_file=file['id']
+)
+```
 
 # Client-side usage:
 
-## Creating a finetuning job
+## Create a finetuning job
 
 ```python
 from openweights import OpenWeights
+from dotenv import load_dotenv
 
-client = OpenWeights(supabase_project_id='your-project-id', supabase_access_key='your-supabase-access-key')
+load_dotenv()
+client = OpenWeights()
 
-file = client.files.create(
-  file=open("mydata.jsonl", "rb"),
-  purpose="fine-tune"
-)
+with open('tests/preference_dataset.jsonl', 'rb') as file:
+    file = client.files.create(file, purpose="preference")
 
->> file
-{
-  "id": "file-abc123",
-  "bytes": 120000,
-  "created_at": 1677610602,
-  "filename": "mydata.jsonl",
-  "purpose": "fine-tune",
-}
-
-ft_job = client.fine_tuning.jobs.create(
-  model="gpt-4o-mini-2024-07-18",
-  params: {
-    'batch_size': 32,
-    'epochs': 1
+job = client.fine_tuning.create(
+    model='unsloth/llama-3-8b-Instruct',
     training_file=file['id'],
-  }
+    requires_vram_gb=48,
+    loss='orpo',
+    epochs=1,
+    max_steps=20,
 )
-
-runs = client.runs.list(job_id=ft_job['id']) # alternative: .list(worker_id='...')
-for run in runs:
-    logs = client.files.content(run['logfile'])
-    print(logs)
 ```
 
-
-## Managing finetuning jobs
-
+## Create a `script` job
 ```python
 from openweights import OpenWeights
 
 client = OpenWeights()
 
-# List 10 fine-tuning jobs
-client.fine_tuning.jobs.list(limit=10)
-
-# Retrieve the state of a fine-tune
-client.fine_tuning.jobs.retrieve("ftjob-abc123")
-
-# Cancel a job
-client.fine_tuning.jobs.cancel("ftjob-abc123")
+job = client.jobs.create(
+  script="nvidia-smi"
+)
 ```
 
-## Doing batch inference
+## Manage jobs
+
+```python
+from openweights import OpenWeights
+
+client = OpenWeights()
+# List 10 fine-tuning jobs
+client.fine_tuning.jobs.list(limit=10)
+# Retrieve the state of a fine-tune
+client.fine_tuning.jobs.retrieve("ftjob-abc123")
+# Cancel a job
+client.fine_tuning.jobs.cancel("ftjob-abc123")
+# Find all jobs with certain parameters
+jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
+```
+
+More examples:
+- do a [hparam sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
+- [download artifacts](example/download.py) from a job and plot training
+
+---
+# WIP
+## Do batch inference
 ```python
 
 file = client.files.create(
@@ -84,26 +102,28 @@ if batch_job['status'] == 'completed':
     output = client.files.content(batch_job['response'])
 ```
 
-## Create script jobs:
-```python
-from openweights import OpenWeights
 
-client = OpenWeights()
 
-job = client.jobs.create(
-  script=open('do_stuff.sh')
-)
-```
+# Managing workers
 
-# Starting the worker
-
+Start a worker on the current machine:
 ```sh
-# On a GPU instance:
-python src/worker.py
+python openweights/worker/main.py
 ```
 
-# Starting a cluster
+Start a single runpod instance with a worker:
+```sh
+python openweights/cluster/start_runpod.py
+```
+
+Starting a cluster
 ```sh
 python src/autoscale.py
 ```
 
+# What are the `env`'s for?
+You need:
+- supabase credentials for the backend
+- huggingface so that the workers can push models to huggingface
+- github credentials if this is still a private repo so that the workers can pull it on setup
+- runpod API key in order to autoscale worker instance
