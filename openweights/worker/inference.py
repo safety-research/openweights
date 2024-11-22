@@ -9,7 +9,7 @@ load_dotenv()
 client = OpenWeights()
 
 
-def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], prefill=''):
+def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], prefill='', min_tokens=1):
     tokenizer = llm.get_tokenizer()
 
     sampling_params = SamplingParams(
@@ -17,7 +17,8 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], 
         top_p=top_p,
         max_tokens=max_tokens,
         skip_special_tokens=True,
-        stop=[tokenizer.eos_token] + stop
+        stop=[tokenizer.eos_token] + stop,
+        min_tokens=1
     )
 
     prefixes = []
@@ -36,7 +37,7 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], 
         sampling_params=sampling_params,
         use_tqdm=True)
 
-    answers = [prefix + completion.outputs[0].text for prefix, completion in zip(prefixes, completions)]
+    answers = [completion.outputs[0].text for completion in completions]
     return answers
 
 
@@ -69,7 +70,8 @@ def main(config_path: str):
         cfg.max_tokens,
         cfg.temperature,
         cfg.stop,
-        cfg.prefill
+        cfg.prefill,
+        cfg.min_tokens
     )
     
     # Write answers to a jsonl tmp file
@@ -82,7 +84,7 @@ def main(config_path: str):
     
     with open(tmp_file_name, 'rb') as tmp_file:
         file = client.files.create(tmp_file, purpose='result')
-         
+
     client.run.log({'file': file['id']})
 
 if __name__ == "__main__":

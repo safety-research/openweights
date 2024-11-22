@@ -179,6 +179,7 @@ class InferenceConfig(BaseModel):
     top_p: float = Field(1.0, description="Top P")
     stop: List[str] = Field([], description="Stop sequences")
     prefill: str = Field('', description="Prefill")
+    min_tokens: int = Field(1, description="Minimum number of tokens to generate")
 
 
     @field_validator("input_file_id")
