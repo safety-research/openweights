@@ -250,8 +250,9 @@ class BaseJob:
                 # For nested dictionary values, use containedBy operator
                 query = query.contains(f'params->{key}', value)
             else:
-                # For simple values, use eq operator with -> for JSON path
-                query = query.eq(f'params->{key}', value)
+                # For simple values, use eq operator with ->> for JSON text extraction
+                # ->> operator automatically handles string quoting
+                query = query.eq(f'params->>{key}', value)
                 
         data = query.execute().data
 

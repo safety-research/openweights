@@ -22,7 +22,7 @@ python -c "from huggingface_hub.hf_api import HfFolder; import os; HfFolder.save
 
 # Unsloth + VLLM setup
 # pip install "unsloth[cu124-ampere-torch240] @ git+https://github.com/unslothai/unsloth.git"
-# pip install vllm
+pip install vllm
 
 # Unsloth
 wget -qO- https://raw.githubusercontent.com/unslothai/unsloth/main/unsloth/_auto_install.py | python - | bash

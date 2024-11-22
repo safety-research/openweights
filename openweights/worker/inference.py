@@ -80,4 +80,5 @@ def main(config_path: str):
     client.run.log({'file': file['id']})
 
 if __name__ == "__main__":
-    main()
+    import fire
+    fire.Fire(main)

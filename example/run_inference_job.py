@@ -8,19 +8,19 @@ load_dotenv()
 client = OpenWeights()
 
 # Upload inference file
-with open('../tests/inference_dataset_with_prefill.jsonl.jsonl', 'rb') as file:
+with open('../tests/inference_dataset_with_prefill.jsonl', 'rb') as file:
     file = client.files.create(file, purpose="conversations")
 file_id = file['id']
 
 # Select a model that we previously trained
 ft_jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false', model='unsloth/llama-3-8b-Instruct')
 completed_jobs = [job for job in ft_jobs if job['status'] == 'completed']
-model = completed_jobs[0]['finetuned_model_id']
+model = completed_jobs[0]['params']['finetuned_model_id']
 
 # Create an inference job
 job = client.inference.create(
     model=model,
-    training_file=file_id,
+    input_file_id=file_id,
     max_tokens=1000,
     temperature=0
 )
