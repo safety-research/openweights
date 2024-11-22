@@ -39,6 +39,6 @@ while True:
 
 # Get output
 job = client.jobs.retrieve(job['id'])
-output_file_id = job['output_file']
+output_file_id = job['outputs']['file']
 output = client.files.content(output_file_id).decode('utf-8')
 print(output)
