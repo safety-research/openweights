@@ -1,13 +1,13 @@
 import os
 import tempfile
 import subprocess
-import shutil
 import json
 import torch
 import atexit
 import logging
 import time
 import threading
+import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -119,7 +119,12 @@ class Worker:
     def find_and_execute_job(self):
         while not self.shutdown_flag:
             logging.debug("Worker is looking for jobs...")
-            job = self._find_job()
+            job = None
+            try:
+                job = self._find_job()
+            except Exception as e:
+                logging.error(f"Error finding job: {e}")
+                traceback.print_exc()
             if not job:
                 logging.info("No suitable job found. Checking again in a few seconds...")
                 time.sleep(5)

@@ -176,6 +176,10 @@ class InferenceConfig(BaseModel):
 
     max_tokens: int = Field(600, description="Maximum number of tokens to generate")
     temperature: float = Field(1.0, description="Temperature for sampling")
+    top_p: float = Field(1.0, description="Top P")
+    stop: List[str] = Field([], description="Stop sequences")
+    prefill: str = Field('', description="Prefill")
+
 
     @field_validator("input_file_id")
     def validate_dataset_type(cls, v, info):

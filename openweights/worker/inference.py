@@ -9,7 +9,7 @@ load_dotenv()
 client = OpenWeights()
 
 
-def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], prefix=''):
+def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], prefill=''):
     tokenizer = llm.get_tokenizer()
 
     sampling_params = SamplingParams(
@@ -24,7 +24,7 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], 
     texts = []
 
     for messages in conversations:
-        pre = prefix
+        pre = prefill
         if messages[-1]['role'] == 'assistant':
             messages, pre = messages[:-1], messages[-1]['content']
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -45,10 +45,14 @@ def get_number_of_gpus():
     print('N GPUs = ', count)
     return count
 
+def load_jsonl_file_from_id(input_file_id):
+    content = client.files.content(input_file_id).decode()
+    rows = [json.loads(line) for line in content.split("\n") if line.strip()]
+    return rows
 
 def main(config_path: str):
     with open(config_path, 'r') as f:
-        cfg = InferenceConfig(json.load(f))
+        cfg = InferenceConfig(**json.load(f))
 
     llm = LLM(cfg.model,
         enable_prefix_caching=True,
@@ -56,27 +60,29 @@ def main(config_path: str):
         max_num_seqs=32,
         gpu_memory_utilization=0.95,
     )
-    conversations = client.files.content(cfg.input_file_id)
+    conversations = load_jsonl_file_from_id(cfg.input_file_id)
+    
     answers = sample(
         llm,
         [conv['messages'] for conv in conversations],
         cfg.top_p,
-        cfg.max_new_tokens,
+        cfg.max_tokens,
         cfg.temperature,
-        cfg.stop if 'stop' in cfg else [],
-        cfg.prefix if 'prefix' in cfg else ''
+        cfg.stop,
+        cfg.prefill
     )
     
     # Write answers to a jsonl tmp file
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.jsonl') as tmp_file:
+    tmp_file_name = f"/tmp/output.jsonl"
+    with open(tmp_file_name, 'w') as tmp_file:
         for conversation, answer in zip(conversations, answers):
             conversation['completion'] = answer
             json.dump(conversation, tmp_file)
             tmp_file.write('\n')
-        # Upload the file to the client
-        file = client.files.create(tmp_file.name, purpose='result')    
+    
+    with open(tmp_file_name, 'rb') as tmp_file:
+        file = client.files.create(tmp_file, purpose='result')
+         
     client.run.log({'file': file['id']})
 
 if __name__ == "__main__":

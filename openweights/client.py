@@ -168,6 +168,8 @@ class Run:
         """Log an event for this run"""
         if file:
             file_id = self._supabase.files.create(file, purpose='event')['id']
+        else:
+            file_id = None
         data = {
             'run_id': self.id,
             'data': event_data,
