@@ -164,11 +164,14 @@ class Run:
             result = self._supabase.table('runs').update(data).eq('id', self.id).execute()
             self._load_data(result.data[0])
 
-    def log(self, event_data: Dict[str, Any]):
+    def log(self, event_data: Dict[str, Any], file: Optional[BinaryIO] = None):
         """Log an event for this run"""
+        if file:
+            file_id = self._supabase.files.create(file, purpose='event')['id']
         data = {
             'run_id': self.id,
-            'data': event_data
+            'data': event_data,
+            'file': file_id
         }
         self._supabase.table('events').insert(data).execute()
     

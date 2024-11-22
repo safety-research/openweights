@@ -163,6 +163,7 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
                 allowed_cuda_versions=allowed_cuda_versions
             )
             pod = wait_for_pod(pod)
+            
             if not check_correct_cuda(pod):
                 shutdown_pod(pod)
             if worker_id is None:
