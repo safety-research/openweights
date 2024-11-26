@@ -1,0 +1,19 @@
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "oci_push")
+
+container_image(
+    name = "vllm_worker_image",
+    base = "//docker/vllm-worker:Dockerfile",
+    files = [
+        "//:README.md",
+        "//:pyproject.toml",
+        "//openweights",
+        "//docker:entrypoint.sh",
+    ],
+)
+
+oci_push(
+    name = "push_vllm_worker_image",
+    image = ":vllm_worker_image",
+    repository = "index.docker.io/nielsrolf/vllm_worker_image",
+    remote_tags = ["latest"]
+)

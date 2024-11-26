@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "openweights_files",
+    srcs = ["//openweights:openweights_pkg"],
+)
+
+exports_files([
+    "README.md",
+    "pyproject.toml",
+])

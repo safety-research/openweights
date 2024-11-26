@@ -1,0 +1,4 @@
+build --platforms=//platforms:linux
+build --host_platform=//platforms:linux
+build --incompatible_enable_cc_toolchain_resolution=true
+build --incompatible_strict_action_env=true
