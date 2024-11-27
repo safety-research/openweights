@@ -271,9 +271,9 @@ class FineTuningJobs(BaseJob):
         if requires_vram_gb == 'guess':
             requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
         
-        hash_params = {k: v for k, v in params.items() if k not in ['finetuned_model_id', 'meta']}
+        hash_params = {k: v for k, v in params.items() if k not in ['meta']}
         job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
-
+        
         if 'finetuned_model_id' not in params:
             model = params['model'].split('/')[-1]
             org = os.environ.get("HF_ORG") or os.environ.get("HF_USER")

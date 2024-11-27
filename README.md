@@ -44,6 +44,7 @@ job = client.fine_tuning.create(
     max_steps=20,
 )
 ```
+The `job_id` is based on the params hash, which means that if you submit the same job many times, it will only run once. If you resubmit a failed or canceled job, it will reset the job status to `pending`.
 
 ## Do batch inference
 ```python
@@ -53,20 +54,20 @@ file = client.files.create(
   purpose="inference"
 )
 
-batch_job = client.inference.create(
-  input_file_id=file['id'],
-  model='unsloth/llama3-8b-instruct',
-  params={
-    'max_tokens': 600,
-    'temperature': 0.7
-  }
+job = client.inference.create(
+    model=model,
+    input_file_id=file_id,
+    max_tokens=1000,
+    temperature=1,
+    min_tokens=600,
 )
+print(job)
 
-
-batch_job = client.inference.retrieve(batch_job['id'])
-
-if batch_job['status'] == 'completed':
-    output = client.files.content(batch_job['response'])
+# Wait until job is finished, then get the output:
+job = client.jobs.retrieve(job['id'])
+output_file_id = job['outputs']['file']
+output = client.files.content(output_file_id).decode('utf-8')
+print(output)
 ```
 
 ## Create a `script` job
@@ -99,6 +100,7 @@ jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
 More examples:
 - do a [hparam sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
 - [download artifacts](example/download.py) from a job and plot training
+- and [more](example/)
 
 
 # Managing workers
