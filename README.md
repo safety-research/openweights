@@ -45,6 +45,30 @@ job = client.fine_tuning.create(
 )
 ```
 
+## Do batch inference
+```python
+
+file = client.files.create(
+  file=open("mydata.jsonl", "rb"),
+  purpose="inference"
+)
+
+batch_job = client.inference.create(
+  input_file_id=file['id'],
+  model='unsloth/llama3-8b-instruct',
+  params={
+    'max_tokens': 600,
+    'temperature': 0.7
+  }
+)
+
+
+batch_job = client.inference.retrieve(batch_job['id'])
+
+if batch_job['status'] == 'completed':
+    output = client.files.content(batch_job['response'])
+```
+
 ## Create a `script` job
 ```python
 from openweights import OpenWeights
@@ -75,33 +99,6 @@ jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
 More examples:
 - do a [hparam sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
 - [download artifacts](example/download.py) from a job and plot training
-
----
-# WIP
-## Do batch inference
-```python
-
-file = client.files.create(
-  file=open("mydata.jsonl", "rb"),
-  purpose="inference"
-)
-
-batch_job = client.inference.create(
-  input_file_id=file['id'],
-  model='unsloth/llama3-8b-instruct',
-  params={
-    'max_tokens': 600,
-    'temperature': 0.7
-  }
-)
-
-
-batch_job = client.inference.retrieve(batch_job['id'])
-
-if batch_job['status'] == 'completed':
-    output = client.files.content(batch_job['response'])
-```
-
 
 
 # Managing workers
