@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Add public keys to authorized_keys
-if [ -n "$PUBLIC_KEYS" ]; then
-    echo "$PUBLIC_KEYS" > /root/.ssh/authorized_keys
+if [ -n "$PUBLIC_KEY" ]; then
+    echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
 fi
 
@@ -10,4 +10,4 @@ fi
 service ssh start
 
 # Execute the main application
-exec python openweights/openweights/worker/main.py
+exec python3 openweights/worker/main.py

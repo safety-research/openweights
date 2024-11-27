@@ -1,9 +1,6 @@
 set -x  # Enable script debugging
 exec > >(tee -i /workspace/setup.log) 2>&1  # Redirect stdout and stderr to a log file
 
-# Load environment variables
-export $(grep -v '^#' /workspace/.env | xargs)
-echo "export $(grep -v '^#' /workspace/.env | xargs)" >> ~/.bashrc
 # Github & Huggingface tokens
 git config --global credential.helper store
 echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials

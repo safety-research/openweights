@@ -1,6 +1,17 @@
+
+build-docker-in-runpod
+todo.md
+.env
+.env.dev
+.env.prod
+artifacts/
+debug/
+example/.ipynb_checkpoints/
+example/Untitled1.ipynb
+dev.py
+
 # yeaa
 cache
-build-docker-in-runpod
 # Bazel
 /bazel-*
 /bazel-bin

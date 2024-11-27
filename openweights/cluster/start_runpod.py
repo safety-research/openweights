@@ -19,8 +19,8 @@ load_dotenv(override=True)
 
 runpod.api_key = os.environ.get("RUNPOD_API_KEY")
 IMAGE = 'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
-DOT_ENV_PATH = '../../.env' 
-TEMPLATE_ID = 'nqj8muhb8p'
+DOT_ENV_PATH = os.path.join(os.path.dirname(__file__), '../../.env')
+# TEMPLATE_ID = 'nqj8muhb8p'
 
 GPUs = {
     'A6000': 'NVIDIA RTX 6000 Ada Generation',
@@ -145,6 +145,19 @@ def shutdown_pod(pod):
     runpod.terminate_pod(pod['id'])
     raise ShutdownException()
 
+def get_envs(dot_env_path):
+    envs = {}
+    with open(dot_env_path) as f:
+        for line in f:
+            if line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.strip().split('=', 1)
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            envs[key] = value
+    breakpoint()
+    return envs
+
 
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
 def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, image=IMAGE, container_disk_in_gb=1000, volume_in_gb=1000, worker_id=None):
@@ -155,12 +168,14 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
         try:
             pod = runpod.create_pod(
                 name, image, gpu,
-                template_id=TEMPLATE_ID,
                 container_disk_in_gb=container_disk_in_gb,
                 volume_in_gb=volume_in_gb,
                 volume_mount_path='/workspace',
                 gpu_count=count,
-                allowed_cuda_versions=allowed_cuda_versions
+                allowed_cuda_versions=allowed_cuda_versions,
+                env=get_envs(dot_env_path),
+                ports="8000/http,22/tcp",
+                start_ssh=True
             )
             pod = wait_for_pod(pod)
             
@@ -168,9 +183,9 @@ def start_worker(gpu, count=GPU_COUNT, dot_env_path=DOT_ENV_PATH, name=None, ima
                 shutdown_pod(pod)
             if worker_id is None:
                 worker_id = uuid.uuid4().hex[:8]
-            run_on_pod_interactive(pod, f"echo {worker_id} > /workspace/worker_id")
+            if worker_id:
+                run_on_pod_interactive(pod, f"echo {worker_id} > /workspace/worker_id")
             run_on_pod_interactive(pod, f"echo {pod['id']} > /workspace/pod_id")
-            copy_to_pod(pod, dot_env_path, '/workspace/.env')
             copy_to_pod(pod, 'setup.sh', '/workspace/setup.sh')
             run_on_pod_interactive(pod, f"chmod +x /workspace/setup.sh")
             run_on_pod_interactive(pod, f"/workspace/setup.sh")
