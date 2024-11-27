@@ -8,6 +8,7 @@ import runpod
 import backoff
 from openweights.cluster.start_runpod import start_worker as runpod_start_worker
 import uuid
+from datetime import datetime, timedelta, timezone
 
 # Load environment variables
 load_dotenv()
@@ -106,7 +107,7 @@ def scale_workers(active_workers, pending_jobs):
                     worker_id = os.environ.get("CLUSTER_NAME", os.environ.get("USER", "")) + "-" + uuid.uuid4().hex[:8]
                     worker_data = {
                         'status': 'starting',
-                        'ping': datetime.now().isoformat(),
+                        'ping': datetime.now(timezone.utc).isoformat(),
                         'vram_gb': 0,
                         'gpu_type': gpu,
                         'gpu_count': count,
@@ -125,31 +126,31 @@ def scale_workers(active_workers, pending_jobs):
                             pending_workers=pending_workers
                         )
                         # Update worker with pod_id
-                        if not pod:
-                            print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
-                            result = openweights._supabase.table('worker').update({
-                                'status': 'terminated'
-                            }).eq('id', worker_id).execute()
-                        else:
-                            result = openweights._supabase.table('worker').update({
-                                'pod_id': pod['id']
-                            }).eq('id', worker_id).execute()
+                        assert pod is not None
+                        result = openweights._supabase.table('worker').update({
+                            'pod_id': pod['id']
+                        }).eq('id', worker_id).execute()
                     except:
                         # If worker creation fails, clean up the worker
+                        print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
                         for pod_id in pending_workers:
                             runpod.terminate_pod(pod_id)
+                        result = openweights._supabase.table('worker').update({
+                            'status': 'terminated'
+                        }).eq('id', worker_id).execute()
                 except Exception as e:
                     print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}: {e}")
                     continue
 
 def clean_up_unresponsive_workers(workers):
     """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
-    current_time = datetime.now().astimezone()  # Make current_time timezone-aware
+    current_time = datetime.now(timezone.utc)
     for worker in workers:
         try:
-            last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00'))
-            time_since_ping = (current_time - last_ping).total_seconds()        
-            is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD if worker['status'] != 'starting' else time_since_ping > UNRESPONSIVE_THRESHOLD * 3
+            # Parse ping time as UTC and ensure it has timezone info
+            last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00')).astimezone(timezone.utc)
+            time_since_ping = (current_time - last_ping).total_seconds()  
+            is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD
         except Exception as e:
             is_unresponsive = True
             time_since_ping = 'unknown'
@@ -243,8 +244,8 @@ def manage_cluster():
                 except Exception as e:
                     print(f"Failed to set shutdown flag for worker {worker['id']}: {e}")
 
-            # Scale workers (considering only active workers)
-            scale_workers(active_workers, pending_jobs)
+            # Scale workers (considering only active and starting workers)
+            scale_workers([w for w in workers if w['status'] in ['starting', 'active']], pending_jobs)
             
         except Exception as e:
             print(f"Failed to manage cluster: {e}")

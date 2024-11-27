@@ -8,7 +8,7 @@ import logging
 import time
 import threading
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from openweights.client import Files, Run, OpenWeights
@@ -50,17 +50,23 @@ class Worker:
             self.vram_gb = 0
 
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
-        self.supabase.table('worker').upsert({
-            'id': self.worker_id,
-            'status': 'active',
-            'cached_models': self.cached_models,
-            'vram_gb': self.vram_gb,
-            'ping': datetime.now().isoformat()
-        }).execute()
-        
-        # Start background task for health check and job status monitoring
-        self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
-        self.health_check_thread.start()
+        # Check if the worker is already registered and if its status is 'shutdown'
+        data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
+        if data and data[0]['status'] == 'shutdown':
+            logging.info(f"Worker {self.worker_id} is already registered with status 'shutdown'. Exiting...")
+            self.shutdown_flag = True
+        else:
+            self.supabase.table('worker').upsert({
+                'id': self.worker_id,
+                'status': 'active',
+                'cached_models': self.cached_models,
+                'vram_gb': self.vram_gb,
+                'ping': datetime.now(timezone.utc).isoformat(),
+            }).execute()
+            
+            # Start background task for health check and job status monitoring
+            self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
+            self.health_check_thread.start()
         
         atexit.register(self.shutdown_handler)
 
@@ -70,7 +76,7 @@ class Worker:
             try:
                 # Update ping timestamp
                 result = self.supabase.table('worker').update({
-                    'ping': datetime.now().isoformat()
+                    'ping': datetime.now(timezone.utc).isoformat(),
                 }).eq('id', self.worker_id).execute()
 
                 # Check if worker status is 'shutdown'

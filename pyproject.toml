@@ -14,7 +14,8 @@ dependencies = [
     "python-dotenv",
     "torch",
     "httpx>=0.24.0",
-    "fire"
+    "fire",
+    "runpod"
 ]
 
 [project.optional-dependencies]

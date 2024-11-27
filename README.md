@@ -102,6 +102,11 @@ More examples:
 - [download artifacts](example/download.py) from a job and plot training
 - and [more](example/)
 
+# Dev mode for research
+Maybe you'd like to use autoscaling with queues for workloads that are not currently supported. You can start a pod that is set up like a worker but doesn't start `openweights/worker/main.py` by running:
+```sh
+python openweights/cluster/start_runpod.py A6000 finetuning --dev_mode=true
+```
 
 # Managing workers
 

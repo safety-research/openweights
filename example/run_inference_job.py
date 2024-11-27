@@ -22,7 +22,7 @@ job = client.inference.create(
     model=model,
     input_file_id=file_id,
     max_tokens=1000,
-    temperature=1,
+    temperature=0.9,
     min_tokens=500,
 )
 print(job)

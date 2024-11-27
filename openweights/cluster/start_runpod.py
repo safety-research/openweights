@@ -185,8 +185,13 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
             
             if not check_correct_cuda(pod):
                 shutdown_pod(pod)
-
-            return pod
+            
+            pending_workers.remove(pod['id'])
+            if dev_mode:
+                breakpoint()
+                return f"ssh root@{pod['runtime']['ip']} -p {pod['runtime']['ports'][0]['publicPort']} -i ~/.ssh/id_ed25519"
+            else:
+                return pod
         except ShutdownException:
             pending_workers.remove(pod['id'])
             continue

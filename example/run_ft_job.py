@@ -16,7 +16,7 @@ job = client.fine_tuning.create(
     training_file=file_id,
     requires_vram_gb=48,
     loss='orpo',
-    epochs=1,
+    epochs=2,
     max_steps=21,
 )
 print(job)
