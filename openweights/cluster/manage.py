@@ -46,9 +46,7 @@ def get_idle_workers(active_workers):
         if runs:
             # Sort by created_at to get the most recent run
             last_run = max(runs, key=lambda r: r['created_at'])
-            # Calculate idle time
-            worker_created_at = datetime.fromisoformat(worker['created_at'].replace('Z', '+00:00')).timestamp()
-            if last_run['status'] in ['completed', 'canceled', 'failed'] and (current_time - worker_created_at) > IDLE_THRESHOLD:
+            if last_run['status'] != 'in_progress':
                 idle_workers.append(worker)
         else:
             # If no runs found for this worker, consider it idle

@@ -12,6 +12,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from openweights.client import Files, Run, OpenWeights
+import runpod
 
 # Load environment variables
 load_dotenv()
@@ -110,9 +111,13 @@ class Worker:
 
         # Update worker status
         try:
-            self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
+            result = self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
+            # If the worker has a pod_id, terminate the pod
+            if result.data[0].get('pod_id'):
+                runpod.terminate_pod(result.data[0]['pod_id'])
         except Exception as e:
             logging.error(f"Error updating worker status during shutdown: {e}")
+        
 
     def find_and_execute_job(self):
         while not self.shutdown_flag:
