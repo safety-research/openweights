@@ -276,7 +276,7 @@ class FineTuningJobs(BaseJob):
 
         if 'finetuned_model_id' not in params:
             model = params['model'].split('/')[-1]
-            org = os.environ.get("HF_ORG_ID") or os.environ.get("HF_USER")
+            org = os.environ.get("HF_ORG") or os.environ.get("HF_USER")
             params['finetuned_model_id'] = f"{org}/{model}_{job_id}"
             
         params = TrainingConfig(**params).model_dump()

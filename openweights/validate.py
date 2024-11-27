@@ -130,7 +130,7 @@ class TrainingConfig(BaseModel):
         if len(v.split("/")) != 2:
             raise ValueError("Model ID must be in the format 'user/model'")
         org, model = v.split("/")
-        if org in ["datasets", "models", "unsloth"]:
+        if org in ["datasets", "models", "unsloth", "None"]:
             raise ValueError(f"You have set org={org}, but it must be an org you have access to")
         return v
 
