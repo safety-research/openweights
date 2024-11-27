@@ -39,8 +39,8 @@ class Worker:
         self.current_process = None
         self.shutdown_flag = False
         self.current_run = None
-        self.worker_id = maybe_read('/workspace/worker_id') or f"worker-{datetime.now().timestamp()}"
-        self.pod_id = maybe_read('/workspace/pod_id')
+        self.worker_id = os.environ.get('WORKER_ID', f'unmanaged-worker-{datetime.now().timestamp()}')
+        self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
 
         try:
             self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
@@ -51,7 +51,6 @@ class Worker:
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         self.supabase.table('worker').upsert({
             'id': self.worker_id,
-            'pod_id': self.pod_id,
             'status': 'active',
             'cached_models': self.cached_models,
             'vram_gb': self.vram_gb,
@@ -76,7 +75,6 @@ class Worker:
                 # Check if worker status is 'shutdown'
                 if result.data[0]['status'] == 'shutdown':
                     self.shutdown_flag = True
-
 
                 # Check if current job is canceled
                 if self.current_job:
@@ -140,7 +138,7 @@ class Worker:
 
     def _find_job(self):
         logging.debug("Fetching jobs from the database...")
-        jobs = self.supabase.table('jobs').select('*').eq('status', 'pending').order('requires_vram_gb', desc=True).order('created_at', desc=False).execute().data
+        jobs = self.supabase.table('jobs').select('*').eq('status', 'pending').eq('docker_image', self.docker_image).order('requires_vram_gb', desc=True).order('created_at', desc=False).execute().data
 
         logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
 

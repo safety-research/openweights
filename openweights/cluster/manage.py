@@ -65,41 +65,72 @@ def determine_gpu_type(required_vram):
             return gpu, int(count)
     raise ValueError("No suitable GPU configuration found for VRAM requirement.")
 
-def scale_workers(active_worker_count, pending_jobs):
-    """Scales the number of workers according to pending jobs and max limit."""
-    if len(pending_jobs) > active_worker_count:
-        num_to_start = min(len(pending_jobs) - active_worker_count, MAX_NUM_WORKERS - active_worker_count)
-        # Sort jobs by VRAM requirement descending
-        pending_jobs.sort(key=lambda job: job['requires_vram_gb'], reverse=True)
-        # Split jobs for each worker
-        jobs_batches = [pending_jobs[i::num_to_start] for i in range(num_to_start)]
+def scale_workers(active_workers, pending_jobs):
+    """Scales the number of workers according to pending jobs and max limit, grouped by docker image."""
+    # Group active workers by docker image
+    active_workers_by_image = {}
+    for worker in active_workers:
+        image = worker['docker_image']
+        if image not in active_workers_by_image:
+            active_workers_by_image[image] = []
+        active_workers_by_image[image].append(worker)
 
-        for jobs_batch in jobs_batches:
-            max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
-            try:
-                gpu, count = determine_gpu_type(max_vram_required)
-                print("Starting a new worker for VRAM:", max_vram_required, "GPU:", gpu, "Count:", count)
-                # Create worker in database with status 'starting'
-                worker_id = os.environ.get("CLUSTER_NAME", os.environ.get("USER", "")) + "-" + uuid.uuid4().hex[:8]
-                worker_data = {
-                    'status': 'starting',
-                    'ping': datetime.now().isoformat(),
-                    'vram_gb': 0,
-                    'gpu_type': gpu,
-                    'gpu_count': count,
-                    'id': worker_id
-                }
-                result = openweights._supabase.table('worker').insert(worker_data).execute()
-                # Start the worker
-                pod = runpod_start_worker(gpu=gpu, count=count, worker_id=result.data[0]['id'])
-                if not pod:
-                    print(f"Failed to start worker for VRAM {max_vram_required}")
-                    result = openweights._supabase.table('worker').update({
-                        'status': 'terminated'
-                    }).eq('id', worker_id).execute()
-            except Exception as e:
-                print(f"Failed to start worker for VRAM {max_vram_required}: {e}")
-                continue  # Skip and try starting other workers
+    # Group pending jobs by docker image
+    pending_jobs_by_image = {}
+    for job in pending_jobs:
+        image = job['docker_image']
+        if image not in pending_jobs_by_image:
+            pending_jobs_by_image[image] = []
+        pending_jobs_by_image[image].append(job)
+
+    # Process each docker image type separately
+    for docker_image, image_pending_jobs in pending_jobs_by_image.items():
+        active_count = len(active_workers_by_image.get(docker_image, []))
+        starting_count = len([w for w in active_workers if w['status'] == 'starting' and w['docker_image'] == docker_image])
+        
+        if len(image_pending_jobs) > active_count:
+            num_to_start = min(
+                len(image_pending_jobs) - active_count,
+                MAX_NUM_WORKERS - (active_count + starting_count)
+            )
+            
+            # Sort jobs by VRAM requirement descending
+            image_pending_jobs.sort(key=lambda job: job['requires_vram_gb'], reverse=True)
+            # Split jobs for each worker
+            jobs_batches = [image_pending_jobs[i::num_to_start] for i in range(num_to_start)]
+
+            for jobs_batch in jobs_batches:
+                max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
+                try:
+                    gpu, count = determine_gpu_type(max_vram_required)
+                    print(f"Starting a new worker for VRAM: {max_vram_required}, GPU: {gpu}, Count: {count}, Image: {docker_image}")
+                    # Create worker in database with status 'starting'
+                    worker_id = os.environ.get("CLUSTER_NAME", os.environ.get("USER", "")) + "-" + uuid.uuid4().hex[:8]
+                    worker_data = {
+                        'status': 'starting',
+                        'ping': datetime.now().isoformat(),
+                        'vram_gb': 0,
+                        'gpu_type': gpu,
+                        'gpu_count': count,
+                        'docker_image': docker_image,
+                        'id': worker_id
+                    }
+                    result = openweights._supabase.table('worker').insert(worker_data).execute()
+                    # Start the worker
+                    pod = runpod_start_worker(
+                        gpu=gpu,
+                        count=count,
+                        worker_id=result.data[0]['id'],
+                        image=docker_image
+                    )
+                    if not pod:
+                        print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
+                        result = openweights._supabase.table('worker').update({
+                            'status': 'terminated'
+                        }).eq('id', worker_id).execute()
+                except Exception as e:
+                    print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}: {e}")
+                    continue
 
 def clean_up_unresponsive_workers(workers):
     """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
@@ -139,6 +170,7 @@ def clean_up_unresponsive_workers(workers):
                 'status': 'terminated'
             }).eq('id', worker['id']).execute()
 
+
 def manage_cluster():
     while True:
         try:
@@ -148,29 +180,53 @@ def manage_cluster():
                 .in_('status', ['active', 'shutdown', 'starting'])\
                 .execute().data
             
-            # Separate active workers from shutting down workers
-            active_workers = [w for w in workers if w['status'] == 'active']
-            shutting_down_workers = [w for w in workers if w['status'] == 'shutdown']
-            num_starting = len([w for w in workers if w['status'] == 'starting'])
+            # Group workers by docker image and status
+            workers_by_image = {}
+            for worker in workers:
+                image = worker['docker_image']
+                if image not in workers_by_image:
+                    workers_by_image[image] = {
+                        'active': [],
+                        'starting': [],
+                        'shutdown': []
+                    }
+                workers_by_image[image][worker['status']].append(worker)
             
-            print(f"Found {len(workers)}\n  Active:{len(active_workers)}\n  Starting: {num_starting}\n  Shutting down: {len(shutting_down_workers)}")
+            # Print status for each image type
+            for image, status in workers_by_image.items():
+                print(f"\nDocker Image: {image}")
+                print(f"  Active: {len(status['active'])}")
+                print(f"  Starting: {len(status['starting'])}")
+                print(f"  Shutting down: {len(status['shutdown'])}")
             
             # Clean up unresponsive workers (both active and shutting down)
             clean_up_unresponsive_workers(workers)
             
             # List all pending jobs
-            pending_jobs = openweights.jobs.list(limit=1000)  # Adjust limit as needed
+            pending_jobs = openweights.jobs.list(limit=1000)
             pending_jobs = [job for job in pending_jobs if job['status'] == 'pending']
             
+            # Group pending jobs by docker image
+            pending_by_image = {}
+            for job in pending_jobs:
+                image = job['docker_image']
+                if image not in pending_by_image:
+                    pending_by_image[image] = []
+                pending_by_image[image].append(job)
+            
             # Get idle workers (only from active workers)
+            active_workers = [w for w in workers if w['status'] == 'active']
             idle_workers = get_idle_workers(active_workers)
-            print(f"Found {len(pending_jobs)} pending jobs and {len(idle_workers)}/{len(active_workers)} idle workers.")
+            
+            # Print pending jobs by image
+            for image, jobs in pending_by_image.items():
+                print(f"\nPending jobs for {image}: {len(jobs)}")
+            print(f"Total idle workers: {len(idle_workers)}/{len(active_workers)}")
 
             # Set shutdown flag for idle workers
             for worker in idle_workers:
-                print(f"Setting shutdown flag for idle worker: {worker['id']}")
+                print(f"Setting shutdown flag for idle worker: {worker['id']} (Image: {worker['docker_image']})")
                 try:
-                    # Update worker status to trigger graceful shutdown
                     openweights._supabase.table('worker').update({
                         'status': 'shutdown'
                     }).eq('id', worker['id']).execute()
@@ -178,7 +234,8 @@ def manage_cluster():
                     print(f"Failed to set shutdown flag for worker {worker['id']}: {e}")
 
             # Scale workers (considering only active workers)
-            scale_workers(len(active_workers) + num_starting, pending_jobs)
+            scale_workers(active_workers, pending_jobs)
+            
         except Exception as e:
             print(f"Failed to manage cluster: {e}")
             import traceback
@@ -186,6 +243,7 @@ def manage_cluster():
 
         # Wait for the next poll
         time.sleep(POLL_INTERVAL)
+
 
 if __name__ == '__main__':
     manage_cluster()

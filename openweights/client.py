@@ -287,7 +287,8 @@ class FineTuningJobs(BaseJob):
             'model': params['model'],
             'params': params,
             'status': 'pending',
-            'requires_vram_gb': requires_vram_gb
+            'requires_vram_gb': requires_vram_gb,
+            'docker_image': 'nielsrolf/ow-unsloth:latest'
         }
         
         return self.get_or_create_or_reset(data)
@@ -313,13 +314,14 @@ class InferenceJobs(BaseJob):
             'model': model,
             'params': {**params, 'input_file_id': input_file_id},
             'status': 'pending',
-            'requires_vram_gb': requires_vram_gb
+            'requires_vram_gb': requires_vram_gb,
+            'docker_image': 'nielsrolf/ow-inference:latest'
         }
         
         return self.get_or_create_or_reset(data)
 
 class Jobs(BaseJob):
-    def create(self, script: Union[BinaryIO, str], requires_vram_gb) -> Dict[str, Any]:
+    def create(self, script: Union[BinaryIO, str], requires_vram_gb, image='runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04') -> Dict[str, Any]:
         """Create a script job"""
         
         if isinstance(script, (str, bytes)):
@@ -336,7 +338,8 @@ class Jobs(BaseJob):
             'type': 'script',
             'script': script_content,
             'status': 'pending',
-            'requires_vram_gb': requires_vram_gb
+            'requires_vram_gb': requires_vram_gb,
+            'docker_image': image
         }
         
         return self.get_or_create_or_reset(data)

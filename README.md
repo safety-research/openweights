@@ -133,6 +133,11 @@ You need:
 ## Inference worker
 ```sh
 docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
-docker push nielsrolf/ow-inferenc
+docker push nielsrolf/ow-inference
 ```
 
+## Unsloth finetuning worker
+```sh
+docker build -f ow-unsloth.Dockerfile -t nielsrolf/ow-unsloth .
+docker push nielsrolf/ow-unsloth
+```
