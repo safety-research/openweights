@@ -19,6 +19,9 @@ COPY openweights openweights
 COPY entrypoint.sh .
 RUN python3 -m pip install .
 
+# Create a symbolic link from python3 to python
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 EXPOSE 22
 EXPOSE 8000
 

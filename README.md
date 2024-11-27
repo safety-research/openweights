@@ -127,3 +127,12 @@ You need:
 - huggingface so that the workers can push models to huggingface
 - github credentials if this is still a private repo so that the workers can pull it on setup
 - runpod API key in order to autoscale worker instance
+
+# Updating worker images
+
+## Inference worker
+```sh
+docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
+docker push nielsrolf/ow-inferenc
+```
+

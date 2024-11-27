@@ -38,6 +38,15 @@ while True:
         break
     time.sleep(5)
 
+# Get log file:
+runs = client.runs.list(job_id=job['id'])
+for run in runs:
+    print(run)
+    if run['log_file']:
+        log = client.files.content(run['log_file']).decode('utf-8')
+        print(log)
+    print('---')
+
 # Get output
 job = client.jobs.retrieve(job['id'])
 output_file_id = job['outputs']['file']
