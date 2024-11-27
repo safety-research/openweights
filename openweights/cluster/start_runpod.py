@@ -152,11 +152,14 @@ def shutdown_pod(pod):
 
 
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
-def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None):
+def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None):
     gpu = GPUs.get(gpu, gpu)
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
     image = IMAGES.get(image, image)
+
+    if pending_workers is None:
+        pending_workers = []
     while True:
         try:
             if worker_id is None:
@@ -173,9 +176,11 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
                 start_ssh=True,
                 env={
                     'WORKER_ID': worker_id,
-                    'DOCKER_IMAGE': image
+                    'DOCKER_IMAGE': image,
+                    'OW_DEV': 'true' if dev_mode else 'false'
                 }
             )
+            pending_workers.append(pod['id'])
             pod = wait_for_pod(pod)
             
             if not check_correct_cuda(pod):
@@ -183,6 +188,7 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
 
             return pod
         except ShutdownException:
+            pending_workers.remove(pod['id'])
             continue
 
 if __name__ == '__main__':

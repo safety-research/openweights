@@ -116,18 +116,30 @@ def scale_workers(active_workers, pending_jobs):
                         'id': worker_id
                     }
                     result = openweights._supabase.table('worker').insert(worker_data).execute()
-                    # Start the worker
-                    pod = runpod_start_worker(
-                        gpu=gpu,
-                        count=count,
-                        worker_id=result.data[0]['id'],
-                        image=docker_image
-                    )
-                    if not pod:
-                        print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
-                        result = openweights._supabase.table('worker').update({
-                            'status': 'terminated'
-                        }).eq('id', worker_id).execute()
+                    try:
+                        # Start the worker
+                        pending_workers = []
+                        pod = runpod_start_worker(
+                            gpu=gpu,
+                            count=count,
+                            worker_id=result.data[0]['id'],
+                            image=docker_image,
+                            pending_workers=pending_workers
+                        )
+                        # Update worker with pod_id
+                        if not pod:
+                            print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
+                            result = openweights._supabase.table('worker').update({
+                                'status': 'terminated'
+                            }).eq('id', worker_id).execute()
+                        else:
+                            result = openweights._supabase.table('worker').update({
+                                'pod_id': pod['id']
+                            }).eq('id', worker_id).execute()
+                    except:
+                        # If worker creation fails, clean up the worker
+                        for pod_id in pending_workers:
+                            runpod.terminate_pod(pod_id)
                 except Exception as e:
                     print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}: {e}")
                     continue
