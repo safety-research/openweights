@@ -43,8 +43,11 @@ The frontend will be available at http://localhost:5173
 ## Features
 
 ### Jobs View
+![Jobs overview](screenshots/jobs_view.png)
 - Shows jobs in three columns: pending, in progress, and completed/failed
 - Each job card shows basic information and a link to detailed view
+
+![Jobs details](screenshots/job_details.png)
 - Detailed view shows:
   - Job parameters
   - Script (if applicable)
@@ -56,12 +59,14 @@ The frontend will be available at http://localhost:5173
   - Associated job (with link)
   - Associated worker (with link)
   - Status and timestamps
+![Run details](screenshots/run_details.png)
 - Detailed view shows:
   - Full run information
   - Log file (if available)
   - Links to associated job and worker
 
 ### Workers View
+![Workers view](screenshots/workers.png)
 - Shows workers in three columns: starting, active, and terminated
 - Each worker card shows:
   - GPU information
