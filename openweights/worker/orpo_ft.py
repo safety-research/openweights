@@ -35,6 +35,7 @@ def orpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
 
     args = ORPOConfig(
         per_device_train_batch_size=training_cfg.per_device_train_batch_size,
+        per_device_eval_batch_size=training_cfg.eval_batch_size,
         gradient_accumulation_steps=training_cfg.gradient_accumulation_steps,
         warmup_steps=training_cfg.warmup_steps,
         learning_rate=learning_rate,

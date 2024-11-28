@@ -19,6 +19,38 @@ def flatten(row):
             result[key] = value
     return result
 
+def unflatten(row):
+    result = {}
+    for key, value in row.items():
+        parts = key.split('.')
+        current = result
+        for part in parts[:-1]:
+            current = current.setdefault(part, {})
+        current[parts[-1]] = value
+    return convert_to_standard_types(result)
+
+def convert_to_standard_types(obj):
+    if isinstance(obj, dict):
+        return {k: convert_to_standard_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_standard_types(item) for item in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, bytes):
+        try:
+            return obj.decode('utf-8')  # Attempt to decode as UTF-8
+        except UnicodeDecodeError:
+            return obj.hex()  # Fallback: represent as hex string
+    elif isinstance(obj, tuple):
+        return list(obj)  # Convert tuples to lists
+    else:
+        return obj
 
 def forwardfill(sorted_rows, columns=['data.step']):
     current = {}

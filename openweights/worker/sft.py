@@ -40,6 +40,7 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
             packing=False,
             args=TrainingArguments(
                 per_device_train_batch_size=training_cfg.per_device_train_batch_size,
+                per_device_eval_batch_size=training_cfg.eval_batch_size,
                 gradient_accumulation_steps=training_cfg.gradient_accumulation_steps if (not isinstance(training_cfg.gradient_accumulation_steps, str)) else eval(training_cfg.gradient_accumulation_steps),
                 warmup_steps=training_cfg.warmup_steps,
                 learning_rate=learning_rate,

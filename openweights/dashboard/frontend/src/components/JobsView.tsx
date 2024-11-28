@@ -20,6 +20,7 @@ import {
 import { Job } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
+import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
 
 const getStatusColor = (status: string) => {
     switch (status) {
@@ -30,7 +31,7 @@ const getStatusColor = (status: string) => {
         case 'failed':
             return '#ffebee';  // light red
         default:
-            return undefined;
+            return '#ffffff';  // white for other statuses
     }
 };
 
@@ -39,11 +40,12 @@ const JobCard: React.FC<{ job: Job }> = ({ job }) => (
         sx={{ 
             mb: 2,
             backgroundColor: getStatusColor(job.status),
-            transition: 'background-color 0.3s ease'
+            transition: 'background-color 0.3s ease',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
     >
         <CardContent>
-            <Typography variant="h6" component="div">
+            <Typography variant="h6" component="div" color="text.primary">
                 {job.id}
             </Typography>
             <Typography color="text.secondary">
@@ -67,7 +69,12 @@ const JobCard: React.FC<{ job: Job }> = ({ job }) => (
             <Typography color="text.secondary" sx={{ mb: 1 }}>
                 Created: {new Date(job.created_at).toLocaleString()}
             </Typography>
-            <Button component={Link} to={`/jobs/${job.id}`} variant="outlined" sx={{ mt: 1 }}>
+            <Button 
+                component={Link} 
+                to={`/jobs/${job.id}`} 
+                variant="outlined" 
+                sx={{ mt: 1 }}
+            >
                 View Details
             </Button>
         </CardContent>
@@ -136,9 +143,19 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
 
     return (
         <Grid item xs={12} md={4} sx={{ height: '100%' }}>
-            <Paper sx={{ p: 2, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <Paper 
+                sx={{ 
+                    p: 2, 
+                    height: '100%', 
+                    overflow: 'auto', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+            >
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h5" sx={{ flexGrow: 1 }}>
+                    <Typography variant="h5" sx={{ flexGrow: 1, color: 'text.primary' }}>
                         {title} ({filteredJobs.length})
                     </Typography>
                     <RefreshButton 
@@ -175,6 +192,11 @@ export const JobsView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [statusFilters, setStatusFilters] = useState<StatusFilters>({
+        completed: true,
+        failed: true,
+        canceled: true
+    });
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchJobs = useCallback(async () => {
@@ -224,11 +246,28 @@ export const JobsView: React.FC = () => {
 
     const pendingJobs = filteredJobs.filter(job => job.status === 'pending');
     const inProgressJobs = filteredJobs.filter(job => job.status === 'in_progress');
-    const completedJobs = filteredJobs.filter(job => ['completed', 'failed', 'canceled'].includes(job.status));
+    const completedJobs = filteredJobs.filter(job => {
+        if (job.status === 'completed' && statusFilters.completed) return true;
+        if (job.status === 'failed' && statusFilters.failed) return true;
+        if (job.status === 'canceled' && statusFilters.canceled) return true;
+        return false;
+    });
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box 
+                sx={{ 
+                    mb: 3, 
+                    display: 'flex', 
+                    gap: 2, 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap',
+                    p: 2,
+                    backgroundColor: '#ffffff',
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+            >
                 <TextField
                     label="Search"
                     variant="outlined"
@@ -238,46 +277,11 @@ export const JobsView: React.FC = () => {
                     sx={{ 
                         width: 200,
                         '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'background.paper',
-                            '& fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.23)',
-                            },
-                            '&:hover fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.4)',
-                            },
-                            '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                            },
-                        },
-                        '& .MuiInputLabel-root': {
-                            color: 'text.secondary',
-                        },
-                        '& .MuiInputBase-input': {
-                            color: 'text.primary',
-                        },
+                            backgroundColor: '#ffffff',
+                        }
                     }}
                 />
-                <FormControl size="small" sx={{ 
-                    minWidth: 120,
-                    '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'background.paper',
-                        '& fieldset': {
-                            borderColor: 'rgba(255, 255, 255, 0.23)',
-                        },
-                        '&:hover fieldset': {
-                            borderColor: 'rgba(255, 255, 255, 0.4)',
-                        },
-                        '&.Mui-focused fieldset': {
-                            borderColor: 'primary.main',
-                        },
-                    },
-                    '& .MuiInputLabel-root': {
-                        color: 'text.secondary',
-                    },
-                    '& .MuiSelect-select': {
-                        color: 'text.primary',
-                    },
-                }}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
                     <InputLabel>Type</InputLabel>
                     <Select
                         value={typeFilter}
@@ -299,6 +303,10 @@ export const JobsView: React.FC = () => {
                         />
                     }
                     label="Auto-refresh"
+                />
+                <StatusCheckboxes
+                    filters={statusFilters}
+                    onChange={setStatusFilters}
                 />
             </Box>
             <Grid container spacing={3} sx={{ flexGrow: 1 }}>
@@ -327,7 +335,7 @@ export const JobsView: React.FC = () => {
                     loading={loading}
                 />
                 <JobsColumn 
-                    title="Completed/Failed" 
+                    title="Completed/Failed/Canceled" 
                     jobs={completedJobs}
                     filter={filter}
                     page={pages.completed}

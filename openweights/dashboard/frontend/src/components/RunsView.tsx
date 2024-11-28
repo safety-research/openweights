@@ -9,10 +9,6 @@ import {
     Button, 
     Box,
     TextField,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     TablePagination,
     Switch,
     FormControlLabel
@@ -20,6 +16,7 @@ import {
 import { Run } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
+import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
 
 const getStatusColor = (status: string) => {
     switch (status) {
@@ -30,7 +27,7 @@ const getStatusColor = (status: string) => {
         case 'failed':
             return '#ffebee';  // light red
         default:
-            return undefined;
+            return '#ffffff';  // white for other statuses
     }
 };
 
@@ -39,11 +36,12 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
         sx={{ 
             mb: 2,
             backgroundColor: getStatusColor(run.status),
-            transition: 'background-color 0.3s ease'
+            transition: 'background-color 0.3s ease',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
     >
         <CardContent>
-            <Typography variant="h6" component="div">
+            <Typography variant="h6" component="div" color="text.primary">
                 {run.id}
             </Typography>
             <Typography color="text.secondary">
@@ -60,7 +58,12 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
             <Typography color="text.secondary" sx={{ mb: 1 }}>
                 Created: {new Date(run.created_at).toLocaleString()}
             </Typography>
-            <Button component={Link} to={`/runs/${run.id}`} variant="outlined" sx={{ mt: 1 }}>
+            <Button 
+                component={Link} 
+                to={`/runs/${run.id}`} 
+                variant="outlined" 
+                sx={{ mt: 1 }}
+            >
                 View Details
             </Button>
         </CardContent>
@@ -110,9 +113,19 @@ const RunsColumn: React.FC<RunsColumnProps> = ({
 
     return (
         <Grid item xs={12} md={4} sx={{ height: '100%' }}>
-            <Paper sx={{ p: 2, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <Paper 
+                sx={{ 
+                    p: 2, 
+                    height: '100%', 
+                    overflow: 'auto', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+            >
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h5" sx={{ flexGrow: 1 }}>
+                    <Typography variant="h5" sx={{ flexGrow: 1, color: 'text.primary' }}>
                         {title} ({filteredRuns.length})
                     </Typography>
                     <RefreshButton 
@@ -148,6 +161,11 @@ export const RunsView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [statusFilters, setStatusFilters] = useState<StatusFilters>({
+        completed: true,
+        failed: true,
+        canceled: true
+    });
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchRuns = useCallback(async () => {
@@ -192,11 +210,28 @@ export const RunsView: React.FC = () => {
 
     const pendingRuns = runs.filter(run => run.status === 'pending');
     const inProgressRuns = runs.filter(run => run.status === 'in_progress');
-    const completedRuns = runs.filter(run => ['completed', 'failed', 'canceled'].includes(run.status));
+    const completedRuns = runs.filter(run => {
+        if (run.status === 'completed' && statusFilters.completed) return true;
+        if (run.status === 'failed' && statusFilters.failed) return true;
+        if (run.status === 'canceled' && statusFilters.canceled) return true;
+        return false;
+    });
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box 
+                sx={{ 
+                    mb: 3, 
+                    display: 'flex', 
+                    gap: 2, 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap',
+                    p: 2,
+                    backgroundColor: '#ffffff',
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+            >
                 <TextField
                     label="Search"
                     variant="outlined"
@@ -206,23 +241,8 @@ export const RunsView: React.FC = () => {
                     sx={{ 
                         width: 200,
                         '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'background.paper',
-                            '& fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.23)',
-                            },
-                            '&:hover fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.4)',
-                            },
-                            '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                            },
-                        },
-                        '& .MuiInputLabel-root': {
-                            color: 'text.secondary',
-                        },
-                        '& .MuiInputBase-input': {
-                            color: 'text.primary',
-                        },
+                            backgroundColor: '#ffffff',
+                        }
                     }}
                 />
                 <FormControlLabel
@@ -234,6 +254,10 @@ export const RunsView: React.FC = () => {
                         />
                     }
                     label="Auto-refresh"
+                />
+                <StatusCheckboxes
+                    filters={statusFilters}
+                    onChange={setStatusFilters}
                 />
             </Box>
             <Grid container spacing={3} sx={{ flexGrow: 1 }}>
@@ -262,7 +286,7 @@ export const RunsView: React.FC = () => {
                     loading={loading}
                 />
                 <RunsColumn 
-                    title="Completed/Failed" 
+                    title="Completed/Failed/Canceled" 
                     runs={completedRuns}
                     filter={filter}
                     page={pages.completed}
