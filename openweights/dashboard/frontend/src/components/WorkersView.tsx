@@ -65,6 +65,26 @@ const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
                     Last ping: {new Date(worker.ping).toLocaleString()}
                 </Typography>
             )}
+            {worker.cached_models && worker.cached_models.length > 0 && (
+                <Box sx={{ mb: 1 }}>
+                    <Typography color="text.secondary" sx={{ mb: 0.5 }}>
+                        Cached Models:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {worker.cached_models.map((model, index) => (
+                            <Chip 
+                                key={index} 
+                                label={model} 
+                                size="small" 
+                                sx={{ 
+                                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                                    color: 'text.primary'
+                                }} 
+                            />
+                        ))}
+                    </Box>
+                </Box>
+            )}
             <Button component={Link} to={`/workers/${worker.id}`} variant="outlined" sx={{ mt: 1 }}>
                 View Details
             </Button>
@@ -102,10 +122,12 @@ const WorkersColumn: React.FC<WorkersColumnProps> = ({
         const workerId = String(worker.id);
         const gpuType = worker.gpu_type ? worker.gpu_type.toLowerCase() : '';
         const dockerImage = worker.docker_image ? worker.docker_image.toLowerCase() : '';
+        const cachedModels = worker.cached_models ? worker.cached_models.join(' ').toLowerCase() : '';
         
         return workerId.includes(searchStr) ||
             gpuType.includes(searchStr) ||
-            dockerImage.includes(searchStr);
+            dockerImage.includes(searchStr) ||
+            cachedModels.includes(searchStr);
     });
 
     const paginatedWorkers = filteredWorkers.slice(
@@ -220,9 +242,49 @@ export const WorkersView: React.FC = () => {
                     size="small"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
-                    sx={{ width: 200 }}
+                    sx={{ 
+                        width: 200,
+                        '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'background.paper',
+                            '& fieldset': {
+                                borderColor: 'rgba(255, 255, 255, 0.23)',
+                            },
+                            '&:hover fieldset': {
+                                borderColor: 'rgba(255, 255, 255, 0.4)',
+                            },
+                            '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                            },
+                        },
+                        '& .MuiInputLabel-root': {
+                            color: 'text.secondary',
+                        },
+                        '& .MuiInputBase-input': {
+                            color: 'text.primary',
+                        },
+                    }}
                 />
-                <FormControl size="small" sx={{ minWidth: 120 }}>
+                <FormControl size="small" sx={{ 
+                    minWidth: 120,
+                    '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'background.paper',
+                        '& fieldset': {
+                            borderColor: 'rgba(255, 255, 255, 0.23)',
+                        },
+                        '&:hover fieldset': {
+                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                        },
+                        '&.Mui-focused fieldset': {
+                            borderColor: 'primary.main',
+                        },
+                    },
+                    '& .MuiInputLabel-root': {
+                        color: 'text.secondary',
+                    },
+                    '& .MuiSelect-select': {
+                        color: 'text.primary',
+                    },
+                }}>
                     <InputLabel>GPU Type</InputLabel>
                     <Select
                         value={gpuFilter}
