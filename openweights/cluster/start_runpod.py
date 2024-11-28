@@ -34,7 +34,7 @@ GPUs = {
     'H100N': 'NVIDIA H100 NVL',
 }
 GPU_COUNT = 1
-allowed_cuda_versions = ['12.1', '12.4']
+allowed_cuda_versions = ['12.4']
 
 def wait_for_pod(pod):
     while pod.get('runtime') is None:
@@ -42,19 +42,23 @@ def wait_for_pod(pod):
         pod = runpod.get_pod(pod['id'])
     return pod
 
-def create_ssh_client(pod):
-    key_file = os.path.expanduser('~/.ssh/id_ed25519')
-    user='root'
+def get_ip_and_port(pod_id):
     ip, port = None, None
     while ip is None:
-        pod = runpod.get_pod(pod['id'])
+        pod = runpod.get_pod(pod_id)
         for ip_and_port in pod['runtime']['ports']:
             if ip_and_port['privatePort'] == 22:
                 ip = ip_and_port['ip']
                 port = ip_and_port['publicPort']
-                break
+                return ip, port
         print('Waiting for pod to get IP address')
         time.sleep(1)
+    
+
+def create_ssh_client(pod):
+    key_file = os.path.expanduser('~/.ssh/id_ed25519')
+    user='root'
+    ip, port = get_ip_and_port(pod['id'])
     print(f'Connecting to {ip}:{port}')
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -188,8 +192,8 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
             
             pending_workers.remove(pod['id'])
             if dev_mode:
-                breakpoint()
-                return f"ssh root@{pod['runtime']['ip']} -p {pod['runtime']['ports'][0]['publicPort']} -i ~/.ssh/id_ed25519"
+                ip, port = get_ip_and_port(pod['id'])
+                return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
             else:
                 return pod
         except ShutdownException:
