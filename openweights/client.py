@@ -232,7 +232,7 @@ class BaseJob:
 
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
-            result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', data['id']).execute()
+            result = self._supabase.table('jobs').update(data).eq('id', data['id']).execute()
             return result.data[0]
         elif job['status'] in ['pending', 'in_progress', 'completed']:
             return job
@@ -273,7 +273,7 @@ class FineTuningJobs(BaseJob):
         
         hash_params = {k: v for k, v in params.items() if k not in ['meta']}
         job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
-        
+
         if 'finetuned_model_id' not in params:
             model = params['model'].split('/')[-1]
             org = os.environ.get("HF_ORG") or os.environ.get("HF_USER")

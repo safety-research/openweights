@@ -44,7 +44,7 @@ class Worker:
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
 
         try:
-            self.vram_gb = torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)
+            self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * torch.cuda.device_count()
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.vram_gb = 0
