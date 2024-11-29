@@ -180,7 +180,7 @@ class InferenceConfig(BaseModel):
     stop: List[str] = Field([], description="Stop sequences")
     prefill: str = Field('', description="Prefill")
     min_tokens: int = Field(1, description="Minimum number of tokens to generate")
-
+    max_model_len: int = Field(2048, description="Maximum model length")
 
     @field_validator("input_file_id")
     def validate_dataset_type(cls, v, info):

@@ -19,11 +19,13 @@ model = completed_jobs[0]['params']['finetuned_model_id']
 
 # Create an inference job
 job = client.inference.create(
-    model=model,
+    # model=model,
+    model='unsloth/Qwen2.5-72B-Instruct',
     input_file_id=file_id,
     max_tokens=1000,
-    temperature=0.9,
-    min_tokens=500,
+    temperature=0,
+    requires_vram_gb=100,
+    max_model_len=2048
 )
 print(job)
 

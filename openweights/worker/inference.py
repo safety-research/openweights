@@ -60,6 +60,7 @@ def main(config_path: str):
         tensor_parallel_size=get_number_of_gpus(),
         max_num_seqs=32,
         gpu_memory_utilization=0.95,
+        max_model_len=cfg.max_model_len
     )
     conversations = load_jsonl_file_from_id(cfg.input_file_id)
     

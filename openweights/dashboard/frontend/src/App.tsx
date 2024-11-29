@@ -12,6 +12,15 @@ function App() {
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
         <AppBar position="static">
           <Toolbar>
+            <img
+              src="/ow.svg"
+              alt="OpenWeights Logo"
+              style={{
+                height: '32px',
+                width: '32px',
+                marginRight: '12px'
+              }}
+            />
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
               OpenWeights Dashboard
             </Typography>
