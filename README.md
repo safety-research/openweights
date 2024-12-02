@@ -81,38 +81,6 @@ job = client.jobs.create(
 )
 ```
 
-## Manage jobs
-
-```python
-from openweights import OpenWeights
-
-client = OpenWeights()
-
-# Find all jobs with certain parameters
-jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
-
-# Poll until job is done
-job = jobs[0]
-current_status = job['status']
-while True:
-    job = client.jobs.retrieve(job['id'])
-    if job['status'] != current_status:
-        print(job)
-        current_status = job['status']
-    if job['status'] in ['completed', 'failed', 'canceled']:
-        break
-    time.sleep(5)
-
-# Get log file:
-runs = client.runs.list(job_id=job['id'])
-for run in runs:
-    print(run)
-    if run['log_file']:
-        log = client.files.content(run['log_file']).decode('utf-8')
-        print(log)
-    print('---')
-```
-
 ## Deploy a model as a temporary Openai-like API
 ```py
 from openweights import OpenWeights
