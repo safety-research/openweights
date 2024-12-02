@@ -1,12 +1,15 @@
-import os
-import pytest
 import logging
+import os
 import time
 from datetime import datetime
 from multiprocessing import Process
-from supabase import create_client
+
+import pytest
+
 from openweights import OpenWeights
 from openweights.worker.main import Worker
+from supabase import create_client
+
 
 # Set up logging configuration
 def setup_logging():

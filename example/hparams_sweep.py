@@ -1,8 +1,9 @@
-from typing import List, Dict
-from openweights import OpenWeights
+import random
+from typing import Dict, List
+
 from dotenv import load_dotenv
 
-import random
+from openweights import OpenWeights
 
 load_dotenv()
 client = OpenWeights()

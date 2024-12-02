@@ -1,10 +1,13 @@
 import os
 import time
-import pytest
 from datetime import datetime
 from multiprocessing import Process
-from supabase import create_client
+
+import pytest
 from worker import Worker
+
+from supabase import create_client
+
 
 @pytest.fixture(scope='module')
 def client():

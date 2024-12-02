@@ -1,5 +1,6 @@
 import pytest
-from openweights.validate import TrainingConfig, InferenceConfig
+
+from openweights.validate import InferenceConfig, TrainingConfig
 
 
 def test_orpo_valid():

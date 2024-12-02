@@ -1,6 +1,7 @@
-from openweights import OpenWeights
 from dotenv import load_dotenv
 from tqdm import tqdm
+
+from openweights import OpenWeights
 
 load_dotenv()
 client = OpenWeights()

@@ -4,16 +4,17 @@ Usage:
 
 Note: possible unknown error with echo when running the script.
 """
+import os
 import time
-import os
-import paramiko
-from scp import SCPClient
-import runpod
-import os
-from dotenv import load_dotenv
-import fire
-import backoff
 import uuid
+
+import backoff
+import fire
+import paramiko
+import runpod
+from dotenv import load_dotenv
+from scp import SCPClient
+from functools import lru_cache
 
 load_dotenv(override=True) 
 
@@ -43,6 +44,7 @@ def wait_for_pod(pod):
     return pod
 
 
+@lru_cache
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=120, max_tries=120)
 def get_ip_and_port(pod_id):
     pod = runpod.get_pod(pod_id)
@@ -142,16 +144,6 @@ def check_correct_cuda(pod, allowed=allowed_cuda_versions):
     return any([f'CUDA Version: {i}' in logs for i in allowed])
 
 
-
-class ShutdownException(Exception):
-    pass
-
-
-def shutdown_pod(pod):
-    runpod.terminate_pod(pod['id'])
-    raise ShutdownException()
-
-
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
 def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None):
     gpu = GPUs.get(gpu, gpu)
@@ -161,43 +153,41 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 
     if pending_workers is None:
         pending_workers = []
+
     while True:
-        try:
-            env = env or {}
-            env.update({
-                'WORKER_ID': worker_id,
-                'DOCKER_IMAGE': image,
-                'OW_DEV': 'true' if dev_mode else 'false'
-            })
-            if worker_id is None:
-                worker_id = uuid.uuid4().hex[:8]
-            pod = runpod.create_pod(
-                name, image, gpu,
-                container_disk_in_gb=container_disk_in_gb,
-                volume_in_gb=volume_in_gb,
-                volume_mount_path='/workspace',
-                gpu_count=count,
-                allowed_cuda_versions=allowed_cuda_versions,
-                template_id=TEMPLATE_ID,
-                ports="8000/http,22/tcp",
-                start_ssh=True,
-                env=env
-            )
-            pending_workers.append(pod['id'])
-            pod = wait_for_pod(pod)
-            
-            if not check_correct_cuda(pod):
-                shutdown_pod(pod)
-            
-            pending_workers.remove(pod['id'])
-            if dev_mode:
-                ip, port = get_ip_and_port(pod['id'])
-                return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
-            else:
-                return pod
-        except ShutdownException:
-            pending_workers.remove(pod['id'])
+        env = env or {}
+        env.update({
+            'WORKER_ID': worker_id,
+            'DOCKER_IMAGE': image,
+            'OW_DEV': 'true' if dev_mode else 'false'
+        })
+        if worker_id is None:
+            worker_id = uuid.uuid4().hex[:8]
+        pod = runpod.create_pod(
+            name, image, gpu,
+            container_disk_in_gb=container_disk_in_gb,
+            volume_in_gb=volume_in_gb,
+            volume_mount_path='/workspace',
+            gpu_count=count,
+            allowed_cuda_versions=allowed_cuda_versions,
+            template_id=TEMPLATE_ID,
+            ports="8000/http,22/tcp",
+            start_ssh=True,
+            env=env
+        )
+        pending_workers.append(pod['id'])
+        pod = wait_for_pod(pod)
+        
+        if not check_correct_cuda(pod):
+            runpod.terminate_pod(pod['id'])
             continue
+        
+        pending_workers.remove(pod['id'])
+        if dev_mode:
+            ip, port = get_ip_and_port(pod['id'])
+            return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
+        else:
+            return pod
 
 
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None):
@@ -209,7 +199,9 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
         traceback.print_exc()
         return None
     finally:
+        print("Pending workers: ", pending_workers)
         for pod_id in pending_workers:
+            print(f"Shutting down pod {pod_id}")
             runpod.terminate_pod(pod_id)
 
 if __name__ == '__main__':

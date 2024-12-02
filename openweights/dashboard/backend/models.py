@@ -1,6 +1,8 @@
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+
 
 class Job(BaseModel):
     id: str

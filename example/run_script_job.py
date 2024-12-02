@@ -1,8 +1,9 @@
 """Schedule a job to run a script, then poll until it's finished and print the log file."""
-from openweights import OpenWeights
-from dotenv import load_dotenv
 import time
 
+from dotenv import load_dotenv
+
+from openweights import OpenWeights
 
 load_dotenv()
 client = OpenWeights()

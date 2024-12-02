@@ -1,10 +1,13 @@
 import os
-from typing import List, Optional
-from supabase import create_client
-from models import Job, Run, Worker, JobWithRuns, RunWithJobAndWorker, WorkerWithRuns
-from openweights import OpenWeights
-from dotenv import load_dotenv
 import re
+from typing import List, Optional
+
+from dotenv import load_dotenv
+from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
+                    WorkerWithRuns)
+
+from openweights import OpenWeights
+from supabase import create_client
 
 
 def is_progress_line(line):

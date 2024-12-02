@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
 from typing import List, Optional
 
 from database import Database
-from models import Job, Run, Worker, JobWithRuns, RunWithJobAndWorker, WorkerWithRuns
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
+                    WorkerWithRuns)
 
 app = FastAPI()
 

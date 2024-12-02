@@ -1,9 +1,12 @@
 import os
-import pytest
 import time
 from datetime import datetime
+
+import pytest
+
 from openweights.client import Run
 from supabase import create_client
+
 
 @pytest.fixture(scope='module')
 def supabase():

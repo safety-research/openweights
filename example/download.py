@@ -1,11 +1,13 @@
 """Download files, logs, and plot events from a job."""
-from openweights import OpenWeights
-from dotenv import load_dotenv
-import pandas as pd
-from pandas.api.types import is_numeric_dtype
-import os
-import matplotlib.pyplot as plt
 import json
+import os
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from dotenv import load_dotenv
+from pandas.api.types import is_numeric_dtype
+
+from openweights import OpenWeights
 
 load_dotenv()
 client = OpenWeights()

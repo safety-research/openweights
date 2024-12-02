@@ -6,6 +6,10 @@ from supabase import create_client, Client
 from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
+from openai import OpenAI, AsyncOpenAI
+import runpod
+import uuid
+import backoff
 
 from openweights.validate import validate_messages, validate_preference_dataset, TrainingConfig, InferenceConfig
 
@@ -427,16 +431,13 @@ class OpenWeights:
             self._current_run = Run(self._supabase)
         return self._current_run
     
-    def deploy(self, model, max_model_len=2048):
+    def deploy(self, model, max_model_len=2048, client_type=OpenAI):
         """Deploy a model on OpenWeights"""
-        return TemporaryApi(self._supabase, model, max_model_len)
+        return TemporaryApi(self._supabase, model, max_model_len, client_type=client_type)
 
-from openweights.cluster.start_runpod import start_worker
 from openweights.cluster.manage import determine_gpu_type
-from openai import OpenAI, AsyncOpenAI
-import runpod
-import uuid
-import backoff
+from openweights.cluster.start_runpod import start_worker
+
 class TemporaryApi:
     def __init__(self, supabase, model, max_model_len, requires_vram_gb=60, client_type=OpenAI):
         self._supabase = supabase
@@ -461,6 +462,7 @@ class TemporaryApi:
                     'VLLM_MAX_MODEL_LEN': self.max_model_len,
                 }
                 self.pod = start_worker(gpu_type, 'nielsrolf/ow-vllm-api:latest', count=gpu_count, env=env)
+                break
             except Exception as e:
                 print(e)
                 continue
@@ -469,10 +471,10 @@ class TemporaryApi:
         self.wait_until_ready(openai)
         return self.client_type(api_key=self.api_key, base_url=self.base_url)
     
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60)
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
     def wait_until_ready(self, openai):
         openai.chat.completions.create(model=self.model, messages=[dict(role='user', content='Hello')])
-
     
     def __exit__(self, exc_type, exc_value, traceback):
+        print('Terminating pod')
         runpod.terminate_pod(self.pod['id'])

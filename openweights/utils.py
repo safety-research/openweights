@@ -1,11 +1,12 @@
-import pandas as pd
-from matplotlib import pyplot as plt
-import seaborn as sns
-import numpy as np
 import re
 
-from openweights import OpenWeights
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from dotenv import load_dotenv
+from matplotlib import pyplot as plt
+
+from openweights import OpenWeights
 
 
 def flatten(row):
