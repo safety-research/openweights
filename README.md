@@ -87,14 +87,30 @@ job = client.jobs.create(
 from openweights import OpenWeights
 
 client = OpenWeights()
-# List 10 fine-tuning jobs
-client.fine_tuning.jobs.list(limit=10)
-# Retrieve the state of a fine-tune
-client.fine_tuning.jobs.retrieve("ftjob-abc123")
-# Cancel a job
-client.fine_tuning.jobs.cancel("ftjob-abc123")
+
 # Find all jobs with certain parameters
 jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
+
+# Poll until job is done
+job = jobs[0]
+current_status = job['status']
+while True:
+    job = client.jobs.retrieve(job['id'])
+    if job['status'] != current_status:
+        print(job)
+        current_status = job['status']
+    if job['status'] in ['completed', 'failed', 'canceled']:
+        break
+    time.sleep(5)
+
+# Get log file:
+runs = client.runs.list(job_id=job['id'])
+for run in runs:
+    print(run)
+    if run['log_file']:
+        log = client.files.content(run['log_file']).decode('utf-8')
+        print(log)
+    print('---')
 ```
 
 ## Deploy a model as a temporary Openai-like API
@@ -142,7 +158,7 @@ python openweights/cluster/start_runpod.py
 
 Starting a cluster
 ```sh
-python src/autoscale.py
+python openweights/cluster/manage.py
 ```
 
 # Updating worker images
