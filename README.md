@@ -97,6 +97,26 @@ client.fine_tuning.jobs.cancel("ftjob-abc123")
 jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
 ```
 
+## Deploy a model as a temporary Openai-like API
+```py
+from openweights import OpenWeights
+
+client = OpenWeights()
+
+model = 'unsloth/llama-3-8b-Instruct'
+with client.deploy(model) as openai:
+    completion = openai.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": "Respond like an ipython terminal"},
+            {"role": "user", "content": "20 > 10"},
+            {"role": "assistant", "content": "True"},
+            {"role": "user", "content": "9.11 > 9.9"}
+        ]
+    )
+    print(completion.choices[0].message)
+```
+
 More examples:
 - do a [hparam sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
 - [download artifacts](example/download.py) from a job and plot training
@@ -131,6 +151,12 @@ python src/autoscale.py
 ```sh
 docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
 docker push nielsrolf/ow-inference
+```
+
+## API
+```sh
+docker build -f ow-vllm-api.Dockerfile -t nielsrolf/ow-vllm-api .
+docker push nielsrolf/ow-vllm-api
 ```
 
 ## Unsloth finetuning worker

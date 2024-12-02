@@ -19,11 +19,11 @@ load_dotenv(override=True)
 
 runpod.api_key = os.environ.get("RUNPOD_API_KEY")
 IMAGES = {
+    'api': 'nielsrolf/ow-vllm-api',
     'inference': 'nielsrolf/ow-inference',
     'finetuning': 'nielsrolf/ow-unsloth',
     'torch':  'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
 }
-DOT_ENV_PATH = os.path.join(os.path.dirname(__file__), '../../.env')
 TEMPLATE_ID = 'nqj8muhb8p'
 
 GPUs = {
@@ -42,17 +42,15 @@ def wait_for_pod(pod):
         pod = runpod.get_pod(pod['id'])
     return pod
 
+
+@backoff.on_exception(backoff.constant, Exception, interval=1, max_time=120, max_tries=120)
 def get_ip_and_port(pod_id):
-    ip, port = None, None
-    while ip is None:
-        pod = runpod.get_pod(pod_id)
-        for ip_and_port in pod['runtime']['ports']:
-            if ip_and_port['privatePort'] == 22:
-                ip = ip_and_port['ip']
-                port = ip_and_port['publicPort']
-                return ip, port
-        print('Waiting for pod to get IP address')
-        time.sleep(1)
+    pod = runpod.get_pod(pod_id)
+    for ip_and_port in pod['runtime']['ports']:
+        if ip_and_port['privatePort'] == 22:
+            ip = ip_and_port['ip']
+            port = ip_and_port['publicPort']
+            return ip, port
     
 
 def create_ssh_client(pod):
@@ -154,9 +152,8 @@ def shutdown_pod(pod):
     raise ShutdownException()
 
 
-
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
-def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None):
+def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None):
     gpu = GPUs.get(gpu, gpu)
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
@@ -166,6 +163,12 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
         pending_workers = []
     while True:
         try:
+            env = env or {}
+            env.update({
+                'WORKER_ID': worker_id,
+                'DOCKER_IMAGE': image,
+                'OW_DEV': 'true' if dev_mode else 'false'
+            })
             if worker_id is None:
                 worker_id = uuid.uuid4().hex[:8]
             pod = runpod.create_pod(
@@ -178,11 +181,7 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
                 template_id=TEMPLATE_ID,
                 ports="8000/http,22/tcp",
                 start_ssh=True,
-                env={
-                    'WORKER_ID': worker_id,
-                    'DOCKER_IMAGE': image,
-                    'OW_DEV': 'true' if dev_mode else 'false'
-                }
+                env=env
             )
             pending_workers.append(pod['id'])
             pod = wait_for_pod(pod)
@@ -199,6 +198,19 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
         except ShutdownException:
             pending_workers.remove(pod['id'])
             continue
+
+
+def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None):
+    pending_workers = []
+    try:
+        return _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return None
+    finally:
+        for pod_id in pending_workers:
+            runpod.terminate_pod(pod_id)
 
 if __name__ == '__main__':
     fire.Fire(start_worker)

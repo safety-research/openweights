@@ -426,3 +426,54 @@ class OpenWeights:
         if not self._current_run:
             self._current_run = Run(self._supabase)
         return self._current_run
+    
+    def deploy(self, model, max_model_len=2048):
+        """Deploy a model on OpenWeights"""
+        return TemporaryApi(self._supabase, model, max_model_len)
+
+from openweights.cluster.start_runpod import start_worker
+from openweights.cluster.manage import determine_gpu_type
+from openai import OpenAI
+import runpod
+import uuid
+import backoff
+class TemporaryApi:
+    def __init__(self, supabase, model, max_model_len, requires_vram_gb=60):
+        self._supabase = supabase
+        self.model = model
+        self.max_model_len = max_model_len
+        self.requires_vram_gb = requires_vram_gb
+
+        self.pod = None
+        self.base_url = None
+        self.api_key = None
+    
+    def __enter__(self):
+        # Create a pod
+        self.api_key = uuid.uuid4().hex
+        for choice in range(2):
+            try:
+                gpu_type, gpu_count = determine_gpu_type(self.requires_vram_gb, choice=choice)
+                env = {
+                    'VLLM_API_KEY': self.api_key,
+                    'VLLM_MODEL': self.model,
+                    'VLLM_MAX_MODEL_LEN': self.max_model_len,
+                }
+                self.pod = start_worker(gpu_type, 'nielsrolf/ow-vllm-api:latest', count=gpu_count, env=env)
+            except Exception as e:
+                print(e)
+                continue
+        self.base_url = f"https://{self.pod['id']}-8000.proxy.runpod.net/v1"
+        openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        print(f"openai = OpenAI(api_key={self.api_key}, base_url={self.base_url})")
+        self.wait_until_ready(openai)
+        return openai
+    
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60)
+    def wait_until_ready(self, openai):
+        openai.chat.completions.create(model=self.model, messages=[dict(role='user', content='Hello')])
+
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        # runpod.terminate_pod(self.pod['id'])
+        print(f"openai = OpenAI(api_key={self.api_key}, base_url={self.base_url})")

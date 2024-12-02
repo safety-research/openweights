@@ -54,12 +54,15 @@ def get_idle_workers(active_workers):
             idle_workers.append(worker)
     return idle_workers
 
-def determine_gpu_type(required_vram):
+def determine_gpu_type(required_vram, choice=None):
     """Determine the best GPU type and count for the required VRAM."""
     vram_options = sorted(GPU_TYPES.keys())
     for vram in vram_options:
         if required_vram <= vram:
-            choice = random.choice(GPU_TYPES[vram])
+            if choice is None:
+                choice = random.choice(GPU_TYPES[vram])
+            else:
+                choice = GPU_TYPES[vram][choice % len(GPU_TYPES[vram])]
             count, gpu = choice.split('x ')
             return gpu, int(count)
     raise ValueError("No suitable GPU configuration found for VRAM requirement.")
@@ -117,13 +120,11 @@ def scale_workers(active_workers, pending_jobs):
                     result = openweights._supabase.table('worker').insert(worker_data).execute()
                     try:
                         # Start the worker
-                        pending_workers = []
                         pod = runpod_start_worker(
                             gpu=gpu,
                             count=count,
                             worker_id=result.data[0]['id'],
                             image=docker_image,
-                            pending_workers=pending_workers
                         )
                         # Update worker with pod_id
                         assert pod is not None
@@ -133,8 +134,6 @@ def scale_workers(active_workers, pending_jobs):
                     except:
                         # If worker creation fails, clean up the worker
                         print(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}")
-                        for pod_id in pending_workers:
-                            runpod.terminate_pod(pod_id)
                         result = openweights._supabase.table('worker').update({
                             'status': 'terminated'
                         }).eq('id', worker_id).execute()
