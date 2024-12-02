@@ -433,16 +433,17 @@ class OpenWeights:
 
 from openweights.cluster.start_runpod import start_worker
 from openweights.cluster.manage import determine_gpu_type
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 import runpod
 import uuid
 import backoff
 class TemporaryApi:
-    def __init__(self, supabase, model, max_model_len, requires_vram_gb=60):
+    def __init__(self, supabase, model, max_model_len, requires_vram_gb=60, client_type=OpenAI):
         self._supabase = supabase
         self.model = model
         self.max_model_len = max_model_len
         self.requires_vram_gb = requires_vram_gb
+        self.client_type = client_type
 
         self.pod = None
         self.base_url = None
@@ -465,9 +466,8 @@ class TemporaryApi:
                 continue
         self.base_url = f"https://{self.pod['id']}-8000.proxy.runpod.net/v1"
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        print(f"openai = OpenAI(api_key={self.api_key}, base_url={self.base_url})")
         self.wait_until_ready(openai)
-        return openai
+        return self.client_type(api_key=self.api_key, base_url=self.base_url)
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60)
     def wait_until_ready(self, openai):
@@ -475,5 +475,4 @@ class TemporaryApi:
 
     
     def __exit__(self, exc_type, exc_value, traceback):
-        # runpod.terminate_pod(self.pod['id'])
-        print(f"openai = OpenAI(api_key={self.api_key}, base_url={self.base_url})")
+        runpod.terminate_pod(self.pod['id'])
