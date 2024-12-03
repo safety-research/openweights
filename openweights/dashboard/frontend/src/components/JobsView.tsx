@@ -291,6 +291,7 @@ export const JobsView: React.FC = () => {
                         <MenuItem value="all">All</MenuItem>
                         <MenuItem value="fine-tuning">Fine-tuning</MenuItem>
                         <MenuItem value="inference">Inference</MenuItem>
+                        <MenuItem value="api">API</MenuItem>
                         <MenuItem value="script">Script</MenuItem>
                     </Select>
                 </FormControl>

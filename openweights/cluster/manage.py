@@ -16,7 +16,7 @@ from openweights.cluster.start_runpod import \
 load_dotenv()
 
 # Constants
-POLL_INTERVAL = 60  # poll every minute
+POLL_INTERVAL = 15
 IDLE_THRESHOLD = 300  # 5 minutes = 300 seconds
 UNRESPONSIVE_THRESHOLD = 120  # 2 minutes = 120 seconds
 MAX_NUM_WORKERS = int(os.getenv('MAX_NUM_WORKERS', 10))
@@ -48,8 +48,9 @@ def get_idle_workers(active_workers):
         runs = openweights.runs.list(worker_id=worker['id'])
         if runs:
             # Sort by created_at to get the most recent run
-            last_run = max(runs, key=lambda r: r['created_at'])
-            if last_run['status'] != 'in_progress':
+            last_run = max(runs, key=lambda r: r['updated_at'])
+            last_run_updated_at = datetime.fromisoformat(last_run['updated_at'].replace('Z', '+00:00')).timestamp()
+            if last_run['status'] != 'in_progress' and current_time - last_run_updated_at > IDLE_THRESHOLD:
                 idle_workers.append(worker)
         else:
             # If no runs found for this worker, consider it idle

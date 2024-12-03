@@ -202,6 +202,8 @@ class Worker:
                     with open(config_path, 'w') as f:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
+                elif job['type'] == 'api':
+                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]}'
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
@@ -240,7 +242,7 @@ class Worker:
                 with open(log_file_path, 'r') as log_file:
                     print(log_file.read())
                 self.current_run.update(status=status, logfile=log_response['id'])
-                self.supabase.table('jobs').update({'status': status, 'outputs': outputs}).eq('id', job['id']).execute()
+                self.supabase.table('jobs').update({'status': status, 'outputs': outputs, 'script': script}).eq('id', job['id']).execute()
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):

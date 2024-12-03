@@ -1,3 +1,4 @@
+import atexit
 import json
 from typing import Optional, BinaryIO, Dict, Any, List, Union
 import os
@@ -10,8 +11,9 @@ from openai import OpenAI, AsyncOpenAI
 import runpod
 import uuid
 import backoff
+import time
 
-from openweights.validate import validate_messages, validate_preference_dataset, TrainingConfig, InferenceConfig
+from openweights.validate import validate_messages, validate_preference_dataset, TrainingConfig, InferenceConfig, ApiConfig
 
 
 class Files:
@@ -265,7 +267,6 @@ class BaseJob:
         return data
 
         
-
 class FineTuningJobs(BaseJob):
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
@@ -324,6 +325,32 @@ class InferenceJobs(BaseJob):
         
         return self.get_or_create_or_reset(data)
 
+
+class Deployments(BaseJob):
+    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
+        """Create an inference job"""
+        params = ApiConfig(**params).model_dump()
+
+        if requires_vram_gb == 'guess':
+            requires_vram_gb = 150 if '70b' in params['model'].lower() else 24
+        hash_params = dict(**params, requires_vram_gb=requires_vram_gb)
+        job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
+
+        model = params['model']
+
+        data = {
+            'id': job_id,
+            'type': 'api',
+            'model': model,
+            'params': params,
+            'status': 'pending',
+            'requires_vram_gb': requires_vram_gb,
+            'docker_image': 'nielsrolf/ow-inference:latest'
+        }
+        
+        return self.get_or_create_or_reset(data)
+    
+
 class Jobs(BaseJob):
     def create(self, script: Union[BinaryIO, str], requires_vram_gb, image='runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04') -> Dict[str, Any]:
         """Create a script job"""
@@ -347,6 +374,8 @@ class Jobs(BaseJob):
         }
         
         return self.get_or_create_or_reset(data)
+
+
 
 class Runs:
     def __init__(self, supabase: Client):
@@ -404,6 +433,48 @@ class Events():
                         fields.remove(field)
         return latest_values
 
+
+class TemporaryApi:
+    def __init__(self, ow, job_id, client_type=OpenAI):
+        self.ow = ow
+        self.job_id = job_id
+        self.client_type = client_type
+
+        self.pod_id = None
+        self.base_url = None
+        self.api_key = None
+
+        atexit.register(self.down)
+    
+    def up(self):
+        # Poll until status is 'in_progress'
+        while True:
+            job = self.ow.jobs.retrieve(self.job_id)
+            if job['status'] == 'in_progress':
+                break
+            time.sleep(5)
+        # Get worker
+        worker = self.ow._supabase.table('worker').select('*').eq('id', job['worker_id']).single().execute().data
+        self.pod_id = worker['pod_id']
+        self.base_url = f"https://{self.pod_id}-8000.proxy.runpod.net/v1"
+        self.api_key = job['params']['api_key']
+        openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.wait_until_ready(openai, job['params']['model'])
+        return self.client_type(api_key=self.api_key, base_url=self.base_url)
+
+    def __enter__(self):
+        return self.up()
+    
+    def down(self):
+        self.ow.jobs.cancel(self.job_id)
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.down()
+    
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
+    def wait_until_ready(self, openai, model):
+        openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
+
 class OpenWeights:
     def __init__(self, supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
         """Initialize OpenWeights client"""
@@ -420,6 +491,7 @@ class OpenWeights:
         self.fine_tuning = FineTuningJobs(self._supabase)
         self.inference = InferenceJobs(self._supabase)
         self.jobs = Jobs(self._supabase)
+        self.deployments = Deployments(self._supabase)
         self.runs = Runs(self._supabase)
         self.events = Events(self._supabase)
 
@@ -431,50 +503,8 @@ class OpenWeights:
             self._current_run = Run(self._supabase)
         return self._current_run
     
-    def deploy(self, model, max_model_len=2048, client_type=OpenAI):
+    def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY')) -> TemporaryApi:
         """Deploy a model on OpenWeights"""
-        return TemporaryApi(self._supabase, model, max_model_len, client_type=client_type)
+        job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key)
+        return TemporaryApi(self, job['id'], client_type=client_type)
 
-from openweights.cluster.manage import determine_gpu_type
-from openweights.cluster.start_runpod import start_worker
-
-class TemporaryApi:
-    def __init__(self, supabase, model, max_model_len, requires_vram_gb=60, client_type=OpenAI):
-        self._supabase = supabase
-        self.model = model
-        self.max_model_len = max_model_len
-        self.requires_vram_gb = requires_vram_gb
-        self.client_type = client_type
-
-        self.pod = None
-        self.base_url = None
-        self.api_key = None
-    
-    def __enter__(self):
-        # Create a pod
-        self.api_key = uuid.uuid4().hex
-        for choice in range(2):
-            try:
-                gpu_type, gpu_count = determine_gpu_type(self.requires_vram_gb, choice=choice)
-                env = {
-                    'VLLM_API_KEY': self.api_key,
-                    'VLLM_MODEL': self.model,
-                    'VLLM_MAX_MODEL_LEN': self.max_model_len,
-                }
-                self.pod = start_worker(gpu_type, 'nielsrolf/ow-vllm-api:latest', count=gpu_count, env=env)
-                break
-            except Exception as e:
-                print(e)
-                continue
-        self.base_url = f"https://{self.pod['id']}-8000.proxy.runpod.net/v1"
-        openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        self.wait_until_ready(openai)
-        return self.client_type(api_key=self.api_key, base_url=self.base_url)
-    
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
-    def wait_until_ready(self, openai):
-        openai.chat.completions.create(model=self.model, messages=[dict(role='user', content='Hello')])
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        print('Terminating pod')
-        runpod.terminate_pod(self.pod['id'])

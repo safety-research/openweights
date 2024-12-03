@@ -28,6 +28,8 @@ const getStatusColor = (status: string) => {
             return '#e6f4ea';  // light green
         case 'starting':
             return '#fff8e1';  // light yellow
+        case 'shutdown':
+            return '#f3e5f5';  // light purple
         case 'terminated':
             return '#ffebee';  // light red
         default:
@@ -46,7 +48,7 @@ const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
             </Typography>
             {worker.gpu_type && (
                 <Typography color="text.secondary">
-                    GPU: {worker.gpu_type} ({worker.vram_gb}GB)
+                    GPU: {worker.gpu_count} x {worker.gpu_type} ({worker.vram_gb}GB)
                 </Typography>
             )}
             {worker.docker_image && (
@@ -231,7 +233,7 @@ export const WorkersView: React.FC = () => {
 
     const startingWorkers = filteredWorkers.filter(worker => worker.status === 'starting');
     const activeWorkers = filteredWorkers.filter(worker => worker.status === 'active');
-    const terminatedWorkers = filteredWorkers.filter(worker => worker.status === 'terminated');
+    const terminatedWorkers = filteredWorkers.filter(worker => worker.status === 'terminated' || worker.status === 'shutdown');
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

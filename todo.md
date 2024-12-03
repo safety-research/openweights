@@ -1,16 +1,24 @@
+# API
+- make it a job type for logging
+    - [x] add job type with validation
+    - [x] handle job type in worker
+    - [x] use `last_job.updated_at` + idle timeout to clean up workers
+    - [x] use it in TemporaryApi: create job, poll job status, poll for is_ready, yield
+    - [ ] build and push inference worker image
+    - [ ] add async version for deployment
+
 # Deploy
+- add RLS, organizations
+- add authentication to dashboard
+- add get token to dashboard
 - autoscale -> some cpu instance
 - dashboard backend -> some cpu instance
 - dashboard frontend -> ?
-- add RLS
-- add authentication to dashboard
-- add get token to dashboard
 
 # general
-- add updated_at to runs
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
 - make docker images private, use docker token
-
+- reduce amount of logs while starting up workers
 
 # Job type: eval loss
 
@@ -19,8 +27,6 @@
 
 # dashboard
 - add event plots
-- dashboard does not show shutdown workers anywhere
-- gpu_count is not displayed
 
 # vllm lora support
 

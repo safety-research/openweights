@@ -192,3 +192,17 @@ class InferenceConfig(BaseModel):
             raise ValueError(f"Inference jobs require dataset type to be 'conversations', got: {v}")
         return v
 
+
+class ApiConfig(BaseModel):
+    class Config:
+        extra = "forbid"
+    
+    model: str = Field(..., description="Hugging Face model ID")
+    max_model_len: int = Field(2048, description="Maximum model length")
+    api_key: str = Field(os.environ.get('OW_DEFAULT_API_KEY'), description="API key to authenticate requests against the API")
+
+    @field_validator("model")
+    def validate_finetuned_model_id(cls, v):
+        if not model_exists(v):
+            raise ValueError(f"Model {v} does not exists")
+        return v
