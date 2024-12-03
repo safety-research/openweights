@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 from datetime import datetime, timezone
+import signal
 
 import runpod
 import torch
@@ -91,7 +92,11 @@ class Worker:
                     if job and job['status'] == 'canceled' or self.shutdown_flag:
                         logging.info(f"Job {self.current_job['id']} was canceled, stopping execution")
                         if self.current_process:
-                            self.current_process.terminate()
+                            try:
+                                os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
+                            except:
+                                # Fallback: try harder to kill everything
+                                subprocess.run(['pkill', '-f', 'vllm'], check=False)
                             self.current_process = None
                         if self.current_run:
                             self.current_run.update(status='canceled')
@@ -214,7 +219,8 @@ class Worker:
                         stdout=log_file, 
                         stderr=log_file, 
                         cwd=tmp_dir, 
-                        env=env
+                        env=env,
+                        preexec_fn=os.setsid
                     )
                     self.current_process.wait()
                     if self.current_process is None:

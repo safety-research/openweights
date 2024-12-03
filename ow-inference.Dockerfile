@@ -13,7 +13,7 @@ RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
-RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0
+RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod
 
 COPY README.md .
 COPY pyproject.toml .
