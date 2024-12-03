@@ -4,7 +4,7 @@
     - [x] handle job type in worker
     - [x] use `last_job.updated_at` + idle timeout to clean up workers
     - [x] use it in TemporaryApi: create job, poll job status, poll for is_ready, yield
-    - [ ] build and push inference worker image
+    - [x] build and push inference worker image
     - [ ] add async version for deployment
 
 # Deploy
