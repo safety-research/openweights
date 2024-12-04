@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from database import Database
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
-                    WorkerWithRuns)
+                   WorkerWithRuns, TokenCreate, Token)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,8 +33,8 @@ async def get_db(authorization: str = Header(None)) -> Database:
         return Database(auth_token=token)
     except IndexError:
         raise HTTPException(status_code=401, detail="Invalid authorization header format")
-    # except Exception as e:
-    #     raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 @app.get("/jobs/", response_model=List[Job])
 async def get_jobs(status: Optional[str] = None, db: Database = Depends(get_db)):
@@ -87,3 +87,38 @@ async def get_file_content(file_id: str, db: Database = Depends(get_db)):
     except Exception as e:
         print(f"Error fetching file content: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/organizations/{organization_id}/tokens", response_model=Token)
+async def create_token(
+    organization_id: str,
+    token_data: TokenCreate,
+    db: Database = Depends(get_db)
+):
+    try:
+        return await db.create_token(organization_id, token_data)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/organizations/{organization_id}/tokens", response_model=List[Token])
+async def list_tokens(
+    organization_id: str,
+    db: Database = Depends(get_db)
+):
+    try:
+        return await db.list_tokens(organization_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/organizations/{organization_id}/tokens/{token_id}")
+async def delete_token(
+    organization_id: str,
+    token_id: str,
+    db: Database = Depends(get_db)
+):
+    try:
+        await db.delete_token(token_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

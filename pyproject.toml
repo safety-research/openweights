@@ -15,7 +15,8 @@ dependencies = [
     "torch",
     "httpx>=0.24.0",
     "fire",
-    "runpod"
+    "runpod",
+    "PyJWT"
 ]
 
 [project.optional-dependencies]

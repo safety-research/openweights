@@ -15,7 +15,6 @@ import torch
 from dotenv import load_dotenv
 
 from openweights.client import Files, OpenWeights, Run
-from supabase import Client, create_client
 
 # Load environment variables
 load_dotenv()
@@ -35,8 +34,8 @@ def maybe_read(path):
 
 
 class Worker:
-    def __init__(self, supabase_url, supabase_key):
-        self.supabase = create_client(supabase_url, supabase_key)
+    def __init__(self):
+        self.supabase = openweights._supabase
         self.files = Files(self.supabase)
         self.cached_models = []
         self.current_job = None
@@ -272,7 +271,5 @@ class Worker:
 
 
 if __name__ == "__main__":
-    supabase_url = os.getenv('SUPABASE_URL')
-    supabase_key = os.getenv('SUPABASE_KEY')
-    worker = Worker(supabase_url, supabase_key)
+    worker = Worker()
     worker.find_and_execute_job()

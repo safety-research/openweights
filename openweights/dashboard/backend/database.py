@@ -1,43 +1,98 @@
 import os
 import re
 from typing import List, Optional
-
+from datetime import datetime, timedelta
+import jwt
+import secrets
 from dotenv import load_dotenv
+import httpx
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
-                    WorkerWithRuns)
+                   WorkerWithRuns, Token, TokenCreate)
 from utils import clean_ansi
 
-from openweights import OpenWeights
-from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
-
+from openweights.client import OpenWeights
 
 
 class Database:
     def __init__(self, auth_token: Optional[str] = None):
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_anon_key = os.getenv('SUPABASE_ANON_KEY')  # This is the anon key, not service role key
-        if not supabase_url or not supabase_anon_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
+        self.supabase_url = os.getenv('SUPABASE_URL')
+        self.supabase_anon_key = os.getenv('SUPABASE_ANON_KEY')
+        self.supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+        self.auth_token = auth_token
         
-        # Create options with headers if auth token is provided
-        headers = {}
-        if auth_token:
-            headers["Authorization"] = f"Bearer {auth_token}"
-        
-        options = ClientOptions(
-            schema="public",
-            headers=headers,
-            auto_refresh_token=False,
-            persist_session=False
-        )
-        
-        # Create the client with the appropriate configuration
-        self.client = create_client(supabase_url, supabase_anon_key, options)
+        if not self.supabase_url or not self.supabase_anon_key or not self.supabase_service_key:
+            raise ValueError("SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY must be set")
             
         # Initialize OpenWeights client
         load_dotenv()
-        self.ow_client = OpenWeights()
+        print('auth token', auth_token)
+        self.ow_client = OpenWeights(self.supabase_url, self.supabase_anon_key, auth_token)
+        self.client = self.ow_client._supabase
+
+    def get_user_id_from_token(self) -> str:
+        """Extract user ID from JWT token."""
+        if not self.auth_token:
+            raise ValueError("No authentication token provided")
+        
+        try:
+            # JWT tokens have three parts: header.payload.signature
+            # We only need the payload
+            payload = jwt.decode(self.auth_token, options={"verify_signature": False})
+            return payload.get('sub')  # 'sub' is the user ID in Supabase JWTs
+        except Exception as e:
+            raise ValueError(f"Invalid authentication token: {str(e)}")
+
+    async def create_token(self, organization_id: str, token_data: TokenCreate) -> Token:
+        """Create a new token with optional expiration."""
+        # Get user ID from token
+        user_id = self.get_user_id_from_token()
+
+        # Check if user is an admin of the organization
+        admin_check = self.client.table('organization_members').select('*')\
+            .eq('organization_id', organization_id)\
+            .eq('user_id', user_id)\
+            .eq('role', 'admin')\
+            .execute()
+            
+        if not admin_check.data:
+            raise ValueError("User is not an admin of this organization")
+
+        # Calculate expiration time if specified
+        expires_at = None
+        if token_data.expires_in_days is not None:
+            expires_at = datetime.utcnow() + timedelta(days=token_data.expires_in_days)
+
+        # Generate a secure random token
+        access_token = f"ow_{secrets.token_urlsafe(32)}"
+
+        # Create token record
+        token_record = {
+            "organization_id": organization_id,
+            "name": token_data.name,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "created_by": user_id,
+            "token_hash": access_token
+        }
+        
+        result = self.client.table('tokens').insert(token_record).execute()
+        db_token = result.data[0]
+
+        return Token(
+            id=db_token['id'],
+            name=db_token['name'],
+            expires_at=expires_at,
+            created_at=db_token['created_at'],
+            access_token=access_token
+        )
+
+    async def list_tokens(self, organization_id: str) -> List[Token]:
+        """List all tokens for an organization."""
+        result = self.client.table('tokens').select('*').eq('organization_id', organization_id).execute()
+        return [Token(**token) for token in result.data]
+
+    async def delete_token(self, token_id: str):
+        """Delete a token."""
+        self.client.table('tokens').delete().eq('id', token_id).execute()
 
     def get_jobs(self, status: Optional[str] = None) -> List[Job]:
         query = self.client.table('jobs').select('*').order('created_at', desc=True)

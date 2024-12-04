@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-
 from pydantic import BaseModel
 
 
@@ -45,3 +44,14 @@ class RunWithJobAndWorker(Run):
 
 class WorkerWithRuns(Worker):
     runs: List[Run]
+
+class TokenCreate(BaseModel):
+    name: str
+    expires_in_days: Optional[int] = None  # None means no expiration
+
+class Token(BaseModel):
+    id: str
+    name: str
+    expires_at: Optional[datetime]
+    created_at: datetime
+    access_token: Optional[str] = None  # Only included when token is first created

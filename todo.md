@@ -1,15 +1,37 @@
+# Add organizations
+
+- [ ] make non expiring token
+- [ ] use new token in .env and run tests
+- [ ] refactor client.py into smaller files
+- [ ] make job_id combined key: organization_id, job_id
+- [ ] simplify migrations
+    - create and link new supabase project
+    - run only migrations that are on main
+    - create example job and run
+    - ask claude to simplify all remaining migrations
+- [ ] update autoscale: start workers with proper organization
+- [ ] migrate existing files
+
+
 # Deploy
-- add RLS, organizations
-- add authentication to dashboard
-- add get token to dashboard
 - autoscale -> some cpu instance
 - dashboard backend -> some cpu instance
 - dashboard frontend -> ?
+- emails
 
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
 - make docker images private, use docker token
 - reduce amount of logs while starting up workers
+
+# Dashboard
+- add plots to runs
+- SSO
+- Org management
+    - [ ] users should be able to create new organizations and become admin
+    - [ ] admins should be able to set third party secrets
+    - [ ] admins should be able to edit organization name
+    - [ ] organizations are displayed multiple times
 
 # Job type: eval loss
 
