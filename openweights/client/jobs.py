@@ -9,8 +9,9 @@ from openweights.validate import TrainingConfig, InferenceConfig, ApiConfig
 
 
 class BaseJob:
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: Client, organization_id: str):
         self._supabase = supabase
+        self._org_id = organization_id
 
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
         """List jobs"""
@@ -37,8 +38,9 @@ class BaseJob:
         If job exists and is [failed, canceled] reset it to pending and return it.
         If job doesn't exist, create it and return it.
         """
-        if 'organization_id' not in data:
-            data['organization_id'] = os.environ.get('OW_ORG')
+        # Always set organization_id from token
+        data['organization_id'] = self._org_id
+        
         try:
             result = self._supabase.table('jobs').select('*').eq('id', data['id']).single().execute()
         except APIError as e:
@@ -170,7 +172,7 @@ class Deployments(BaseJob):
         return self.get_or_create_or_reset(data)
     
 class Jobs(BaseJob):
-    def create(self, script: Union[BinaryIO, str], requires_vram_gb, image='runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04') -> Dict[str, Any]:
+    def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04') -> Dict[str, Any]:
         """Create a script job"""
         
         if isinstance(script, (str, bytes)):

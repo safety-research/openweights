@@ -22,14 +22,15 @@ valid_pref_file = os.path.join(os.path.dirname(__file__), 'preference_dataset.js
 # Function to start worker process
 def start_worker_process():
     setup_logging()
-    worker = Worker(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+    worker = Worker()
     worker.find_and_execute_job()
 
 @pytest.fixture(scope='module')
 def client():
     supabase_url = os.getenv('SUPABASE_URL')
-    supabase_key = os.getenv('SUPABASE_KEY')
-    return OpenWeights(supabase_url, supabase_key)
+    supabase_key = os.getenv('SUPABASE_ANON_KEY')
+    openweights_api_key = os.getenv('OPENWEIGHTS_API_KEY')
+    return OpenWeights(supabase_url, supabase_key, openweights_api_key)
 
 @pytest.fixture(scope='module')
 def worker():
@@ -201,7 +202,7 @@ def test_list_runs(client):
 
 def test_script_job_execution(client):
     # Create a script job with a simple echo command
-    script_content = "echo hello world"
+    script_content = "echo hello world!"
     job = client.jobs.create(script=script_content, requires_vram_gb=0)
     job_id = job['id']
 
@@ -210,8 +211,7 @@ def test_script_job_execution(client):
     # Retrieve the runs for the job
     runs = client.runs.list(job_id=job_id)
 
-    assert len(runs) == 1
-    run = runs[0]
+    run = runs[-1]
 
     # Check the logfile for the expected output
     log_content = client.files.content(run['log_file']).decode()

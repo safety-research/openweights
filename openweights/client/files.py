@@ -8,9 +8,9 @@ from openweights.validate import validate_messages, validate_preference_dataset
 
 
 class Files:
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: Client, organization_id: str):
         self._supabase = supabase
-        self._org_id = os.environ.get('OW_ORG', '00000000-0000-0000-0000-000000000000')
+        self._org_id = organization_id
 
     def _calculate_file_hash(self, file: BinaryIO) -> str:
         """Calculate SHA-256 hash of file content"""

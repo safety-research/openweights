@@ -68,6 +68,7 @@ class Database:
             {
                 'org_id': organization_id,
                 'token_name': token_data.name,
+                'created_by': user_id,
                 'expires_at': expires_at.isoformat() if expires_at else None
             }
         ).execute()

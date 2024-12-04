@@ -9,10 +9,13 @@ import time
 import traceback
 from datetime import datetime, timezone
 import signal
+import jwt
 
 import runpod
 import torch
 from dotenv import load_dotenv
+from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 
 from openweights.client import Files, OpenWeights, Run
 
@@ -36,7 +39,9 @@ def maybe_read(path):
 class Worker:
     def __init__(self):
         self.supabase = openweights._supabase
-        self.files = Files(self.supabase)
+        self.organization_id = openweights.organization_id
+        self.auth_token = openweights.auth_token
+        self.files = Files(self.supabase, self.organization_id)
         self.cached_models = []
         self.current_job = None
         self.current_process = None
@@ -44,7 +49,34 @@ class Worker:
         self.current_run = None
         self.worker_id = os.environ.get('WORKER_ID', f'unmanaged-worker-{datetime.now().timestamp()}')
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
-        self.organization_id = openweights.get_organization_ids()[0]
+
+        # Create a service account token for the worker if needed
+        if not os.environ.get('OPENWEIGHTS_API_KEY'):
+            result = self.supabase.rpc(
+                'create_service_account_token',
+                {
+                    'org_id': self.organization_id,
+                    'token_name': f'worker-{self.worker_id}',
+                    'created_by': self.get_user_id_from_token()
+                }
+            ).execute()
+            
+            if not result.data:
+                raise ValueError("Failed to create service account token")
+            
+            token = result.data[1]  # Get the JWT token
+            os.environ['OPENWEIGHTS_API_KEY'] = token
+            # Reinitialize supabase client with new token
+            self.supabase = create_client(
+                openweights.supabase_url,
+                openweights.supabase_key,
+                ClientOptions(
+                    schema="public",
+                    headers={"Authorization": f"Bearer {token}"},
+                    auto_refresh_token=False,
+                    persist_session=False
+                )
+            )
 
         try:
             self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * torch.cuda.device_count()
@@ -73,6 +105,17 @@ class Worker:
             self.health_check_thread.start()
         
         atexit.register(self.shutdown_handler)
+
+    def get_user_id_from_token(self):
+        """Extract user ID from JWT token."""
+        if not self.auth_token:
+            raise ValueError("No authentication token provided")
+        
+        try:
+            payload = jwt.decode(self.auth_token, options={"verify_signature": False})
+            return payload.get('sub')  # 'sub' is the user ID in Supabase JWTs
+        except Exception as e:
+            raise ValueError(f"Invalid authentication token: {str(e)}")
 
     def _health_check_loop(self):
         """Background task that updates worker ping and checks job status."""
@@ -106,7 +149,7 @@ class Worker:
             except Exception as e:
                 logging.error(f"Error in health check loop: {e}")
 
-            time.sleep(30)  # Wait for 30 seconds before next chec
+            time.sleep(30)  # Wait for 30 seconds before next check
         self.shutdown_handler()
 
     def shutdown_handler(self):
@@ -154,6 +197,7 @@ class Worker:
                 break
             except Exception as e:
                 logging.error(f"Failed to execute job {job['id']}: {e}")
+                traceback.print_exc()
 
     def _find_job(self):
         logging.debug("Fetching jobs from the database...")

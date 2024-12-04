@@ -1,4 +1,3 @@
-
 from typing import Optional, BinaryIO, Dict, Any, List, Union
 import os
 import sys
@@ -48,12 +47,19 @@ class Run:
                     'id': f"sjob-{hashlib.sha256(str(datetime.now().timestamp()).encode()).hexdigest()[:12]}",
                     'type': 'script',
                     'script': command,
-                    'status': 'in_progress'                }
+                    'status': 'in_progress',
+                }
                 job_result = self._supabase.table('jobs').insert(job_data).execute()
                 data['job_id'] = job_result.data[0]['id']
             
             if worker_id:
                 data['worker_id'] = worker_id
+
+            # Get organization_id from job
+            job = self._supabase.table('jobs').select('organization_id').eq('id', data['job_id']).single().execute()
+            if not job.data:
+                raise ValueError(f"Job {data['job_id']} not found")
+            
             result = self._supabase.table('runs').insert(data).execute()
             self._load_data(result.data[0])
 
@@ -110,9 +116,11 @@ class Run:
         result = self._supabase.table('events').select('*').eq('run_id', self.id).execute()
         return result.data
 
+
 class Runs:
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: Client, organization_id: str):
         self._supabase = supabase
+        self._org_id = organization_id
 
     def list(self, job_id: Optional[str] = None, worker_id: Optional[str] = None, limit: int = 10, status: Optional[str]=None) -> List[Dict[str, Any]]:
         """List runs by job_id or worker_id"""

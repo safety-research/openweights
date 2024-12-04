@@ -56,7 +56,7 @@ class OpenWeights:
         Args:
             supabase_url: Supabase project URL (or SUPABASE_URL env var)
             supabase_key: Supabase anon key (or SUPABASE_ANON_KEY env var)
-            auth_token: Authentication token (or SUPABASE_AUTH_TOKEN env var)
+            auth_token: Authentication token (or OPENWEIGHTS_API_KEY env var)
                        Can be either a session token or a service account JWT token
         """
         self.supabase_url = supabase_url or os.getenv('SUPABASE_URL')
@@ -75,29 +75,34 @@ class OpenWeights:
             self.auth_token
         )
         
-        # Initialize components
-        self.files = Files(self._supabase)
-        self.fine_tuning = FineTuningJobs(self._supabase)
-        self.inference = InferenceJobs(self._supabase)
-        self.jobs = Jobs(self._supabase)
-        self.deployments = Deployments(self._supabase)
-        self.runs = Runs(self._supabase)
-        self.events = Events(self._supabase)
+        # Get organization ID from token
+        self.organization_id = self.get_organization_id()
+        
+        # Initialize components with organization ID
+        self.files = Files(self._supabase, self.organization_id)
+        self.fine_tuning = FineTuningJobs(self._supabase, self.organization_id)
+        self.inference = InferenceJobs(self._supabase, self.organization_id)
+        self.jobs = Jobs(self._supabase, self.organization_id)
+        self.deployments = Deployments(self._supabase, self.organization_id)
+        self.runs = Runs(self._supabase, self.organization_id)
+        self.events = Events(self._supabase, self.organization_id)
 
         self._current_run = None
+    
+    def get_organization_id(self) -> str:
+        """Get the organization ID associated with the current token"""
+        result = self._supabase.rpc('get_organization_from_token').execute()
+        if not result.data:
+            raise ValueError("Could not determine organization ID from token")
+        return result.data
     
     @property
     def run(self):
         if not self._current_run:
-            self._current_run = Run(self._supabase)
+            self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
     
     def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY')) -> TemporaryApi:
         """Deploy a model on OpenWeights"""
         job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key)
         return TemporaryApi(self, job['id'], client_type=client_type)
-    
-    def get_organization_ids(self):
-        orgs = self._supabase.table('organizations').select('id').execute().data
-        return [org['id'] for org in orgs]
-
