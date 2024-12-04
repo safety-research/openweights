@@ -103,30 +103,28 @@ export function OrganizationDetail() {
 
   const handleInvite = async () => {
     try {
-      // First, check if the user exists in auth.users
-      const { data: userData, error: userError } = await supabase
-        .rpc('get_user_by_email', { email: inviteEmail })
-
-      if (userError || !userData) {
-        throw new Error('User not found. Please ensure the user has an account first.')
-      }
-
-      // Add the user to the organization
-      const { error } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: id,
-          user_id: userData.id,
-          role: 'user'
+      const { data, error } = await supabase
+        .rpc('invite_organization_member', {
+          org_id: id,
+          member_email: inviteEmail,
+          member_role: 'user'
         })
 
       if (error) throw error
 
+      // Add the new member to the local state
+      if (data) {
+        setMembers([...members, {
+          user_id: data.user_id,
+          email: data.email,
+          role: data.role
+        }])
+      }
+
       setInviteEmail('')
       setOpenInviteDialog(false)
-      // Refresh member list
-      window.location.reload()
     } catch (err) {
+      console.error('Error inviting member:', err)
       setError(err instanceof Error ? err.message : 'Failed to send invitation')
     }
   }
