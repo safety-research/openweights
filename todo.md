@@ -1,8 +1,8 @@
 # Add organizations
 
-- [ ] make non expiring token
+- [x] make non expiring token
 - [ ] use new token in .env and run tests
-- [ ] refactor client.py into smaller files
+
 - [ ] make job_id combined key: organization_id, job_id
 - [ ] simplify migrations
     - create and link new supabase project
@@ -12,6 +12,7 @@
 - [ ] update autoscale: start workers with proper organization
 - [ ] migrate existing files
 
+- [ ] use supabase async client if possible
 
 # Deploy
 - autoscale -> some cpu instance

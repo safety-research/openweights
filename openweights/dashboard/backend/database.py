@@ -3,14 +3,13 @@ import re
 from typing import List, Optional
 from datetime import datetime, timedelta
 import jwt
-import secrets
 from dotenv import load_dotenv
-import httpx
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
                    WorkerWithRuns, Token, TokenCreate)
 from utils import clean_ansi
+from supabase import create_client
 
-from openweights.client import OpenWeights
+from openweights import OpenWeights
 
 
 class Database:
@@ -23,11 +22,12 @@ class Database:
         if not self.supabase_url or not self.supabase_anon_key or not self.supabase_service_key:
             raise ValueError("SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY must be set")
             
-        # Initialize OpenWeights client
-        load_dotenv()
-        print('auth token', auth_token)
+        # Initialize regular client for normal operations
         self.ow_client = OpenWeights(self.supabase_url, self.supabase_anon_key, auth_token)
         self.client = self.ow_client._supabase
+
+        # Initialize admin client for operations requiring service role
+        self.admin_client = create_client(self.supabase_url, self.supabase_service_key)
 
     def get_user_id_from_token(self) -> str:
         """Extract user ID from JWT token."""
@@ -47,7 +47,7 @@ class Database:
         # Get user ID from token
         user_id = self.get_user_id_from_token()
 
-        # Check if user is an admin of the organization
+        # Check if user is an admin of the organization (using regular client)
         admin_check = self.client.table('organization_members').select('*')\
             .eq('organization_id', organization_id)\
             .eq('user_id', user_id)\
@@ -62,27 +62,28 @@ class Database:
         if token_data.expires_in_days is not None:
             expires_at = datetime.utcnow() + timedelta(days=token_data.expires_in_days)
 
-        # Generate a secure random token
-        access_token = f"ow_{secrets.token_urlsafe(32)}"
+        # Create service account token using admin client
+        result = self.admin_client.rpc(
+            'create_service_account_token',
+            {
+                'org_id': organization_id,
+                'token_name': token_data.name,
+                'expires_at': expires_at.isoformat() if expires_at else None
+            }
+        ).execute()
 
-        # Create token record
-        token_record = {
-            "organization_id": organization_id,
-            "name": token_data.name,
-            "expires_at": expires_at.isoformat() if expires_at else None,
-            "created_by": user_id,
-            "token_hash": access_token
-        }
-        
-        result = self.client.table('tokens').insert(token_record).execute()
-        db_token = result.data[0]
+        if not result.data:
+            raise ValueError("Failed to create token")
+
+        token_id = result.data[0]['token_id']
+        jwt_token = result.data[0]['jwt_token']
 
         return Token(
-            id=db_token['id'],
-            name=db_token['name'],
+            id=token_id,
+            name=token_data.name,
             expires_at=expires_at,
-            created_at=db_token['created_at'],
-            access_token=access_token
+            created_at=datetime.utcnow(),
+            access_token=jwt_token
         )
 
     async def list_tokens(self, organization_id: str) -> List[Token]:
