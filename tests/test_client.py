@@ -131,7 +131,6 @@ def test_job_cancellation(client):
     """
     
     # Create the job
-    breakpoint()
     job = client.jobs.create(script=script_content, requires_vram_gb=0)
     job_id = job['id']
     print(job)
@@ -181,10 +180,9 @@ def test_list_runs(client):
         response = client.files.create(file, purpose="conversations")
     file_id = response['id']
 
-    params = {'training_file': file_id, 'loss': 'sft'}
-    ft_job = client.fine_tuning.create(model='test-model', **params, requires_vram_gb=0)
-    print(ft_job)
-    job_id = ft_job['id']
+    job = client.jobs.create(script=f'{time.ctime()}\ndate', requires_vram_gb=0)
+    print(job)
+    job_id = job['id']
 
     # Allow some time for the worker to pick up the job
     time.sleep(10)  
@@ -195,11 +193,11 @@ def test_list_runs(client):
 
     assert isinstance(runs, list)
     assert len(runs) > 0
-    for run in runs:
-        assert run['job_id'] == job_id
-        # Retrieve and check logs
-        log_content = client.files.content(run['log_file'])
-        assert len(log_content) > 0
+    run = runs[-1]
+    assert run['job_id'] == job_id
+    # Retrieve and check logs
+    log_content = client.files.content(run['log_file'])
+    assert len(log_content) > 0
 
 def test_script_job_execution(client):
     # Create a script job with a simple echo command

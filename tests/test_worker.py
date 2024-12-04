@@ -1,19 +1,16 @@
 import os
 import time
+import pytest
 from datetime import datetime
 from multiprocessing import Process
-
-import pytest
-from worker import Worker
-
-from supabase import create_client
-
+from openweights.client import OpenWeights
+from openweights.worker.main import Worker
 
 @pytest.fixture(scope='module')
 def client():
     supabase_url = os.getenv('SUPABASE_URL')
     supabase_key = os.getenv('SUPABASE_KEY')
-    return create_client(supabase_url, supabase_key)
+    return OpenWeights(supabase_url, supabase_key)
 
 @pytest.fixture(scope='module')
 def setup_worker(client):
@@ -28,15 +25,11 @@ def start_worker():
 
 def test_worker_executes_job_with_zero_vram(client, setup_worker):
     # Insert a job with 0 VRAM requirements
-    job_id = f"job-{datetime.now().timestamp()}"
-    client.table('jobs').insert({
-        'id': job_id,
-        'type': 'script',  # Change to a valid type
-        'status': 'pending',
+    job = client.jobs.create(**{
         'requires_vram_gb': 0,
-        'model': 'test-model',
-        'params': {}
-    }).execute()
+        'script': 'date'
+    })
+    job_id = job['id']
 
     # Allow some time for the worker to pick up the job
     start_time = time.time()
@@ -45,7 +38,7 @@ def test_worker_executes_job_with_zero_vram(client, setup_worker):
 
     while time.time() - start_time < timeout:
         # Check the job status
-        job = client.table('jobs').select('*').eq('id', job_id).single().execute().data
+        job = client.jobs.retrieve(job_id)
 
         if job['status'] == 'completed':
             job_executed = True

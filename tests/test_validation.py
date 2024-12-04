@@ -23,7 +23,8 @@ def test_orpo_valid():
         "lr_scheduler_type": "linear",
         "seed": 3407,
         "eval_batch_size": 8,
-        "eval_every_n_steps": "log"
+        "eval_every_n_steps": "log",
+        "finetuned_model_id": "some-org/model"
     }
     
     config = TrainingConfig(**config_dict)
@@ -51,7 +52,8 @@ def test_sft_valid():
         "lr_scheduler_type": "linear",
         "seed": 3407,
         "eval_batch_size": 8,
-        "eval_every_n_steps": "log"
+        "eval_every_n_steps": "log",
+        "finetuned_model_id": "some-org/model"
     }
     config = TrainingConfig(**config_dict)
     print(config.model_dump_json(indent=2))
@@ -76,7 +78,8 @@ def test_orpo_invalid():
         "lr_scheduler_type": "linear",
         "seed": 3407,
         "eval_batch_size": 8,
-        "eval_every_n_steps": "log"
+        "eval_every_n_steps": "log",
+        "finetuned_model_id": "some-org/model"
     }
     with pytest.raises(ValueError):
         config = TrainingConfig(**config_dict)
@@ -102,7 +105,8 @@ def test_sft_invalid():
         "lr_scheduler_type": "linear",
         "seed": 3407,
         "eval_batch_size": 8,
-        "eval_every_n_steps": "log"
+        "eval_every_n_steps": "log",
+        "finetuned_model_id": "some-org/model"
     }
     with pytest.raises(ValueError):
         config = TrainingConfig(**config_dict)

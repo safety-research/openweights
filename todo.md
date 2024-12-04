@@ -1,12 +1,3 @@
-# API
-- make it a job type for logging
-    - [x] add job type with validation
-    - [x] handle job type in worker
-    - [x] use `last_job.updated_at` + idle timeout to clean up workers
-    - [x] use it in TemporaryApi: create job, poll job status, poll for is_ready, yield
-    - [x] build and push inference worker image
-    - [ ] add async version for deployment
-
 # Deploy
 - add RLS, organizations
 - add authentication to dashboard

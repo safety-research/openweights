@@ -45,6 +45,7 @@ class Worker:
         self.current_run = None
         self.worker_id = os.environ.get('WORKER_ID', f'unmanaged-worker-{datetime.now().timestamp()}')
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
+        self.organization_id = openweights.get_organization_ids()[0]
 
         try:
             self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * torch.cuda.device_count()
@@ -65,6 +66,7 @@ class Worker:
                 'cached_models': self.cached_models,
                 'vram_gb': self.vram_gb,
                 'ping': datetime.now(timezone.utc).isoformat(),
+                'organization_id': self.organization_id,
             }).execute()
             
             # Start background task for health check and job status monitoring

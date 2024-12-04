@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import json
 from typing import Optional, BinaryIO, Dict, Any, List, Union
@@ -8,8 +9,6 @@ from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
 from openai import OpenAI, AsyncOpenAI
-import runpod
-import uuid
 import backoff
 import time
 
@@ -218,6 +217,8 @@ class BaseJob:
         If job exists and is [failed, canceled] reset it to pending and return it.
         If job doesn't exist, create it and return it.
         """
+        if 'organization_id' not in data:
+            data['organization_id'] = os.environ.get('OW_ORG')
         try:
             result = self._supabase.table('jobs').select('*').eq('id', data['id']).single().execute()
         except APIError as e:
@@ -536,4 +537,8 @@ class OpenWeights:
         """Deploy a model on OpenWeights"""
         job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key)
         return TemporaryApi(self, job['id'], client_type=client_type)
+    
+    def get_organization_ids(self):
+        orgs = self._supabase.table('organizations').select('id').execute().data
+        return [org['id'] for org in orgs]
 

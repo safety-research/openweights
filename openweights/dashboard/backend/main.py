@@ -1,12 +1,13 @@
 from typing import List, Optional
-
-from database import Database
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from database import Database
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
                     WorkerWithRuns)
+from dotenv import load_dotenv
 
+load_dotenv()
 app = FastAPI()
 
 # Configure CORS
@@ -18,51 +19,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database
-db = Database()
+async def get_db(authorization: str = Header(None)) -> Database:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header is required")
+    
+    try:
+        # Extract the token from the Authorization header
+        # Format should be "Bearer <token>"
+        if not authorization.startswith('Bearer '):
+            raise HTTPException(status_code=401, detail="Invalid authorization header format")
+        
+        token = authorization.split(" ")[1]
+        return Database(auth_token=token)
+    except IndexError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
+    # except Exception as e:
+    #     raise HTTPException(status_code=401, detail=str(e))
 
 @app.get("/jobs/", response_model=List[Job])
-async def get_jobs(status: Optional[str] = None):
+async def get_jobs(status: Optional[str] = None, db: Database = Depends(get_db)):
     return db.get_jobs(status)
 
 @app.get("/jobs/{job_id}", response_model=JobWithRuns)
-async def get_job(job_id: str):
+async def get_job(job_id: str, db: Database = Depends(get_db)):
     try:
         return db.get_job(job_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/runs/", response_model=List[Run])
-async def get_runs(status: Optional[str] = None):
+async def get_runs(status: Optional[str] = None, db: Database = Depends(get_db)):
     return db.get_runs(status)
 
 @app.get("/runs/{run_id}", response_model=RunWithJobAndWorker)
-async def get_run(run_id: str):
+async def get_run(run_id: str, db: Database = Depends(get_db)):
     try:
         return db.get_run(run_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/runs/{run_id}/logs", response_class=PlainTextResponse)
-async def get_run_logs(run_id: str):
+async def get_run_logs(run_id: str, db: Database = Depends(get_db)):
     try:
         return db.get_log_file_content(run_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/workers/", response_model=List[Worker])
-async def get_workers(status: Optional[str] = None):
+async def get_workers(status: Optional[str] = None, db: Database = Depends(get_db)):
     return db.get_workers(status)
 
 @app.get("/workers/{worker_id}", response_model=WorkerWithRuns)
-async def get_worker(worker_id: str):
+async def get_worker(worker_id: str, db: Database = Depends(get_db)):
     try:
         return db.get_worker(worker_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/files/{file_id}/content", response_class=PlainTextResponse)
-async def get_file_content(file_id: str):
+async def get_file_content(file_id: str, db: Database = Depends(get_db)):
     try:
         # Print debug info
         print(f"Fetching content for file: {file_id}")
