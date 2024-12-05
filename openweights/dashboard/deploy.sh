@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # Configuration
-REPO_URL="https://github.com/longtermrisk/openweights"
-REPO_BRANCH="main"
 WORK_DIR="/workspace/openweights"
+DASHBOARD_DIR="$WORK_DIR/openweights/dashboard"
 
 # Function to log with timestamp
 log() {
@@ -12,31 +11,28 @@ log() {
 
 # Update code
 log "Pulling latest code..."
-if [ -d "$WORK_DIR" ]; then
-    cd "$WORK_DIR"
-    git pull origin $REPO_BRANCH
-else
-    git clone -b $REPO_BRANCH $REPO_URL "$WORK_DIR"
-    cd "$WORK_DIR"
-fi
+cd "$WORK_DIR"
+git pull origin main
 
 # Build frontend
 log "Building frontend..."
-cd /workspace/openweights/openweights/dashboard/frontend
-npm install
+cd $DASHBOARD_DIR/frontend
 npm run build
 
-# Create static directory in backend
-log "Moving frontend build to backend..."
-mkdir -p ../backend/static
+# Update backend static files
+log "Updating backend static files..."
+rm -rf ../backend/static/*
 cp -r dist/* ../backend/static/
 
 # Restart backend service
 log "Restarting backend service..."
 cd ../backend
 if [ -f "backend.pid" ]; then
-    kill $(cat backend.pid)
+    if ps -p $(cat backend.pid) > /dev/null; then
+        kill $(cat backend.pid)
+        sleep 2
+    fi
 fi
-nohup python main.py > backend.log 2>&1 & echo $! > backend.pid
+nohup uvicorn main:app --reload --port 8124  > backend.log 2>&1 & echo $! > backend.pid
 
 log "Deployment completed!"
