@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from database import Database
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
                    WorkerWithRuns, TokenCreate, Token)
@@ -13,7 +14,7 @@ app = FastAPI()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_origins=["*"],  # In production, restrict this to your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,8 +99,8 @@ async def create_token(
         return await db.create_token(organization_id, token_data)
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/organizations/{organization_id}/tokens", response_model=List[Token])
 async def list_tokens(
@@ -122,3 +123,6 @@ async def delete_token(
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Mount static files after all API routes
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
