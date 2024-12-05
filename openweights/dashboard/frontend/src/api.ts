@@ -2,7 +2,8 @@ import axios from 'axios';
 import { Job, Run, Worker, JobWithRuns, RunWithJobAndWorker, WorkerWithRuns } from './types';
 import { supabase } from './supabaseClient';
 
-const API_URL = 'http://localhost:8124';
+// In production, use relative paths. In development, use localhost
+const API_URL = import.meta.env.PROD ? '' : 'http://localhost:8124';
 
 const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();

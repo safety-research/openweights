@@ -1,15 +1,4 @@
-# Add organizations
-
-- fix migration bugs
-
-- Org management
-    - [ ] users should be able to create new organizations and become admin
-    - [ ] admins should be able to set third party secrets
-    - [ ] admins should be able to edit organization name
-    - [ ] admins should be able to remove users from organizations
-    - [ ] organizations are displayed multiple times
-
-- [ ] update autoscale: start workers with proper organization
+- update autoscale: start workers with proper organization
 
 # Deploy
 - autoscale -> some cpu instance
@@ -25,19 +14,11 @@
 
 # Dashboard
 - SSO
+- add event plots
 
 # Job type: eval loss
 
-# Job type: logits
-{prompt: messages/str, completions: List[messages/str]}
-
-# dashboard
-- add event plots
-
 # vllm lora support
-
-# System logs
-- worker: starts / ready / shutdown initiated / ...
 
 # CI
 - run pytest tests
