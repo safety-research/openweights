@@ -98,6 +98,6 @@ cd ../backend
 if [ -f "backend.pid" ]; then
     kill $(cat backend.pid) || true
 fi
-nohup uvicorn main:app --reload --port 8124  > backend.log 2>&1 & echo $! > backend.pid
+nohup uvicorn main:app --reload --port 8124 --host 0.0.0.0  > backend.log 2>&1 & echo $! > backend.pid
 
 log "Initial setup completed! The dashboard will automatically update every 5 minutes."
