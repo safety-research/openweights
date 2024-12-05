@@ -12,7 +12,6 @@ license = { text = "MIT" }
 dependencies = [
     "supabase",
     "python-dotenv",
-    "torch",
     "httpx>=0.24.0",
     "fire",
     "runpod",
