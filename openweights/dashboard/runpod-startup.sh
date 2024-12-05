@@ -34,6 +34,14 @@ npm cache clean --force
 rm -rf node_modules package-lock.json
 log "Installing dependencies..."
 npm install
+
+# Run TypeScript fixes
+log "Applying TypeScript fixes..."
+cd $DASHBOARD_DIR
+bash fix-typescript.sh
+
+# Return to frontend directory and build
+cd frontend
 log "Building..."
 npm run build
 
