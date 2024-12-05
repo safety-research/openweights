@@ -163,35 +163,7 @@ class Database:
                 return clean_ansi(log_content)
             except Exception as e:
                 print(f"Error getting log content via OpenWeights: {str(e)}")
-            
-            # Fallback to events if log file not accessible
-            events = self.client.table('events').select('*').eq('run_id', run_id).execute()
-            print(f"Found {len(events.data)} events for run {run_id}")
-            
-            if events.data:
-                # Combine all event data into a log
-                log_parts = []
-                
-                # Sort events by timestamp
-                sorted_events = sorted(events.data, key=lambda x: x['created_at'])
-                
-                for event in sorted_events:
-                    timestamp = event['created_at'].split('.')[0]  # Remove microseconds
-                    if event.get('file'):
-                        log_parts.append(f"[{timestamp}] File: {event['file']}")
-                    if event.get('data'):
-                        if isinstance(event['data'], dict):
-                            # Format training metrics in a readable way
-                            formatted_data = self.format_training_metrics(event['data'])
-                            log_parts.append(f"[{timestamp}]\n    {formatted_data}")
-                        else:
-                            log_parts.append(f"[{timestamp}] {event['data']}")
-                
-                if log_parts:
-                    return "\n".join(log_parts)
-                return "No log content found in events"
-            
-            return f"No events found for run {run_id}"
+                return f"Error getting log content via OpenWeights: {str(e)}"
             
         except Exception as e:
             return f"Error processing request: {str(e)}"

@@ -7,8 +7,13 @@ import {
   Typography,
   List,
   ListItem,
-  ListItemText,
   Chip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material'
 import { supabase } from '../../supabaseClient'
 
@@ -22,56 +27,94 @@ export function OrganizationsList() {
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [openCreateDialog, setOpenCreateDialog] = useState(false)
+  const [newOrgName, setNewOrgName] = useState('')
 
   useEffect(() => {
-    async function fetchOrganizations() {
-      try {
-        const { data: memberships, error: membershipError } = await supabase
-          .from('organization_members')
-          .select(`
-            organization_id,
-            role,
-            organizations (
-              id,
-              name
-            )
-          `)
-          .throwOnError()
-
-        if (membershipError) throw membershipError
-
-        const orgs = memberships.map(membership => ({
-          id: membership.organizations.id,
-          name: membership.organizations.name,
-          role: membership.role
-        }))
-
-        setOrganizations(orgs)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch organizations')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchOrganizations()
   }, [])
+
+  async function fetchOrganizations() {
+    try {
+      const { data: memberships, error: membershipError } = await supabase
+        .from('organization_members')
+        .select(`
+          organization_id,
+          role,
+          organizations (
+            id,
+            name
+          )
+        `)
+        .throwOnError()
+
+      if (membershipError) throw membershipError
+
+      // Transform and deduplicate organizations
+      const orgMap = new Map<string, Organization>()
+      memberships.forEach(membership => {
+        const org = {
+          id: membership.organizations.id,
+          name: membership.organizations.name,
+          role: membership.role as 'admin' | 'user'
+        }
+        // If org already exists, only update if new role is admin
+        if (!orgMap.has(org.id) || org.role === 'admin') {
+          orgMap.set(org.id, org)
+        }
+      })
+
+      setOrganizations(Array.from(orgMap.values()))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch organizations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateOrganization = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('create_organization', {
+          org_name: newOrgName
+        })
+
+      if (error) throw error
+
+      // Refresh organizations list
+      await fetchOrganizations()
+      setOpenCreateDialog(false)
+      setNewOrgName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create organization')
+    }
+  }
 
   if (loading) return <Typography>Loading...</Typography>
   if (error) return <Typography color="error">{error}</Typography>
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Your Organizations
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">
+          Your Organizations
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setOpenCreateDialog(true)}
+        >
+          Create Organization
+        </Button>
+      </Box>
+
       <List>
         {organizations.map((org) => (
           <ListItem key={org.id} component={Card} sx={{ mb: 2 }}>
             <CardContent sx={{ width: '100%' }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
                 <Box>
-                  <Typography variant="h6" component={Link} to={`/organizations/${org.id}`}>
+                  <Typography variant="h6" component={Link} to={`/organizations/${org.id}`} sx={{ textDecoration: 'none' }}>
                     {org.name}
                   </Typography>
                   <Typography color="textSecondary" variant="body2">
@@ -81,12 +124,39 @@ export function OrganizationsList() {
                 <Chip
                   label={org.role}
                   color={org.role === 'admin' ? 'primary' : 'default'}
+                  variant={org.role === 'admin' ? 'filled' : 'outlined'}
                 />
               </Box>
             </CardContent>
           </ListItem>
         ))}
       </List>
+
+      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)}>
+        <DialogTitle>Create New Organization</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Organization Name"
+            type="text"
+            fullWidth
+            value={newOrgName}
+            onChange={(e) => setNewOrgName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCreateDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleCreateOrganization}
+            variant="contained" 
+            color="primary"
+            disabled={!newOrgName.trim()}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

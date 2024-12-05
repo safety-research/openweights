@@ -1,14 +1,15 @@
 # Add organizations
 
-- [ ] simplify migrations
-    - create and link new supabase project
-    - run only migrations that are on main
-    - create example job and run
-    - ask claude to simplify all remaining migrations
-- [ ] update autoscale: start workers with proper organization
-- [ ] migrate existing files
+- fix migration bugs
 
-- [ ] use supabase async client if possible
+- Org management
+    - [ ] users should be able to create new organizations and become admin
+    - [ ] admins should be able to set third party secrets
+    - [ ] admins should be able to edit organization name
+    - [ ] admins should be able to remove users from organizations
+    - [ ] organizations are displayed multiple times
+
+- [ ] update autoscale: start workers with proper organization
 
 # Deploy
 - autoscale -> some cpu instance
@@ -19,15 +20,10 @@
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
 - make docker images private, use docker token
+- use supabase async client if possible
 - reduce amount of logs while starting up workers
 
 # Dashboard
-- Org management
-    - [ ] users should be able to create new organizations and become admin
-    - [ ] admins should be able to set third party secrets
-    - [ ] admins should be able to edit organization name
-    - [ ] organizations are displayed multiple times
-- add plots to runs
 - SSO
 
 # Job type: eval loss

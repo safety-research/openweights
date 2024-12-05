@@ -57,13 +57,30 @@ def upload_file(supabase: Client, local_path: str, original_path: str) -> bool:
 def migrate_files():
     supabase = get_supabase()
     
-    # List all files in the bucket
-    try:
-        response = supabase.storage.from_("files").list()
-        files = [f["name"] for f in response if not f["name"].startswith("organizations/")]
-    except Exception as e:
-        print(f"Error listing files: {e}")
-        return
+    # List all files in the bucket with pagination
+    files = []
+    offset = 0
+    limit = 1000  # Supabase maximum limit per request
+    
+    while True:
+        try:
+            response = supabase.storage.from_("files").list(
+                path="",
+                options={
+                    "limit": limit,
+                    "offset": offset,
+                }
+            )
+            batch = [f["name"] for f in response if not f["name"].startswith("organizations/")]
+            files.extend(batch)
+            
+            if len(batch) < limit:  # No more files to fetch
+                break
+                
+            offset += limit
+        except Exception as e:
+            print(f"Error listing files at offset {offset}: {e}")
+            return
 
     print(f"Found {len(files)} files to migrate")
     

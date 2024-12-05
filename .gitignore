@@ -3,6 +3,12 @@ build-docker-in-runpod
 .env
 .env.dev
 .env.prod
+.env.ow-dev
+.env.ow-migrations
+openweights/dashboard/backend/.env.ow-dev
+openweights/dashboard/backend/.env.ow-migrations
+openweights/dashboard/frontend/.env.ow-dev
+openweights/dashboard/frontend/.env.ow-migrations
 artifacts/
 debug/
 example/.ipynb_checkpoints/
