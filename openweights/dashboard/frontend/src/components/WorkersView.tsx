@@ -21,31 +21,34 @@ import {
 import { Worker } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
-
-const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'active':
-            return '#e6f4ea';  // light green
-        case 'starting':
-            return '#fff8e1';  // light yellow
-        case 'shutdown':
-            return '#f3e5f5';  // light purple
-        case 'terminated':
-            return '#ffebee';  // light red
-        default:
-            return undefined;
-    }
-};
+import { ViewToggle } from './ViewToggle';
+import { WorkersListView } from './WorkersListView';
 
 const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
-    <Card sx={{ mb: 2, backgroundColor: getStatusColor(worker.status) }}>
+    <Card 
+        sx={{ 
+            mb: 2,
+            backgroundColor: '#ffffff',
+            transition: 'background-color 0.3s ease',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+    >
         <CardContent>
             <Typography variant="h6" component="div">
                 {worker.id}
             </Typography>
-            <Typography color="text.secondary">
-                Status: {worker.status}
-            </Typography>
+            <Box sx={{ mt: 1, mb: 1 }}>
+                <Chip 
+                    label={worker.status}
+                    color={
+                        worker.status === 'active' ? 'success' :
+                        worker.status === 'starting' ? 'warning' :
+                        worker.status === 'shutdown' || worker.status === 'terminated' ? 'error' :
+                        'default'
+                    }
+                    size="small"
+                />
+            </Box>
             {worker.gpu_type && (
                 <Typography color="text.secondary">
                     GPU: {worker.gpu_count} x {worker.gpu_type} ({worker.vram_gb}GB)
@@ -178,6 +181,7 @@ export const WorkersView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [view, setView] = useState<'three-column' | 'list'>('three-column');
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchWorkers = useCallback(async () => {
@@ -237,7 +241,7 @@ export const WorkersView: React.FC = () => {
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', p: 2, backgroundColor: '#ffffff', borderRadius: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                 <TextField
                     label="Search"
                     variant="outlined"
@@ -247,46 +251,11 @@ export const WorkersView: React.FC = () => {
                     sx={{ 
                         width: 200,
                         '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'background.paper',
-                            '& fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.23)',
-                            },
-                            '&:hover fieldset': {
-                                borderColor: 'rgba(255, 255, 255, 0.4)',
-                            },
-                            '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                            },
-                        },
-                        '& .MuiInputLabel-root': {
-                            color: 'text.secondary',
-                        },
-                        '& .MuiInputBase-input': {
-                            color: 'text.primary',
-                        },
+                            backgroundColor: '#ffffff',
+                        }
                     }}
                 />
-                <FormControl size="small" sx={{ 
-                    minWidth: 120,
-                    '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'background.paper',
-                        '& fieldset': {
-                            borderColor: 'rgba(255, 255, 255, 0.23)',
-                        },
-                        '&:hover fieldset': {
-                            borderColor: 'rgba(255, 255, 255, 0.4)',
-                        },
-                        '&.Mui-focused fieldset': {
-                            borderColor: 'primary.main',
-                        },
-                    },
-                    '& .MuiInputLabel-root': {
-                        color: 'text.secondary',
-                    },
-                    '& .MuiSelect-select': {
-                        color: 'text.primary',
-                    },
-                }}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
                     <InputLabel>GPU Type</InputLabel>
                     <Select
                         value={gpuFilter}
@@ -309,45 +278,59 @@ export const WorkersView: React.FC = () => {
                     }
                     label="Auto-refresh"
                 />
+                <Box sx={{ ml: 'auto' }}>
+                    <ViewToggle view={view} onViewChange={setView} />
+                </Box>
             </Box>
-            <Grid container spacing={3} sx={{ flexGrow: 1 }}>
-                <WorkersColumn 
-                    title="Starting" 
-                    workers={startingWorkers}
-                    filter={filter}
-                    page={pages.starting}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('starting')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchWorkers}
-                    loading={loading}
-                />
-                <WorkersColumn 
-                    title="Active" 
-                    workers={activeWorkers}
-                    filter={filter}
-                    page={pages.active}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('active')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchWorkers}
-                    loading={loading}
-                />
-                <WorkersColumn 
-                    title="Terminated" 
-                    workers={terminatedWorkers}
+            {view === 'three-column' ? (
+                <Grid container spacing={3} sx={{ flexGrow: 1 }}>
+                    <WorkersColumn 
+                        title="Starting" 
+                        workers={startingWorkers}
+                        filter={filter}
+                        page={pages.starting}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('starting')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchWorkers}
+                        loading={loading}
+                    />
+                    <WorkersColumn 
+                        title="Active" 
+                        workers={activeWorkers}
+                        filter={filter}
+                        page={pages.active}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('active')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchWorkers}
+                        loading={loading}
+                    />
+                    <WorkersColumn 
+                        title="Terminated/Shutdown" 
+                        workers={terminatedWorkers}
+                        filter={filter}
+                        page={pages.terminated}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('terminated')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchWorkers}
+                        loading={loading}
+                    />
+                </Grid>
+            ) : (
+                <WorkersListView
+                    workers={[...startingWorkers, ...activeWorkers, ...terminatedWorkers]}
                     filter={filter}
                     page={pages.terminated}
                     rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('terminated')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchWorkers}
-                    loading={loading}
+                    onPageChange={(_, newPage) => handlePageChange('terminated')(newPage)}
+                    onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
                 />
-            </Grid>
+            )}
         </Box>
     );
 };

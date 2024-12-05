@@ -11,31 +11,21 @@ import {
     TextField,
     TablePagination,
     Switch,
-    FormControlLabel
+    FormControlLabel,
+    Chip
 } from '@mui/material';
 import { Run } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
-
-const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'completed':
-            return '#e6f4ea';  // light green
-        case 'canceled':
-            return '#fff8e1';  // light yellow
-        case 'failed':
-            return '#ffebee';  // light red
-        default:
-            return '#ffffff';  // white for other statuses
-    }
-};
+import { ViewToggle } from './ViewToggle';
+import { RunsListView } from './RunsListView';
 
 const RunCard: React.FC<{ run: Run }> = ({ run }) => (
     <Card 
         sx={{ 
             mb: 2,
-            backgroundColor: getStatusColor(run.status),
+            backgroundColor: '#ffffff',
             transition: 'background-color 0.3s ease',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
@@ -47,9 +37,19 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
             <Typography color="text.secondary">
                 Job: <Link to={`/jobs/${run.job_id}`}>{run.job_id}</Link>
             </Typography>
-            <Typography color="text.secondary">
-                Status: {run.status}
-            </Typography>
+            <Box sx={{ mt: 1, mb: 1 }}>
+                <Chip 
+                    label={run.status}
+                    color={
+                        run.status === 'completed' ? 'success' :
+                        run.status === 'failed' ? 'error' :
+                        run.status === 'canceled' ? 'warning' :
+                        run.status === 'in_progress' ? 'info' :
+                        'default'
+                    }
+                    size="small"
+                />
+            </Box>
             {run.worker_id && (
                 <Typography color="text.secondary">
                     Worker: <Link to={`/workers/${run.worker_id}`}>{run.worker_id}</Link>
@@ -161,6 +161,7 @@ export const RunsView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [view, setView] = useState<'three-column' | 'list'>('three-column');
     const [statusFilters, setStatusFilters] = useState<StatusFilters>({
         completed: true,
         failed: true,
@@ -259,45 +260,59 @@ export const RunsView: React.FC = () => {
                     filters={statusFilters}
                     onChange={setStatusFilters}
                 />
+                <Box sx={{ ml: 'auto' }}>
+                    <ViewToggle view={view} onViewChange={setView} />
+                </Box>
             </Box>
-            <Grid container spacing={3} sx={{ flexGrow: 1 }}>
-                <RunsColumn 
-                    title="Pending" 
-                    runs={pendingRuns}
-                    filter={filter}
-                    page={pages.pending}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('pending')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchRuns}
-                    loading={loading}
-                />
-                <RunsColumn 
-                    title="In Progress" 
-                    runs={inProgressRuns}
-                    filter={filter}
-                    page={pages.inProgress}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('inProgress')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchRuns}
-                    loading={loading}
-                />
-                <RunsColumn 
-                    title="Completed/Failed/Canceled" 
-                    runs={completedRuns}
+            {view === 'three-column' ? (
+                <Grid container spacing={3} sx={{ flexGrow: 1 }}>
+                    <RunsColumn 
+                        title="Pending" 
+                        runs={pendingRuns}
+                        filter={filter}
+                        page={pages.pending}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('pending')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchRuns}
+                        loading={loading}
+                    />
+                    <RunsColumn 
+                        title="In Progress" 
+                        runs={inProgressRuns}
+                        filter={filter}
+                        page={pages.inProgress}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('inProgress')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchRuns}
+                        loading={loading}
+                    />
+                    <RunsColumn 
+                        title="Completed/Failed/Canceled" 
+                        runs={completedRuns}
+                        filter={filter}
+                        page={pages.completed}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('completed')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchRuns}
+                        loading={loading}
+                    />
+                </Grid>
+            ) : (
+                <RunsListView
+                    runs={[...pendingRuns, ...inProgressRuns, ...completedRuns]}
                     filter={filter}
                     page={pages.completed}
                     rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('completed')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchRuns}
-                    loading={loading}
+                    onPageChange={(_, newPage) => handlePageChange('completed')(newPage)}
+                    onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
                 />
-            </Grid>
+            )}
         </Box>
     );
 };

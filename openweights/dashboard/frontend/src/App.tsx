@@ -4,7 +4,6 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { JobsView } from './components/JobsView';
 import { RunsView } from './components/RunsView';
 import { WorkersView } from './components/WorkersView';
-import { AllView } from './components/AllView';
 import { JobDetailView, RunDetailView, WorkerDetailView } from './components/DetailViews';
 import { Auth } from './components/Auth/Auth';
 import { OrganizationsList } from './components/Organizations/OrganizationsList';
@@ -67,7 +66,6 @@ function NavBar() {
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           OpenWeights Dashboard
         </Typography>
-        <Button color="inherit" component={Link} to="/all">All</Button>
         <Button color="inherit" component={Link} to="/jobs">Jobs</Button>
         <Button color="inherit" component={Link} to="/runs">Runs</Button>
         <Button color="inherit" component={Link} to="/workers">Workers</Button>
@@ -108,8 +106,7 @@ function AppContent() {
           <Routes>
             <Route path="/login" element={<Auth />} />
             
-            <Route path="/" element={<PrivateRoute><AllView /></PrivateRoute>} />
-            <Route path="/all" element={<PrivateRoute><AllView /></PrivateRoute>} />
+            <Route path="/" element={<Navigate to="/jobs" />} />
             <Route path="/jobs" element={<PrivateRoute><JobsView /></PrivateRoute>} />
             <Route path="/jobs/:jobId" element={<PrivateRoute><JobDetailView /></PrivateRoute>} />
             <Route path="/runs" element={<PrivateRoute><RunsView /></PrivateRoute>} />

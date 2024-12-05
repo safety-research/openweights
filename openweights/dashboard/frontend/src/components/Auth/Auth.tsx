@@ -46,10 +46,15 @@ export function Auth() {
         const { error } = await signUp(email, password);
         if (error) throw error;
         setSuccess('Sign up successful! Please check your email for verification.');
+        // After successful signup, sign in and redirect to organizations
+        const { error: signInError } = await signIn(email, password);
+        if (!signInError) {
+          navigate('/organizations');
+        }
       } else if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) throw error;
-        navigate('/');
+        navigate('/jobs');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');

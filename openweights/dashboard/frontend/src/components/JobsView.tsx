@@ -15,31 +15,21 @@ import {
     MenuItem,
     TablePagination,
     FormControlLabel,
-    Switch
+    Switch,
+    Chip
 } from '@mui/material';
 import { Job } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
-
-const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'completed':
-            return '#e6f4ea';  // light green
-        case 'canceled':
-            return '#fff8e1';  // light yellow
-        case 'failed':
-            return '#ffebee';  // light red
-        default:
-            return '#ffffff';  // white for other statuses
-    }
-};
+import { ViewToggle } from './ViewToggle';
+import { JobsListView } from './JobsListView';
 
 const JobCard: React.FC<{ job: Job }> = ({ job }) => (
     <Card 
         sx={{ 
             mb: 2,
-            backgroundColor: getStatusColor(job.status),
+            backgroundColor: '#ffffff',
             transition: 'background-color 0.3s ease',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
@@ -51,9 +41,19 @@ const JobCard: React.FC<{ job: Job }> = ({ job }) => (
             <Typography color="text.secondary">
                 Type: {job.type}
             </Typography>
-            <Typography color="text.secondary">
-                Status: {job.status}
-            </Typography>
+            <Box sx={{ mt: 1, mb: 1 }}>
+                <Chip 
+                    label={job.status}
+                    color={
+                        job.status === 'completed' ? 'success' :
+                        job.status === 'failed' ? 'error' :
+                        job.status === 'canceled' ? 'warning' :
+                        job.status === 'in_progress' ? 'info' :
+                        'default'
+                    }
+                    size="small"
+                />
+            </Box>
             {job.model && (
                 <Typography color="text.secondary">
                     Model: {job.model}
@@ -94,23 +94,6 @@ interface JobsColumnProps {
     loading?: boolean;
 }
 
-const searchInObject = (obj: any, searchStr: string): boolean => {
-    if (!obj) return false;
-    
-    return Object.entries(obj).some(([_, value]) => {
-        if (typeof value === 'string') {
-            return value.toLowerCase().includes(searchStr);
-        }
-        if (typeof value === 'object') {
-            return searchInObject(value, searchStr);
-        }
-        if (value !== null && value !== undefined) {
-            return String(value).toLowerCase().includes(searchStr);
-        }
-        return false;
-    });
-};
-
 const JobsColumn: React.FC<JobsColumnProps> = ({ 
     title, 
     jobs, 
@@ -132,8 +115,8 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
         return jobId.includes(searchStr) ||
             model.includes(searchStr) ||
             dockerImage.includes(searchStr) ||
-            searchInObject(job.params, searchStr) ||
-            searchInObject(job.outputs, searchStr);
+            JSON.stringify(job.params).toLowerCase().includes(searchStr) ||
+            JSON.stringify(job.outputs).toLowerCase().includes(searchStr);
     });
 
     const paginatedJobs = filteredJobs.slice(
@@ -192,6 +175,7 @@ export const JobsView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [view, setView] = useState<'three-column' | 'list'>('three-column');
     const [statusFilters, setStatusFilters] = useState<StatusFilters>({
         completed: true,
         failed: true,
@@ -309,45 +293,59 @@ export const JobsView: React.FC = () => {
                     filters={statusFilters}
                     onChange={setStatusFilters}
                 />
+                <Box sx={{ ml: 'auto' }}>
+                    <ViewToggle view={view} onViewChange={setView} />
+                </Box>
             </Box>
-            <Grid container spacing={3} sx={{ flexGrow: 1 }}>
-                <JobsColumn 
-                    title="Pending" 
-                    jobs={pendingJobs}
-                    filter={filter}
-                    page={pages.pending}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('pending')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchJobs}
-                    loading={loading}
-                />
-                <JobsColumn 
-                    title="In Progress" 
-                    jobs={inProgressJobs}
-                    filter={filter}
-                    page={pages.inProgress}
-                    rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('inProgress')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchJobs}
-                    loading={loading}
-                />
-                <JobsColumn 
-                    title="Completed/Failed/Canceled" 
-                    jobs={completedJobs}
+            {view === 'three-column' ? (
+                <Grid container spacing={3} sx={{ flexGrow: 1 }}>
+                    <JobsColumn 
+                        title="Pending" 
+                        jobs={pendingJobs}
+                        filter={filter}
+                        page={pages.pending}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('pending')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchJobs}
+                        loading={loading}
+                    />
+                    <JobsColumn 
+                        title="In Progress" 
+                        jobs={inProgressJobs}
+                        filter={filter}
+                        page={pages.inProgress}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('inProgress')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchJobs}
+                        loading={loading}
+                    />
+                    <JobsColumn 
+                        title="Completed/Failed/Canceled" 
+                        jobs={completedJobs}
+                        filter={filter}
+                        page={pages.completed}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange('completed')}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        lastRefresh={lastRefresh}
+                        onRefresh={fetchJobs}
+                        loading={loading}
+                    />
+                </Grid>
+            ) : (
+                <JobsListView
+                    jobs={[...pendingJobs, ...inProgressJobs, ...completedJobs]}
                     filter={filter}
                     page={pages.completed}
                     rowsPerPage={rowsPerPage}
-                    onPageChange={handlePageChange('completed')}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    lastRefresh={lastRefresh}
-                    onRefresh={fetchJobs}
-                    loading={loading}
+                    onPageChange={(_, newPage) => handlePageChange('completed')(newPage)}
+                    onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
                 />
-            </Grid>
+            )}
         </Box>
     );
 };
