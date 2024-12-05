@@ -74,7 +74,7 @@ export function OrganizationsList() {
 
   const handleCreateOrganization = async () => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .rpc('create_organization', {
           org_name: newOrgName
         })

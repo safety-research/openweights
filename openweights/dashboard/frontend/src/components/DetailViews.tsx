@@ -144,7 +144,6 @@ const OutputsDisplay: React.FC<{ outputs: any }> = ({ outputs }) => {
 
     // Check if outputs is a metrics object (has numeric values) or contains file references
     const hasMetrics = Object.values(outputs).some(value => typeof value === 'number');
-    const hasFiles = Object.entries(outputs).some(([key, value]) => isFileId(key, value));
 
     if (hasMetrics) {
         return <MetricsDisplay metrics={outputs} />;

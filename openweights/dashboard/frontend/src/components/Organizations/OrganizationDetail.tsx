@@ -17,7 +17,6 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
-  ListItemSecondaryAction,
   Tab,
   Tabs,
   Table,
@@ -118,10 +117,10 @@ export function OrganizationDetail() {
       if (memberError) throw memberError
 
       // Check if current user is admin
-      const currentUserMember = memberData.find(m => m.user_id === user?.id)
+      const currentUserMember = memberData.find((m: { user_id: string }) => m.user_id === user?.id)
       setIsAdmin(currentUserMember?.role === 'admin')
 
-      setMembers(memberData.map(m => ({
+      setMembers(memberData.map((m: { user_id: string, role: string }) => ({
         user_id: m.user_id,
         email: m.email,
         role: m.role
