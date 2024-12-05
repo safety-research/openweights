@@ -99,7 +99,7 @@ class FineTuningJobs(BaseJob):
             requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
         
         hash_params = {k: v for k, v in params.items() if k not in ['meta']}
-        job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
+        job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
 
         if 'finetuned_model_id' not in params:
             model = params['model'].split('/')[-1]
@@ -125,7 +125,7 @@ class InferenceJobs(BaseJob):
         """Create an inference job"""
 
         hash_params = {k: v for k, v in params.items() if k not in ['meta']}
-        job_id = f"ijob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
+        job_id = f"ijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
         
         params = InferenceConfig(**params).model_dump()
 
@@ -155,7 +155,7 @@ class Deployments(BaseJob):
         if requires_vram_gb == 'guess':
             requires_vram_gb = 150 if '70b' in params['model'].lower() else 24
         hash_params = dict(**params, requires_vram_gb=requires_vram_gb)
-        job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode()).hexdigest()[:12]}"
+        job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
 
         model = params['model']
 
@@ -182,7 +182,7 @@ class Jobs(BaseJob):
         if isinstance(script_content, bytes):
             script_content = script_content.decode('utf-8')
 
-        job_id = f"sjob-{hashlib.sha256(script_content.encode()).hexdigest()[:12]}"
+        job_id = f"sjob-{hashlib.sha256(script_content.encode() + self._org_id.encode()).hexdigest()[:12]}"
         
         data = {
             'id': job_id,

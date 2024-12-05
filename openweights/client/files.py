@@ -17,6 +17,8 @@ class Files:
         sha256_hash = hashlib.sha256()
         for byte_block in iter(lambda: file.read(4096), b""):
             sha256_hash.update(byte_block)
+        # Add the org ID to the hash to ensure uniqueness
+        sha256_hash.update(self._org_id.encode())
         file.seek(0)  # Reset file pointer
         return f"file-{sha256_hash.hexdigest()[:12]}"
 

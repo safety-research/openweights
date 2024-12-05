@@ -1,9 +1,5 @@
 # Add organizations
 
-- [x] make non expiring token
-- [ ] use new token in .env and run tests
-
-- [ ] make job_id combined key: organization_id, job_id
 - [ ] simplify migrations
     - create and link new supabase project
     - run only migrations that are on main
@@ -26,13 +22,13 @@
 - reduce amount of logs while starting up workers
 
 # Dashboard
-- add plots to runs
-- SSO
 - Org management
     - [ ] users should be able to create new organizations and become admin
     - [ ] admins should be able to set third party secrets
     - [ ] admins should be able to edit organization name
     - [ ] organizations are displayed multiple times
+- add plots to runs
+- SSO
 
 # Job type: eval loss
 
