@@ -209,12 +209,11 @@ export const RunsView: React.FC = () => {
         setPages({ pending: 0, inProgress: 0, completed: 0 });
     };
 
-    const pendingRuns = runs.filter(run => run.status === 'pending');
+    const canceledRuns = runs.filter(run => run.status === 'canceled');
     const inProgressRuns = runs.filter(run => run.status === 'in_progress');
-    const completedRuns = runs.filter(run => {
+    const finishedRuns = runs.filter(run => {
         if (run.status === 'completed' && statusFilters.completed) return true;
         if (run.status === 'failed' && statusFilters.failed) return true;
-        if (run.status === 'canceled' && statusFilters.canceled) return true;
         return false;
     });
 
@@ -267,8 +266,8 @@ export const RunsView: React.FC = () => {
             {view === 'three-column' ? (
                 <Grid container spacing={3} sx={{ flexGrow: 1 }}>
                     <RunsColumn 
-                        title="Pending" 
-                        runs={pendingRuns}
+                        title="Canceled" 
+                        runs={canceledRuns}
                         filter={filter}
                         page={pages.pending}
                         rowsPerPage={rowsPerPage}
@@ -291,8 +290,8 @@ export const RunsView: React.FC = () => {
                         loading={loading}
                     />
                     <RunsColumn 
-                        title="Completed/Failed/Canceled" 
-                        runs={completedRuns}
+                        title="Finished" 
+                        runs={finishedRuns}
                         filter={filter}
                         page={pages.completed}
                         rowsPerPage={rowsPerPage}
@@ -305,7 +304,7 @@ export const RunsView: React.FC = () => {
                 </Grid>
             ) : (
                 <RunsListView
-                    runs={[...pendingRuns, ...inProgressRuns, ...completedRuns]}
+                    runs={[...canceledRuns, ...inProgressRuns, ...finishedRuns]}
                     filter={filter}
                     page={pages.completed}
                     rowsPerPage={rowsPerPage}

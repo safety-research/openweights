@@ -228,9 +228,10 @@ export const JobsView: React.FC = () => {
         return matchesType;
     });
 
+
     const pendingJobs = filteredJobs.filter(job => job.status === 'pending');
     const inProgressJobs = filteredJobs.filter(job => job.status === 'in_progress');
-    const completedJobs = filteredJobs.filter(job => {
+    const finishedJobs = filteredJobs.filter(job => {
         if (job.status === 'completed' && statusFilters.completed) return true;
         if (job.status === 'failed' && statusFilters.failed) return true;
         if (job.status === 'canceled' && statusFilters.canceled) return true;
@@ -324,8 +325,8 @@ export const JobsView: React.FC = () => {
                         loading={loading}
                     />
                     <JobsColumn 
-                        title="Completed/Failed/Canceled" 
-                        jobs={completedJobs}
+                        title="Finished" 
+                        jobs={finishedJobs}
                         filter={filter}
                         page={pages.completed}
                         rowsPerPage={rowsPerPage}
@@ -338,7 +339,7 @@ export const JobsView: React.FC = () => {
                 </Grid>
             ) : (
                 <JobsListView
-                    jobs={[...pendingJobs, ...inProgressJobs, ...completedJobs]}
+                    jobs={[...pendingJobs, ...inProgressJobs, ...finishedJobs]}
                     filter={filter}
                     page={pages.completed}
                     rowsPerPage={rowsPerPage}

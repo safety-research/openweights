@@ -97,6 +97,7 @@ const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
     </Card>
 );
 
+
 interface WorkersColumnProps {
     title: string;
     workers: Worker[];
