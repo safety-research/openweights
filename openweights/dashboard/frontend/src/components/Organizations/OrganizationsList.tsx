@@ -36,12 +36,12 @@ export function OrganizationsList() {
 
   async function fetchOrganizations() {
     try {
-      const { data: memberships, error: membershipError } = await supabase
+      const { data, error: membershipError } = await supabase
         .from('organization_members')
         .select(`
           organization_id,
           role,
-          organizations (
+          organization:organization_id (
             id,
             name
           )
@@ -52,20 +52,25 @@ export function OrganizationsList() {
 
       // Transform and deduplicate organizations
       const orgMap = new Map<string, Organization>()
-      memberships.forEach(membership => {
-        const org = {
-          id: membership.organizations.id,
-          name: membership.organizations.name,
-          role: membership.role as 'admin' | 'user'
-        }
-        // If org already exists, only update if new role is admin
-        if (!orgMap.has(org.id) || org.role === 'admin') {
-          orgMap.set(org.id, org)
-        }
-      })
+      if (data) {
+        data.forEach((membership: any) => {
+          if (membership.organization) {
+            const org: Organization = {
+              id: membership.organization.id,
+              name: membership.organization.name,
+              role: membership.role
+            }
+            // If org already exists, only update if new role is admin
+            if (!orgMap.has(org.id) || org.role === 'admin') {
+              orgMap.set(org.id, org)
+            }
+          }
+        })
+      }
 
       setOrganizations(Array.from(orgMap.values()))
     } catch (err) {
+      console.error('Error fetching organizations:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch organizations')
     } finally {
       setLoading(false)
@@ -86,6 +91,7 @@ export function OrganizationsList() {
       setOpenCreateDialog(false)
       setNewOrgName('')
     } catch (err) {
+      console.error('Error creating organization:', err)
       setError(err instanceof Error ? err.message : 'Failed to create organization')
     }
   }

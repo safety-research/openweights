@@ -97,7 +97,7 @@ interface JobsColumnProps {
 const searchInObject = (obj: any, searchStr: string): boolean => {
     if (!obj) return false;
     
-    return Object.entries(obj).some(([key, value]) => {
+    return Object.entries(obj).some(([_, value]) => {
         if (typeof value === 'string') {
             return value.toLowerCase().includes(searchStr);
         }

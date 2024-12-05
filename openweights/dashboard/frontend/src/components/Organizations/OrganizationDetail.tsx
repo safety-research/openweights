@@ -32,9 +32,9 @@ import { supabase } from '../../supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface Member {
-  user_id: string
-  email: string
-  role: 'admin' | 'user'
+  user_id: string;
+  email?: string;  // Make email optional
+  role: 'admin' | 'user';
 }
 
 interface Organization {
@@ -120,10 +120,10 @@ export function OrganizationDetail() {
       const currentUserMember = memberData.find((m: { user_id: string }) => m.user_id === user?.id)
       setIsAdmin(currentUserMember?.role === 'admin')
 
-      setMembers(memberData.map((m: { user_id: string, role: string }) => ({
+      setMembers(memberData.map((m: { user_id: string; role: string; email?: string }) => ({
         user_id: m.user_id,
-        email: m.email,
-        role: m.role
+        role: m.role,
+        ...(m.email ? { email: m.email } : {})  // Only include email if it exists
       })))
 
       // Fetch secrets if admin
