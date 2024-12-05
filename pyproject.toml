@@ -15,7 +15,10 @@ dependencies = [
     "httpx>=0.24.0",
     "fire",
     "runpod",
-    "PyJWT"
+    "PyJWT",
+    "fastapi",
+    "uvicorn",
+    "openai"
 ]
 
 [project.optional-dependencies]
@@ -25,6 +28,5 @@ dev = [
     "black",
     "isort",
 ]
-
 [tool.hatch.build.targets.wheel]
 packages = ["openweights"]
