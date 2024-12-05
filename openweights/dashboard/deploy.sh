@@ -33,6 +33,6 @@ if [ -f "backend.pid" ]; then
         sleep 2
     fi
 fi
-nohup uvicorn main:app --reload --port 8124  > backend.log 2>&1 & echo $! > backend.pid
+nohup uvicorn main:app --reload --port 8124 --host 0.0.0.0  > backend.log 2>&1 & echo $! > backend.pid
 
 log "Deployment completed!"
