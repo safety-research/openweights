@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
     Grid, 
     Paper, 
@@ -23,8 +23,9 @@ import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { ViewToggle } from './ViewToggle';
 import { WorkersListView } from './WorkersListView';
+import { useOrganization } from '../contexts/OrganizationContext';
 
-const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
+const WorkerCard: React.FC<{ worker: Worker; orgId: string }> = ({ worker, orgId }) => (
     <Card 
         sx={{ 
             mb: 2,
@@ -90,7 +91,12 @@ const WorkerCard: React.FC<{ worker: Worker }> = ({ worker }) => (
                     </Box>
                 </Box>
             )}
-            <Button component={Link} to={`/workers/${worker.id}`} variant="outlined" sx={{ mt: 1 }}>
+            <Button 
+                component={Link} 
+                to={`/${orgId}/workers/${worker.id}`} 
+                variant="outlined" 
+                sx={{ mt: 1 }}
+            >
                 View Details
             </Button>
         </CardContent>
@@ -109,6 +115,7 @@ interface WorkersColumnProps {
     lastRefresh?: Date;
     onRefresh: () => void;
     loading?: boolean;
+    orgId: string;
 }
 
 const WorkersColumn: React.FC<WorkersColumnProps> = ({ 
@@ -121,7 +128,8 @@ const WorkersColumn: React.FC<WorkersColumnProps> = ({
     onRowsPerPageChange,
     lastRefresh,
     onRefresh,
-    loading
+    loading,
+    orgId
 }) => {
     const filteredWorkers = workers.filter(worker => {
         const searchStr = filter.toLowerCase();
@@ -156,7 +164,7 @@ const WorkersColumn: React.FC<WorkersColumnProps> = ({
                 </Box>
                 <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
                     {paginatedWorkers.map(worker => (
-                        <WorkerCard key={worker.id} worker={worker} />
+                        <WorkerCard key={worker.id} worker={worker} orgId={orgId} />
                     ))}
                 </Box>
                 <TablePagination
@@ -174,6 +182,8 @@ const WorkersColumn: React.FC<WorkersColumnProps> = ({
 };
 
 export const WorkersView: React.FC = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    const { currentOrganization } = useOrganization();
     const [workers, setWorkers] = useState<Worker[]>([]);
     const [filter, setFilter] = useState('');
     const [gpuFilter, setGpuFilter] = useState('all');
@@ -186,9 +196,11 @@ export const WorkersView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchWorkers = useCallback(async () => {
+        if (!orgId) return;
+
         setLoading(true);
         try {
-            const data = await api.getWorkers();
+            const data = await api.getWorkers(orgId);
             // Sort by created_at descending
             data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setWorkers(data);
@@ -198,7 +210,7 @@ export const WorkersView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [orgId]);
 
     useEffect(() => {
         fetchWorkers();
@@ -239,6 +251,10 @@ export const WorkersView: React.FC = () => {
     const startingWorkers = filteredWorkers.filter(worker => worker.status === 'starting');
     const activeWorkers = filteredWorkers.filter(worker => worker.status === 'active');
     const terminatedWorkers = filteredWorkers.filter(worker => worker.status === 'terminated' || worker.status === 'shutdown');
+
+    if (!orgId || !currentOrganization) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -296,6 +312,7 @@ export const WorkersView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchWorkers}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <WorkersColumn 
                         title="Active" 
@@ -308,6 +325,7 @@ export const WorkersView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchWorkers}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <WorkersColumn 
                         title="Terminated/Shutdown" 
@@ -320,6 +338,7 @@ export const WorkersView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchWorkers}
                         loading={loading}
+                        orgId={orgId}
                     />
                 </Grid>
             ) : (
@@ -330,6 +349,7 @@ export const WorkersView: React.FC = () => {
                     rowsPerPage={rowsPerPage}
                     onPageChange={(_, newPage) => handlePageChange('terminated')(newPage)}
                     onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
+                    orgId={orgId}
                 />
             )}
         </Box>

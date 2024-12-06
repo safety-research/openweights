@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Job, Run, Worker, JobWithRuns, RunWithJobAndWorker, WorkerWithRuns } from './types';
+import { Job, Run, Worker, JobWithRuns, RunWithJobAndWorker, WorkerWithRuns, Organization } from './types';
 import { supabase } from './supabaseClient';
 
 // In production, use relative paths. In development, use localhost
@@ -19,42 +19,71 @@ const getAuthHeaders = async () => {
     };
 };
 
+interface CreateOrganizationData {
+    name: string;
+    secrets: {
+        HF_USER: string;
+        HF_ORG: string;
+        HF_TOKEN: string;
+        RUNPOD_API_KEY: string;
+    };
+}
+
 export const api = {
-    // Jobs
-    getJobs: async (status?: string) => {
+    // Organizations
+    getOrganizations: async () => {
         const config = await getAuthHeaders();
-        const response = await axios.get<Job[]>(`${API_URL}/jobs/`, { 
+        const response = await axios.get<Organization[]>(`${API_URL}/organizations/`, config);
+        return response.data;
+    },
+
+    getOrganization: async (orgId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.get<Organization>(`${API_URL}/organizations/${orgId}`, config);
+        return response.data;
+    },
+
+    createOrganization: async (data: CreateOrganizationData) => {
+        const config = await getAuthHeaders();
+        const response = await axios.post<Organization>(`${API_URL}/organizations/`, data, config);
+        return response.data;
+    },
+    
+    // Jobs
+    getJobs: async (orgId: string, status?: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.get<Job[]>(`${API_URL}/organizations/${orgId}/jobs/`, { 
             ...config,
             params: { status }
         });
         return response.data;
     },
     
-    getJob: async (jobId: string) => {
+    getJob: async (orgId: string, jobId: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get<JobWithRuns>(`${API_URL}/jobs/${jobId}`, config);
+        const response = await axios.get<JobWithRuns>(`${API_URL}/organizations/${orgId}/jobs/${jobId}`, config);
         return response.data;
     },
     
     // Runs
-    getRuns: async (status?: string) => {
+    getRuns: async (orgId: string, status?: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get<Run[]>(`${API_URL}/runs/`, { 
+        const response = await axios.get<Run[]>(`${API_URL}/organizations/${orgId}/runs/`, { 
             ...config,
             params: { status }
         });
         return response.data;
     },
     
-    getRun: async (runId: string) => {
+    getRun: async (orgId: string, runId: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get<RunWithJobAndWorker>(`${API_URL}/runs/${runId}`, config);
+        const response = await axios.get<RunWithJobAndWorker>(`${API_URL}/organizations/${orgId}/runs/${runId}`, config);
         return response.data;
     },
 
-    getRunLogs: async (runId: string) => {
+    getRunLogs: async (orgId: string, runId: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get(`${API_URL}/runs/${runId}/logs`, { 
+        const response = await axios.get(`${API_URL}/organizations/${orgId}/runs/${runId}/logs`, { 
             ...config,
             responseType: 'text'
         });
@@ -62,30 +91,51 @@ export const api = {
     },
     
     // Workers
-    getWorkers: async (status?: string) => {
+    getWorkers: async (orgId: string, status?: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get<Worker[]>(`${API_URL}/workers/`, { 
+        const response = await axios.get<Worker[]>(`${API_URL}/organizations/${orgId}/workers/`, { 
             ...config,
             params: { status }
         });
         return response.data;
     },
     
-    getWorker: async (workerId: string) => {
+    getWorker: async (orgId: string, workerId: string) => {
         const config = await getAuthHeaders();
-        const response = await axios.get<WorkerWithRuns>(`${API_URL}/workers/${workerId}`, config);
+        const response = await axios.get<WorkerWithRuns>(`${API_URL}/organizations/${orgId}/workers/${workerId}`, config);
         return response.data;
     },
 
     // Files
-    getFileContent: async (fileId: string) => {
+    getFileContent: async (orgId: string, fileId: string) => {
         const config = await getAuthHeaders();
         console.log('Fetching file content for:', fileId);
-        const response = await axios.get(`${API_URL}/files/${fileId}/content`, {
+        const response = await axios.get(`${API_URL}/organizations/${orgId}/files/${fileId}/content`, {
             ...config,
             responseType: 'text'
         });
         console.log('File content response:', response.data);
         return response.data;
     },
+
+    // Tokens
+    createToken: async (orgId: string, name: string, expiresInDays?: number) => {
+        const config = await getAuthHeaders();
+        const response = await axios.post(`${API_URL}/organizations/${orgId}/tokens`, {
+            name,
+            expires_in_days: expiresInDays
+        }, config);
+        return response.data;
+    },
+
+    listTokens: async (orgId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.get(`${API_URL}/organizations/${orgId}/tokens`, config);
+        return response.data;
+    },
+
+    deleteToken: async (orgId: string, tokenId: string) => {
+        const config = await getAuthHeaders();
+        await axios.delete(`${API_URL}/organizations/${orgId}/tokens/${tokenId}`, config);
+    }
 };

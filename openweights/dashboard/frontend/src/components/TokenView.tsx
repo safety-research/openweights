@@ -24,9 +24,7 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../supabaseClient';
-
-const API_URL = 'http://localhost:8124';  // Add this constant
+import { api } from '../api';
 
 interface Token {
   id: string;
@@ -36,8 +34,12 @@ interface Token {
   access_token?: string;
 }
 
-export function TokenView() {
-  const { session } = useAuth();
+interface TokenViewProps {
+  orgId: string;
+}
+
+export function TokenView({ orgId }: TokenViewProps) {
+  const { user } = useAuth();
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -45,39 +47,22 @@ export function TokenView() {
   const [newTokenName, setNewTokenName] = useState('');
   const [expirationDays, setExpirationDays] = useState<string>('never');
   const [newToken, setNewToken] = useState<Token | null>(null);
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
-  // Fetch organization ID and tokens
+  // Fetch tokens
   useEffect(() => {
-    const fetchOrganizationAndTokens = async () => {
-      if (session?.user?.id) {
-        const { data: organizations } = await supabase
-          .from('organization_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
-          .limit(1);
-
-        if (organizations && organizations.length > 0) {
-          const orgId = organizations[0].organization_id;
-          setOrganizationId(orgId);
-          
-          // Fetch tokens
-          const response = await fetch(`${API_URL}/organizations/${orgId}/tokens`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          });
-          if (response.ok) {
-            const tokens = await response.json();
-            setTokens(tokens);
-          }
-        }
+    const fetchTokens = async () => {
+      try {
+        const tokens = await api.listTokens(orgId);
+        setTokens(tokens);
+      } catch (error) {
+        console.error('Error fetching tokens:', error);
+        setSnackbarMessage('Error fetching tokens');
+        setShowSnackbar(true);
       }
     };
 
-    fetchOrganizationAndTokens();
-  }, [session]);
+    fetchTokens();
+  }, [orgId]);
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -90,8 +75,6 @@ export function TokenView() {
   };
 
   const handleCreateToken = async () => {
-    if (!organizationId) return;
-    
     if (!newTokenName.trim()) {
       setSnackbarMessage('Please enter a token name');
       setShowSnackbar(true);
@@ -99,36 +82,16 @@ export function TokenView() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/organizations/${organizationId}/tokens`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: newTokenName.trim(),
-          expires_in_days: expirationDays === 'never' ? null : parseInt(expirationDays)
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Error creating token: ${response.statusText}`);
-      }
-
-      const token = await response.json();
+      const token = await api.createToken(
+        orgId,
+        newTokenName.trim(),
+        expirationDays === 'never' ? undefined : parseInt(expirationDays)
+      );
       setNewToken(token);
       
       // Refresh token list
-      const tokensResponse = await fetch(`${API_URL}/organizations/${organizationId}/tokens`, {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
-      });
-      if (tokensResponse.ok) {
-        const tokens = await tokensResponse.json();
-        setTokens(tokens);
-      }
+      const updatedTokens = await api.listTokens(orgId);
+      setTokens(updatedTokens);
 
       setOpenDialog(false);
       setNewTokenName('');
@@ -140,30 +103,12 @@ export function TokenView() {
   };
 
   const handleDeleteToken = async (tokenId: string) => {
-    if (!organizationId) return;
-
     try {
-      const response = await fetch(`${API_URL}/organizations/${organizationId}/tokens/${tokenId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error deleting token: ${response.statusText}`);
-      }
+      await api.deleteToken(orgId, tokenId);
 
       // Refresh token list
-      const tokensResponse = await fetch(`${API_URL}/organizations/${organizationId}/tokens`, {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
-      });
-      if (tokensResponse.ok) {
-        const tokens = await tokensResponse.json();
-        setTokens(tokens);
-      }
+      const tokens = await api.listTokens(orgId);
+      setTokens(tokens);
 
       setSnackbarMessage('Token deleted successfully');
       setShowSnackbar(true);
@@ -173,20 +118,16 @@ export function TokenView() {
     }
   };
 
-  if (!organizationId) {
+  if (!user) {
     return (
       <Typography variant="body1" color="error" sx={{ p: 3 }}>
-        You need to be an organization admin to manage tokens
+        You need to be logged in to manage tokens
       </Typography>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        API Tokens
-      </Typography>
-      
+    <Box>
       <Button 
         variant="contained" 
         onClick={() => setOpenDialog(true)}

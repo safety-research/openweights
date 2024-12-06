@@ -36,6 +36,7 @@ interface WorkersListViewProps {
     rowsPerPage: number;
     onPageChange: (event: unknown, newPage: number) => void;
     onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    orgId: string;
 }
 
 export const WorkersListView: React.FC<WorkersListViewProps> = ({
@@ -45,6 +46,7 @@ export const WorkersListView: React.FC<WorkersListViewProps> = ({
     rowsPerPage,
     onPageChange,
     onRowsPerPageChange,
+    orgId,
 }) => {
     const filteredWorkers = workers.filter(worker => {
         const searchStr = filter.toLowerCase();
@@ -71,8 +73,8 @@ export const WorkersListView: React.FC<WorkersListViewProps> = ({
                             <TableCell>Status</TableCell>
                             <TableCell>GPU</TableCell>
                             <TableCell>Docker Image</TableCell>
-                            <TableCell>Created At</TableCell>
                             <TableCell>Last Ping</TableCell>
+                            <TableCell>Created At</TableCell>
                             <TableCell>Actions</TableCell>
                         </TableRow>
                     </TableHead>
@@ -100,14 +102,14 @@ export const WorkersListView: React.FC<WorkersListViewProps> = ({
                                     <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {worker.docker_image || '-'}
                                     </TableCell>
-                                    <TableCell>{new Date(worker.created_at).toLocaleString()}</TableCell>
                                     <TableCell>
                                         {worker.ping ? new Date(worker.ping).toLocaleString() : '-'}
                                     </TableCell>
+                                    <TableCell>{new Date(worker.created_at).toLocaleString()}</TableCell>
                                     <TableCell>
                                         <Button
                                             component={Link}
-                                            to={`/workers/${worker.id}`}
+                                            to={`/${orgId}/workers/${worker.id}`}
                                             size="small"
                                             variant="outlined"
                                         >

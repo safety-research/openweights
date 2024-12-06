@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
     Grid, 
     Paper, 
@@ -20,8 +20,9 @@ import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
 import { ViewToggle } from './ViewToggle';
 import { RunsListView } from './RunsListView';
+import { useOrganization } from '../contexts/OrganizationContext';
 
-const RunCard: React.FC<{ run: Run }> = ({ run }) => (
+const RunCard: React.FC<{ run: Run; orgId: string }> = ({ run, orgId }) => (
     <Card 
         sx={{ 
             mb: 2,
@@ -35,7 +36,7 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
                 {run.id}
             </Typography>
             <Typography color="text.secondary">
-                Job: <Link to={`/jobs/${run.job_id}`}>{run.job_id}</Link>
+                Job: <Link to={`/${orgId}/jobs/${run.job_id}`}>{run.job_id}</Link>
             </Typography>
             <Box sx={{ mt: 1, mb: 1 }}>
                 <Chip 
@@ -52,7 +53,7 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
             </Box>
             {run.worker_id && (
                 <Typography color="text.secondary">
-                    Worker: <Link to={`/workers/${run.worker_id}`}>{run.worker_id}</Link>
+                    Worker: <Link to={`/${orgId}/workers/${run.worker_id}`}>{run.worker_id}</Link>
                 </Typography>
             )}
             <Typography color="text.secondary" sx={{ mb: 1 }}>
@@ -60,7 +61,7 @@ const RunCard: React.FC<{ run: Run }> = ({ run }) => (
             </Typography>
             <Button 
                 component={Link} 
-                to={`/runs/${run.id}`} 
+                to={`/${orgId}/runs/${run.id}`} 
                 variant="outlined" 
                 sx={{ mt: 1 }}
             >
@@ -81,6 +82,7 @@ interface RunsColumnProps {
     lastRefresh?: Date;
     onRefresh: () => void;
     loading?: boolean;
+    orgId: string;
 }
 
 const RunsColumn: React.FC<RunsColumnProps> = ({ 
@@ -93,7 +95,8 @@ const RunsColumn: React.FC<RunsColumnProps> = ({
     onRowsPerPageChange,
     lastRefresh,
     onRefresh,
-    loading
+    loading,
+    orgId
 }) => {
     const filteredRuns = runs.filter(run => {
         const searchStr = filter.toLowerCase();
@@ -136,7 +139,7 @@ const RunsColumn: React.FC<RunsColumnProps> = ({
                 </Box>
                 <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
                     {paginatedRuns.map(run => (
-                        <RunCard key={run.id} run={run} />
+                        <RunCard key={run.id} run={run} orgId={orgId} />
                     ))}
                 </Box>
                 <TablePagination
@@ -154,6 +157,8 @@ const RunsColumn: React.FC<RunsColumnProps> = ({
 };
 
 export const RunsView: React.FC = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    const { currentOrganization } = useOrganization();
     const [runs, setRuns] = useState<Run[]>([]);
     const [filter, setFilter] = useState('');
     const [pages, setPages] = useState({ pending: 0, inProgress: 0, completed: 0 });
@@ -170,9 +175,11 @@ export const RunsView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchRuns = useCallback(async () => {
+        if (!orgId) return;
+
         setLoading(true);
         try {
-            const data = await api.getRuns();
+            const data = await api.getRuns(orgId);
             // Sort by created_at descending
             data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setRuns(data);
@@ -182,7 +189,7 @@ export const RunsView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [orgId]);
 
     useEffect(() => {
         fetchRuns();
@@ -216,6 +223,10 @@ export const RunsView: React.FC = () => {
         if (run.status === 'failed' && statusFilters.failed) return true;
         return false;
     });
+
+    if (!orgId || !currentOrganization) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -276,6 +287,7 @@ export const RunsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchRuns}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <RunsColumn 
                         title="In Progress" 
@@ -288,6 +300,7 @@ export const RunsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchRuns}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <RunsColumn 
                         title="Finished" 
@@ -300,6 +313,7 @@ export const RunsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchRuns}
                         loading={loading}
+                        orgId={orgId}
                     />
                 </Grid>
             ) : (
@@ -310,6 +324,7 @@ export const RunsView: React.FC = () => {
                     rowsPerPage={rowsPerPage}
                     onPageChange={(_, newPage) => handlePageChange('completed')(newPage)}
                     onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
+                    orgId={orgId}
                 />
             )}
         </Box>

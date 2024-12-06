@@ -37,6 +37,7 @@ interface RunsListViewProps {
     rowsPerPage: number;
     onPageChange: (event: unknown, newPage: number) => void;
     onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    orgId: string;
 }
 
 export const RunsListView: React.FC<RunsListViewProps> = ({
@@ -46,6 +47,7 @@ export const RunsListView: React.FC<RunsListViewProps> = ({
     rowsPerPage,
     onPageChange,
     onRowsPerPageChange,
+    orgId,
 }) => {
     const filteredRuns = runs.filter(run => {
         const searchStr = filter.toLowerCase();
@@ -83,11 +85,11 @@ export const RunsListView: React.FC<RunsListViewProps> = ({
                                         {run.id}
                                     </TableCell>
                                     <TableCell>
-                                        <Link to={`/jobs/${run.job_id}`}>{run.job_id}</Link>
+                                        <Link to={`/${orgId}/jobs/${run.job_id}`}>{run.job_id}</Link>
                                     </TableCell>
                                     <TableCell>
                                         {run.worker_id ? (
-                                            <Link to={`/workers/${run.worker_id}`}>{run.worker_id}</Link>
+                                            <Link to={`/${orgId}/workers/${run.worker_id}`}>{run.worker_id}</Link>
                                         ) : '-'}
                                     </TableCell>
                                     <TableCell>
@@ -101,7 +103,7 @@ export const RunsListView: React.FC<RunsListViewProps> = ({
                                     <TableCell>
                                         <Button
                                             component={Link}
-                                            to={`/runs/${run.id}`}
+                                            to={`/${orgId}/runs/${run.id}`}
                                             size="small"
                                             variant="outlined"
                                         >

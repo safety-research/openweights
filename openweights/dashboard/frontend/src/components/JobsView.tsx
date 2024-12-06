@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
     Grid, 
     Paper, 
@@ -24,8 +24,9 @@ import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
 import { ViewToggle } from './ViewToggle';
 import { JobsListView } from './JobsListView';
+import { useOrganization } from '../contexts/OrganizationContext';
 
-const JobCard: React.FC<{ job: Job }> = ({ job }) => (
+const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => (
     <Card 
         sx={{ 
             mb: 2,
@@ -71,7 +72,7 @@ const JobCard: React.FC<{ job: Job }> = ({ job }) => (
             </Typography>
             <Button 
                 component={Link} 
-                to={`/jobs/${job.id}`} 
+                to={`/${orgId}/jobs/${job.id}`} 
                 variant="outlined" 
                 sx={{ mt: 1 }}
             >
@@ -92,6 +93,7 @@ interface JobsColumnProps {
     lastRefresh?: Date;
     onRefresh: () => void;
     loading?: boolean;
+    orgId: string;
 }
 
 const JobsColumn: React.FC<JobsColumnProps> = ({ 
@@ -104,7 +106,8 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
     onRowsPerPageChange,
     lastRefresh,
     onRefresh,
-    loading
+    loading,
+    orgId
 }) => {
     const filteredJobs = jobs.filter(job => {
         const searchStr = filter.toLowerCase();
@@ -149,7 +152,7 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
                 </Box>
                 <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
                     {paginatedJobs.map(job => (
-                        <JobCard key={job.id} job={job} />
+                        <JobCard key={job.id} job={job} orgId={orgId} />
                     ))}
                 </Box>
                 <TablePagination
@@ -167,6 +170,8 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
 };
 
 export const JobsView: React.FC = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    const { currentOrganization } = useOrganization();
     const [jobs, setJobs] = useState<Job[]>([]);
     const [filter, setFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
@@ -184,9 +189,11 @@ export const JobsView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchJobs = useCallback(async () => {
+        if (!orgId) return;
+        
         setLoading(true);
         try {
-            const data = await api.getJobs();
+            const data = await api.getJobs(orgId);
             // Sort by created_at descending
             data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setJobs(data);
@@ -196,7 +203,7 @@ export const JobsView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [orgId]);
 
     useEffect(() => {
         fetchJobs();
@@ -228,7 +235,6 @@ export const JobsView: React.FC = () => {
         return matchesType;
     });
 
-
     const pendingJobs = filteredJobs.filter(job => job.status === 'pending');
     const inProgressJobs = filteredJobs.filter(job => job.status === 'in_progress');
     const finishedJobs = filteredJobs.filter(job => {
@@ -237,6 +243,10 @@ export const JobsView: React.FC = () => {
         if (job.status === 'canceled' && statusFilters.canceled) return true;
         return false;
     });
+
+    if (!orgId || !currentOrganization) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -311,6 +321,7 @@ export const JobsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchJobs}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <JobsColumn 
                         title="In Progress" 
@@ -323,6 +334,7 @@ export const JobsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchJobs}
                         loading={loading}
+                        orgId={orgId}
                     />
                     <JobsColumn 
                         title="Finished" 
@@ -335,6 +347,7 @@ export const JobsView: React.FC = () => {
                         lastRefresh={lastRefresh}
                         onRefresh={fetchJobs}
                         loading={loading}
+                        orgId={orgId}
                     />
                 </Grid>
             ) : (
@@ -345,6 +358,7 @@ export const JobsView: React.FC = () => {
                     rowsPerPage={rowsPerPage}
                     onPageChange={(_, newPage) => handlePageChange('completed')(newPage)}
                     onRowsPerPageChange={(event) => handleRowsPerPageChange(parseInt(event.target.value, 10))}
+                    orgId={orgId}
                 />
             )}
         </Box>

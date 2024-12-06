@@ -15,8 +15,9 @@ import {
 import { JobWithRuns, RunWithJobAndWorker, WorkerWithRuns } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
+import { useOrganization } from '../contexts/OrganizationContext';
 
-const FileContent: React.FC<{ fileId: string }> = ({ fileId }) => {
+const FileContent: React.FC<{ fileId: string; orgId: string }> = ({ fileId, orgId }) => {
     const [content, setContent] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ const FileContent: React.FC<{ fileId: string }> = ({ fileId }) => {
     useEffect(() => {
         const fetchContent = async () => {
             try {
-                const data = await api.getFileContent(fileId);
+                const data = await api.getFileContent(orgId, fileId);
                 setContent(data);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load file content');
@@ -33,7 +34,7 @@ const FileContent: React.FC<{ fileId: string }> = ({ fileId }) => {
             }
         };
         fetchContent();
-    }, [fileId]);
+    }, [fileId, orgId]);
 
     if (loading) return <CircularProgress size={20} />;
     if (error) return <Typography color="error">{error}</Typography>;
@@ -139,7 +140,7 @@ const MetricsDisplay: React.FC<{ metrics: Record<string, any> }> = ({ metrics })
     );
 };
 
-const OutputsDisplay: React.FC<{ outputs: any }> = ({ outputs }) => {
+const OutputsDisplay: React.FC<{ outputs: any; orgId: string }> = ({ outputs, orgId }) => {
     if (!outputs) return null;
 
     // Check if outputs is a metrics object (has numeric values) or contains file references
@@ -156,7 +157,7 @@ const OutputsDisplay: React.FC<{ outputs: any }> = ({ outputs }) => {
                     return (
                         <Box key={key} sx={{ mb: 2 }}>
                             <Typography variant="subtitle1">{key}:</Typography>
-                            <FileContent fileId={value as string} />
+                            <FileContent fileId={value as string} orgId={orgId} />
                         </Box>
                     );
                 }
@@ -186,7 +187,8 @@ const OutputsDisplay: React.FC<{ outputs: any }> = ({ outputs }) => {
 };
 
 export const JobDetailView: React.FC = () => {
-    const { jobId } = useParams<{ jobId: string }>();
+    const { orgId, jobId } = useParams<{ orgId: string; jobId: string }>();
+    const { currentOrganization } = useOrganization();
     const [job, setJob] = useState<JobWithRuns | null>(null);
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
@@ -194,10 +196,10 @@ export const JobDetailView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchJob = useCallback(async () => {
-        if (!jobId) return;
+        if (!orgId || !jobId) return;
         setLoading(true);
         try {
-            const data = await api.getJob(jobId);
+            const data = await api.getJob(orgId, jobId);
             setJob(data);
             setLastRefresh(new Date());
         } catch (error) {
@@ -205,7 +207,7 @@ export const JobDetailView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [jobId]);
+    }, [orgId, jobId]);
 
     useEffect(() => {
         fetchJob();
@@ -223,7 +225,9 @@ export const JobDetailView: React.FC = () => {
         };
     }, [autoRefresh, fetchJob, job?.status]);
 
-    if (!job) return <Typography>Loading...</Typography>;
+    if (!orgId || !currentOrganization || !job) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Paper sx={{ p: 3 }}>
@@ -280,7 +284,7 @@ export const JobDetailView: React.FC = () => {
             {job.outputs && (
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="h6">Outputs:</Typography>
-                    <OutputsDisplay outputs={job.outputs} />
+                    <OutputsDisplay outputs={job.outputs} orgId={orgId} />
                 </Box>
             )}
 
@@ -289,7 +293,7 @@ export const JobDetailView: React.FC = () => {
                 {job.runs
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map(run => (
-                        <ListItem key={run.id} component={Link} to={`/runs/${run.id}`}>
+                        <ListItem key={run.id} component={Link} to={`/${orgId}/runs/${run.id}`}>
                             <ListItemText 
                                 primary={run.id}
                                 secondary={`Status: ${run.status}, Created: ${new Date(run.created_at).toLocaleString()}`}
@@ -303,7 +307,8 @@ export const JobDetailView: React.FC = () => {
 };
 
 export const RunDetailView: React.FC = () => {
-    const { runId } = useParams<{ runId: string }>();
+    const { orgId, runId } = useParams<{ orgId: string; runId: string }>();
+    const { currentOrganization } = useOrganization();
     const [run, setRun] = useState<RunWithJobAndWorker | null>(null);
     const [logContent, setLogContent] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -313,13 +318,13 @@ export const RunDetailView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchRun = useCallback(async () => {
-        if (!runId) return;
+        if (!orgId || !runId) return;
         setLoading(true);
         try {
-            const data = await api.getRun(runId);
+            const data = await api.getRun(orgId, runId);
             setRun(data);
             
-            const logs = await api.getRunLogs(runId);
+            const logs = await api.getRunLogs(orgId, runId);
             setLogContent(logs);
             setLastRefresh(new Date());
         } catch (error) {
@@ -330,7 +335,7 @@ export const RunDetailView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [runId]);
+    }, [orgId, runId]);
 
     useEffect(() => {
         fetchRun();
@@ -348,7 +353,9 @@ export const RunDetailView: React.FC = () => {
         };
     }, [autoRefresh, fetchRun, run?.status]);
 
-    if (!run) return <Typography>Loading...</Typography>;
+    if (!orgId || !currentOrganization || !run) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Paper sx={{ p: 3 }}>
@@ -378,7 +385,7 @@ export const RunDetailView: React.FC = () => {
                 <Chip 
                     label={`Job: ${run.job_id}`} 
                     component={Link} 
-                    to={`/jobs/${run.job_id}`}
+                    to={`/${orgId}/jobs/${run.job_id}`}
                     clickable
                     sx={{ mr: 1 }}
                 />
@@ -386,7 +393,7 @@ export const RunDetailView: React.FC = () => {
                     <Chip 
                         label={`Worker: ${run.worker_id}`}
                         component={Link}
-                        to={`/workers/${run.worker_id}`}
+                        to={`/${orgId}/workers/${run.worker_id}`}
                         clickable
                         sx={{ mr: 1 }}
                     />
@@ -421,7 +428,8 @@ export const RunDetailView: React.FC = () => {
 };
 
 export const WorkerDetailView: React.FC = () => {
-    const { workerId } = useParams<{ workerId: string }>();
+    const { orgId, workerId } = useParams<{ orgId: string; workerId: string }>();
+    const { currentOrganization } = useOrganization();
     const [worker, setWorker] = useState<WorkerWithRuns | null>(null);
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
@@ -429,10 +437,10 @@ export const WorkerDetailView: React.FC = () => {
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchWorker = useCallback(async () => {
-        if (!workerId) return;
+        if (!orgId || !workerId) return;
         setLoading(true);
         try {
-            const data = await api.getWorker(workerId);
+            const data = await api.getWorker(orgId, workerId);
             setWorker(data);
             setLastRefresh(new Date());
         } catch (error) {
@@ -440,7 +448,7 @@ export const WorkerDetailView: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [workerId]);
+    }, [orgId, workerId]);
 
     useEffect(() => {
         fetchWorker();
@@ -458,7 +466,9 @@ export const WorkerDetailView: React.FC = () => {
         };
     }, [autoRefresh, fetchWorker, worker?.status]);
 
-    if (!worker) return <Typography>Loading...</Typography>;
+    if (!orgId || !currentOrganization || !worker) {
+        return <Typography>Loading...</Typography>;
+    }
 
     return (
         <Paper sx={{ p: 3 }}>
@@ -498,7 +508,7 @@ export const WorkerDetailView: React.FC = () => {
                 {worker.runs
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map(run => (
-                        <ListItem key={run.id} component={Link} to={`/runs/${run.id}`}>
+                        <ListItem key={run.id} component={Link} to={`/${orgId}/runs/${run.id}`}>
                             <ListItemText 
                                 primary={run.id}
                                 secondary={`Status: ${run.status}, Job: ${run.job_id}, Created: ${new Date(run.created_at).toLocaleString()}`}

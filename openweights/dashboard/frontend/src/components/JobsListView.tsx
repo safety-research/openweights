@@ -37,6 +37,7 @@ interface JobsListViewProps {
     rowsPerPage: number;
     onPageChange: (event: unknown, newPage: number) => void;
     onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    orgId: string;
 }
 
 export const JobsListView: React.FC<JobsListViewProps> = ({
@@ -46,6 +47,7 @@ export const JobsListView: React.FC<JobsListViewProps> = ({
     rowsPerPage,
     onPageChange,
     onRowsPerPageChange,
+    orgId,
 }) => {
     const filteredJobs = jobs.filter(job => {
         const searchStr = filter.toLowerCase();
@@ -101,7 +103,7 @@ export const JobsListView: React.FC<JobsListViewProps> = ({
                                     <TableCell>
                                         <Button
                                             component={Link}
-                                            to={`/jobs/${job.id}`}
+                                            to={`/${orgId}/jobs/${job.id}`}
                                             size="small"
                                             variant="outlined"
                                         >

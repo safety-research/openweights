@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -25,12 +25,14 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Breadcrumbs,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
+import NavigateNextIcon from '@mui/icons-material/NavigateNext'
 import { supabase } from '../../supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
-import { TokensTab } from './TokensTab'
+import { TokenView } from '../TokenView'
 
 interface Member {
   user_id: string;
@@ -49,14 +51,6 @@ interface Secret {
   value: string
   created_at: string
   updated_at: string
-}
-
-interface Token {
-  id: string;
-  name: string;
-  expires_at: string | null;
-  created_at: string;
-  access_token?: string;
 }
 
 interface TabPanelProps {
@@ -83,15 +77,12 @@ function TabPanel(props: TabPanelProps) {
   )
 }
 
-const API_URL = import.meta.env.PROD ? '' : 'http://localhost:8124';
-
 export function OrganizationDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { orgId } = useParams<{ orgId: string }>()
   const { user, session } = useAuth()
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [secrets, setSecrets] = useState<Secret[]>([])
-  const [tokens, setTokens] = useState<Token[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [openInviteDialog, setOpenInviteDialog] = useState(false)
@@ -104,10 +95,10 @@ export function OrganizationDetail() {
   const [tabValue, setTabValue] = useState(0)
 
   useEffect(() => {
-    if (id) {
+    if (orgId) {
       fetchOrganizationData()
     }
-  }, [id])
+  }, [orgId])
 
   async function fetchOrganizationData() {
     try {
@@ -115,7 +106,7 @@ export function OrganizationDetail() {
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('id', id)
+        .eq('id', orgId)
         .single()
 
       if (orgError) throw orgError
@@ -124,7 +115,7 @@ export function OrganizationDetail() {
 
       // Fetch members
       const { data: memberData, error: memberError } = await supabase
-        .rpc('get_organization_members', { org_id: id })
+        .rpc('get_organization_members', { org_id: orgId })
 
       if (memberError) throw memberError
 
@@ -143,21 +134,10 @@ export function OrganizationDetail() {
         const { data: secretData, error: secretError } = await supabase
           .from('organization_secrets')
           .select('*')
-          .eq('organization_id', id)
+          .eq('organization_id', orgId)
 
         if (secretError) throw secretError
         setSecrets(secretData)
-
-        // Fetch tokens
-        const tokensResponse = await fetch(`${API_URL}/organizations/${id}/tokens`, {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`
-          }
-        });
-        if (tokensResponse.ok) {
-          const tokens = await tokensResponse.json();
-          setTokens(tokens);
-        }
       }
     } catch (err) {
       console.error('Error fetching data:', err)
@@ -170,7 +150,7 @@ export function OrganizationDetail() {
       const { error } = await supabase
         .from('organization_members')
         .update({ role: newRole })
-        .eq('organization_id', id)
+        .eq('organization_id', orgId)
         .eq('user_id', userId)
 
       if (error) throw error
@@ -187,7 +167,7 @@ export function OrganizationDetail() {
     try {
       const { error } = await supabase
         .rpc('remove_organization_member', {
-          org_id: id,
+          org_id: orgId,
           member_id: userId
         })
 
@@ -203,7 +183,7 @@ export function OrganizationDetail() {
     try {
       const { data, error } = await supabase
         .rpc('invite_organization_member', {
-          org_id: id,
+          org_id: orgId,
           member_email: inviteEmail,
           member_role: 'user'
         })
@@ -229,7 +209,7 @@ export function OrganizationDetail() {
     try {
       const { error } = await supabase
         .rpc('update_organization', {
-          org_id: id,
+          org_id: orgId,
           new_name: editName
         })
 
@@ -246,7 +226,7 @@ export function OrganizationDetail() {
     try {
       const { error } = await supabase
         .rpc('manage_organization_secret', {
-          org_id: id,
+          org_id: orgId,
           secret_name: secretName,
           secret_value: secretValue
         })
@@ -257,7 +237,7 @@ export function OrganizationDetail() {
       const { data: secretData, error: secretError } = await supabase
         .from('organization_secrets')
         .select('*')
-        .eq('organization_id', id)
+        .eq('organization_id', orgId)
 
       if (secretError) throw secretError
       setSecrets(secretData)
@@ -274,7 +254,7 @@ export function OrganizationDetail() {
     try {
       const { error } = await supabase
         .rpc('delete_organization_secret', {
-          org_id: id,
+          org_id: orgId,
           secret_name: name
         })
 
@@ -291,9 +271,22 @@ export function OrganizationDetail() {
 
   return (
     <Box>
+      <Breadcrumbs 
+        separator={<NavigateNextIcon fontSize="small" />} 
+        sx={{ mb: 3 }}
+      >
+        <Link to="/organizations" style={{ textDecoration: 'none', color: 'inherit' }}>
+          Organizations
+        </Link>
+        <Link to={`/${orgId}/jobs`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          {organization.name}
+        </Link>
+        <Typography color="text.primary">Settings</Typography>
+      </Breadcrumbs>
+
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">
-          {organization.name}
+          Organization Settings
         </Typography>
         {isAdmin && (
           <IconButton onClick={() => setOpenEditDialog(true)}>
@@ -410,11 +403,7 @@ export function OrganizationDetail() {
 
       {isAdmin && (
         <TabPanel value={tabValue} index={2}>
-          <TokensTab
-            organizationId={organization.id}
-            tokens={tokens}
-            onTokensChange={setTokens}
-          />
+          <TokenView orgId={orgId} />
         </TabPanel>
       )}
 
