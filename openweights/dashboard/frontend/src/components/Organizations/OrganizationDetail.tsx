@@ -79,7 +79,7 @@ function TabPanel(props: TabPanelProps) {
 
 export function OrganizationDetail() {
   const { orgId } = useParams<{ orgId: string }>()
-  const { user, session } = useAuth()
+  const { user } = useAuth()
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [secrets, setSecrets] = useState<Secret[]>([])
@@ -268,6 +268,10 @@ export function OrganizationDetail() {
 
   if (error) return <Typography color="error">{error}</Typography>
   if (!organization) return <Typography>Loading...</Typography>
+  if (!orgId) {
+    return <Typography>Organization not found</Typography>;
+  }
+
 
   return (
     <Box>
