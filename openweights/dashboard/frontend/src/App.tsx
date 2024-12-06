@@ -8,7 +8,6 @@ import { JobDetailView, RunDetailView, WorkerDetailView } from './components/Det
 import { Auth } from './components/Auth/Auth';
 import { OrganizationsList } from './components/Organizations/OrganizationsList';
 import { OrganizationDetail } from './components/Organizations/OrganizationDetail';
-import { TokenView } from './components/TokenView';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useState } from 'react';
 
@@ -89,7 +88,6 @@ function NavBar() {
           }}
         >
           <MenuItem onClick={() => handleMenuItemClick('/organizations')}>Organizations</MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/token')}>Token</MenuItem>
           <MenuItem onClick={() => handleMenuItemClick('logout')}>Logout</MenuItem>
         </Menu>
       </Toolbar>
@@ -115,7 +113,6 @@ function AppContent() {
             <Route path="/workers/:workerId" element={<PrivateRoute><WorkerDetailView /></PrivateRoute>} />
             <Route path="/organizations" element={<PrivateRoute><OrganizationsList /></PrivateRoute>} />
             <Route path="/organizations/:id" element={<PrivateRoute><OrganizationDetail /></PrivateRoute>} />
-            <Route path="/token" element={<PrivateRoute><TokenView /></PrivateRoute>} />
           </Routes>
         </Container>
       </Box>

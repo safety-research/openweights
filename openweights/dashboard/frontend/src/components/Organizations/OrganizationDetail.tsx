@@ -30,10 +30,11 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import { supabase } from '../../supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
+import { TokensTab } from './TokensTab'
 
 interface Member {
   user_id: string;
-  email?: string;  // Make email optional
+  email?: string;
   role: 'admin' | 'user';
 }
 
@@ -48,6 +49,14 @@ interface Secret {
   value: string
   created_at: string
   updated_at: string
+}
+
+interface Token {
+  id: string;
+  name: string;
+  expires_at: string | null;
+  created_at: string;
+  access_token?: string;
 }
 
 interface TabPanelProps {
@@ -74,12 +83,15 @@ function TabPanel(props: TabPanelProps) {
   )
 }
 
+const API_URL = import.meta.env.PROD ? '' : 'http://localhost:8124';
+
 export function OrganizationDetail() {
   const { id } = useParams<{ id: string }>()
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [secrets, setSecrets] = useState<Secret[]>([])
+  const [tokens, setTokens] = useState<Token[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [openInviteDialog, setOpenInviteDialog] = useState(false)
@@ -123,7 +135,7 @@ export function OrganizationDetail() {
       setMembers(memberData.map((m: { user_id: string; role: string; email?: string }) => ({
         user_id: m.user_id,
         role: m.role,
-        ...(m.email ? { email: m.email } : {})  // Only include email if it exists
+        ...(m.email ? { email: m.email } : {})
       })))
 
       // Fetch secrets if admin
@@ -135,6 +147,17 @@ export function OrganizationDetail() {
 
         if (secretError) throw secretError
         setSecrets(secretData)
+
+        // Fetch tokens
+        const tokensResponse = await fetch(`${API_URL}/organizations/${id}/tokens`, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+        if (tokensResponse.ok) {
+          const tokens = await tokensResponse.json();
+          setTokens(tokens);
+        }
       }
     } catch (err) {
       console.error('Error fetching data:', err)
@@ -283,6 +306,7 @@ export function OrganizationDetail() {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="Members" />
           {isAdmin && <Tab label="Secrets" />}
+          {isAdmin && <Tab label="API Tokens" />}
         </Tabs>
       </Box>
 
@@ -381,6 +405,16 @@ export function OrganizationDetail() {
               </TableBody>
             </Table>
           </TableContainer>
+        </TabPanel>
+      )}
+
+      {isAdmin && (
+        <TabPanel value={tabValue} index={2}>
+          <TokensTab
+            organizationId={organization.id}
+            tokens={tokens}
+            onTokensChange={setTokens}
+          />
         </TabPanel>
       )}
 

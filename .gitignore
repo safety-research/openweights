@@ -1,3 +1,4 @@
+logs/
 openweights/dashboard/backend/backend.log
 openweights/dashboard/backend/backend.pid
 build-docker-in-runpod

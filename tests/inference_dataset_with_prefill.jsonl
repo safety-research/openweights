@@ -1,1 +1,3 @@
 {"messages": [{"role": "user", "content": "How many 'R's are in \"Strawberry\"?"}, {"role": "assistant", "content": "Okay let's break this down into small steps and think this through before I answer. \n<thinking>"}]}
+{"messages": [{"role": "user", "content": "How many 'R's are in \"Strawberry\"?"}]}
+{"messages": [{"role": "user", "content": "Yo yo yo"}]}

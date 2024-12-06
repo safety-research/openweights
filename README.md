@@ -126,24 +126,18 @@ python openweights/cluster/start_runpod.py
 
 Starting a cluster
 ```sh
-python openweights/cluster/manage.py
+python openweights/cluster/supervisor.py
 ```
 
 # Updating worker images
 
-## Inference worker
+## Inference (vllm)
 ```sh
 docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
 docker push nielsrolf/ow-inference
 ```
 
-## API
-```sh
-docker build -f ow-vllm-api.Dockerfile -t nielsrolf/ow-vllm-api .
-docker push nielsrolf/ow-vllm-api
-```
-
-## Unsloth finetuning worker
+## Training (unsloth)
 ```sh
 docker build -f ow-unsloth.Dockerfile -t nielsrolf/ow-unsloth .
 docker push nielsrolf/ow-unsloth

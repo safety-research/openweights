@@ -1,20 +1,21 @@
-- update autoscale: start workers with proper organization
+# Test of stuff that should work (both orgs)
+- start supervisor
+- start new inference job org
+- worker starts
+- job gets completed
+- worker shuts down
+- worker and pod are terminated
+- i can see output files
 
-# Deploy
-- autoscale -> some cpu instance
-- dashboard backend -> some cpu instance
-- dashboard frontend -> ?
-- emails
+
+## UI
+- update dashboard: aggressively ask for required secrets
 
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
 - make docker images private, use docker token
 - use supabase async client if possible
 - reduce amount of logs while starting up workers
-
-# Dashboard
-- SSO
-- add event plots
 
 # Job type: eval loss
 

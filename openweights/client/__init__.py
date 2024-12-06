@@ -50,7 +50,8 @@ class OpenWeights:
     def __init__(self, 
                  supabase_url: Optional[str] = None, 
                  supabase_key: Optional[str] = None, 
-                 auth_token: Optional[str] = None):
+                 auth_token: Optional[str] = None,
+                 organization_id: Optional[str] = None):
         """Initialize OpenWeights client
         
         Args:
@@ -76,7 +77,7 @@ class OpenWeights:
         )
         
         # Get organization ID from token
-        self.organization_id = self.get_organization_id()
+        self.organization_id = organization_id or self.get_organization_id()
         
         # Initialize components with organization ID
         self.files = Files(self._supabase, self.organization_id)
@@ -84,8 +85,8 @@ class OpenWeights:
         self.inference = InferenceJobs(self._supabase, self.organization_id)
         self.jobs = Jobs(self._supabase, self.organization_id)
         self.deployments = Deployments(self._supabase, self.organization_id)
-        self.runs = Runs(self._supabase, self.organization_id)
-        self.events = Events(self._supabase, self.organization_id)
+        self.runs = Runs(self._supabase)
+        self.events = Events(self._supabase)
 
         self._current_run = None
     
@@ -99,7 +100,7 @@ class OpenWeights:
     @property
     def run(self):
         if not self._current_run:
-            self._current_run = Run(self._supabase, organization_id=self.organization_id)
+            self._current_run = Run(self._supabase)
         return self._current_run
     
     def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY')) -> TemporaryApi:

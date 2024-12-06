@@ -89,6 +89,10 @@ cp -r dist/* ../backend/static/
 
 # Setup cron job for automatic deployment
 log "Setting up automatic deployment..."
+apt install cron -y
+systemctl enable cron
+systemctl start cron
+
 CRON_CMD="*/5 * * * * cd $DASHBOARD_DIR && bash deploy.sh >> /var/log/deploy.log 2>&1"
 (crontab -l 2>/dev/null | grep -v "deploy.sh" ; echo "$CRON_CMD") | crontab -
 

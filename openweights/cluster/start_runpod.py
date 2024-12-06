@@ -18,14 +18,12 @@ from functools import lru_cache
 
 load_dotenv(override=True) 
 
-runpod.api_key = os.environ.get("RUNPOD_API_KEY")
 IMAGES = {
     'api': 'nielsrolf/ow-vllm-api',
     'inference': 'nielsrolf/ow-inference',
     'finetuning': 'nielsrolf/ow-unsloth',
     'torch':  'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
 }
-TEMPLATE_ID = 'nqj8muhb8p'
 
 GPUs = {
     'A6000': 'NVIDIA RTX 6000 Ada Generation',
@@ -37,6 +35,7 @@ GPUs = {
 GPU_COUNT = 1
 allowed_cuda_versions = ['12.4']
 
+
 def wait_for_pod(pod):
     while pod.get('runtime') is None:
         time.sleep(1)
@@ -46,8 +45,9 @@ def wait_for_pod(pod):
 
 @lru_cache
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=120, max_tries=120)
-def get_ip_and_port(pod_id):
-    pod = runpod.get_pod(pod_id)
+def get_ip_and_port(pod_id, runpod_client=None):
+    client = runpod_client or runpod
+    pod = client.get_pod(pod_id)
     for ip_and_port in pod['runtime']['ports']:
         if ip_and_port['privatePort'] == 22:
             ip = ip_and_port['ip']
@@ -55,10 +55,10 @@ def get_ip_and_port(pod_id):
             return ip, port
     
 
-def create_ssh_client(pod):
+def create_ssh_client(pod, runpod_client=None):
     key_file = os.path.expanduser('~/.ssh/id_ed25519')
     user='root'
-    ip, port = get_ip_and_port(pod['id'])
+    ip, port = get_ip_and_port(pod['id'], runpod_client)
     print(f'Connecting to {ip}:{port}')
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -71,19 +71,19 @@ def create_ssh_client(pod):
             time.sleep(1)
             continue
     print('Failed to connect to pod. Shutting down pod')
-    shutdown_pod(pod) 
+    runpod.terminate_pod(pod['id']) 
 
-def copy_to_pod(pod, src, dst):
+def copy_to_pod(pod, src, dst, runpod_client=None):
     if not os.path.exists(src):
         # Assume src is relative to __file__
         src = os.path.join(os.path.dirname(__file__), src)
         assert os.path.exists(src), f"File {src} does not exist"
-    ssh = create_ssh_client(pod)
+    ssh = create_ssh_client(pod, runpod_client)
     with SCPClient(ssh.get_transport()) as scp:
         scp.put(src, dst)
 
-def run_on_pod(pod, cmd):
-    ssh = create_ssh_client(pod)
+def run_on_pod(pod, cmd, runpod_client=None):
+    ssh = create_ssh_client(pod, runpod_client)
     stdin, stdout, stderr = ssh.exec_command(cmd)
     
     while True:
@@ -103,8 +103,8 @@ def run_on_pod(pod, cmd):
     stderr.close()
     ssh.close()
 
-def run_on_pod_interactive(pod, cmd):
-    ssh = create_ssh_client(pod)
+def run_on_pod_interactive(pod, cmd, runpod_client=None):
+    ssh = create_ssh_client(pod, runpod_client)
     channel = ssh.get_transport().open_session()
     channel.get_pty()
     channel.exec_command(cmd)
@@ -137,15 +137,15 @@ def run_on_pod_interactive(pod, cmd):
     return logs
     
 
-
-def check_correct_cuda(pod, allowed=allowed_cuda_versions):
+def check_correct_cuda(pod, allowed=allowed_cuda_versions, runpod_client=None):
     cmd = 'nvidia-smi'
-    logs = run_on_pod_interactive(pod, cmd)
+    logs = run_on_pod_interactive(pod, cmd, runpod_client)
     return any([f'CUDA Version: {i}' in logs for i in allowed])
 
 
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
-def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None):
+def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None, runpod_client=None):
+    client = runpod_client or runpod
     gpu = GPUs.get(gpu, gpu)
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
@@ -163,14 +163,13 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
         })
         if worker_id is None:
             worker_id = uuid.uuid4().hex[:8]
-        pod = runpod.create_pod(
+        pod = client.create_pod(
             name, image, gpu,
             container_disk_in_gb=container_disk_in_gb,
             volume_in_gb=volume_in_gb,
             volume_mount_path='/workspace',
             gpu_count=count,
             allowed_cuda_versions=allowed_cuda_versions,
-            template_id=TEMPLATE_ID,
             ports="8000/http,22/tcp",
             start_ssh=True,
             env=env
@@ -178,31 +177,32 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
         pending_workers.append(pod['id'])
         pod = wait_for_pod(pod)
         
-        if not check_correct_cuda(pod):
-            runpod.terminate_pod(pod['id'])
+        if not check_correct_cuda(pod, runpod_client=client):
+            client.terminate_pod(pod['id'])
             continue
         
         pending_workers.remove(pod['id'])
         if dev_mode:
-            ip, port = get_ip_and_port(pod['id'])
+            ip, port = get_ip_and_port(pod['id'], client)
             return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
         else:
             return pod
 
 
-def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None):
+def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
     try:
-        return _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env)
+        return _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env, runpod_client)
     except Exception as e:
         import traceback
         traceback.print_exc()
         return None
     finally:
         print("Pending workers: ", pending_workers)
+        client = runpod_client or runpod
         for pod_id in pending_workers:
             print(f"Shutting down pod {pod_id}")
-            runpod.terminate_pod(pod_id)
+            client.terminate_pod(pod_id)
 
 if __name__ == '__main__':
     fire.Fire(start_worker)
