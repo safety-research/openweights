@@ -9,10 +9,10 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Update code
-log "Pulling latest code..."
-cd "$WORK_DIR"
-git pull origin main
+# # Update code
+# log "Pulling latest code..."
+# cd "$WORK_DIR"
+# git pull origin main
 
 # Build frontend
 log "Building frontend..."
@@ -33,6 +33,9 @@ if [ -f "backend.pid" ]; then
         sleep 2
     fi
 fi
+export SITE_URL=https://kzy2zyhynxvjz7-8124.proxy.runpod.net
+export ADDITIONAL_REDIRECT_URLS=https://kzy2zyhynxvjz7-8124.proxy.runpod.net/**
+export API_EXTERNAL_URL=https://kzy2zyhynxvjz7-8124.proxy.runpod.net
 nohup uvicorn main:app --reload --port 8124 --host 0.0.0.0  > backend.log 2>&1 & echo $! > backend.pid
 
 log "Deployment completed!"

@@ -36,10 +36,10 @@ GPU_COUNT = 1
 allowed_cuda_versions = ['12.4']
 
 
-def wait_for_pod(pod):
+def wait_for_pod(pod, runpod_client):
     while pod.get('runtime') is None:
         time.sleep(1)
-        pod = runpod.get_pod(pod['id'])
+        pod = runpod_client.get_pod(pod['id'])
     return pod
 
 
@@ -71,7 +71,7 @@ def create_ssh_client(pod, runpod_client=None):
             time.sleep(1)
             continue
     print('Failed to connect to pod. Shutting down pod')
-    runpod.terminate_pod(pod['id']) 
+    runpod_client.terminate_pod(pod['id']) 
 
 def copy_to_pod(pod, src, dst, runpod_client=None):
     if not os.path.exists(src):
@@ -175,7 +175,7 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
             env=env
         )
         pending_workers.append(pod['id'])
-        pod = wait_for_pod(pod)
+        pod = wait_for_pod(pod, runpod_client)
         
         if not check_correct_cuda(pod, runpod_client=client):
             client.terminate_pod(pod['id'])
