@@ -1,11 +1,22 @@
+import asyncio
+import atexit
+import json
 from typing import Optional, BinaryIO, Dict, Any, List, Union
 import os
 import sys
 from postgrest.exceptions import APIError
 import hashlib
 from datetime import datetime
+import backoff
 from supabase import Client
+import httpx
 
+
+def is_transient_error(e):
+    """Check if an error is likely transient and should be retried"""
+    if isinstance(e, (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectTimeout)):
+        return True
+    return False
 
 class Run:
     def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None):
@@ -15,23 +26,12 @@ class Run:
         if self.id:
             # Run ID exists, fetch the data
             try:
-                result = self._supabase.table('runs').select('*').eq('id', self.id).single().execute()
-            except APIError as e:
-                if 'contains 0 rows' in str(e):
-                    raise ValueError(f"Run with ID {self.id} not found")
-                raise
-            
-            run_data = result.data
-            if job_id and run_data['job_id'] != job_id:
-                raise ValueError(f"Run {self.id} is associated with job {run_data['job_id']}, not {job_id}")
-            
-            if worker_id and run_data['worker_id'] != worker_id:
-                # reassign run to self
-                run_data['worker_id'] = worker_id
-                result = self._supabase.table('runs').update(run_data).eq('id', self.id).execute()
-                run_data = result.data[0]
-            
-            self._load_data(run_data)
+                self._fetch_and_init_run(job_id, worker_id)
+            except Exception as e:
+                if not is_transient_error(e):
+                    raise
+                # For transient errors, retry with backoff
+                self._fetch_and_init_run_with_retry(job_id, worker_id)
         else:
             # Create new run
             data = {
@@ -56,12 +56,51 @@ class Run:
                 data['worker_id'] = worker_id
 
             # Get organization_id from job
-            job = self._supabase.table('jobs').select('organization_id').eq('id', data['job_id']).single().execute()
+            job = self._get_job_org_id_with_retry(data['job_id'])
             if not job.data:
                 raise ValueError(f"Job {data['job_id']} not found")
             
             result = self._supabase.table('runs').insert(data).execute()
             self._load_data(result.data[0])
+
+    @backoff.on_exception(
+        backoff.expo,
+        (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectTimeout),
+        max_tries=5
+    )
+    def _fetch_and_init_run_with_retry(self, job_id, worker_id):
+        """Fetch run data with retry logic"""
+        self._fetch_and_init_run(job_id, worker_id)
+
+    def _fetch_and_init_run(self, job_id, worker_id):
+        """Fetch run data and initialize"""
+        try:
+            result = self._supabase.table('runs').select('*').eq('id', self.id).single().execute()
+        except APIError as e:
+            if 'contains 0 rows' in str(e):
+                raise ValueError(f"Run with ID {self.id} not found")
+            raise
+        
+        run_data = result.data
+        if job_id and run_data['job_id'] != job_id:
+            raise ValueError(f"Run {self.id} is associated with job {run_data['job_id']}, not {job_id}")
+        
+        if worker_id and run_data['worker_id'] != worker_id:
+            # reassign run to self
+            run_data['worker_id'] = worker_id
+            result = self._supabase.table('runs').update(run_data).eq('id', self.id).execute()
+            run_data = result.data[0]
+        
+        self._load_data(run_data)
+
+    @backoff.on_exception(
+        backoff.expo,
+        (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectTimeout),
+        max_tries=5
+    )
+    def _get_job_org_id_with_retry(self, job_id):
+        """Get job organization ID with retry logic"""
+        return self._supabase.table('jobs').select('organization_id').eq('id', job_id).single().execute()
 
     def _load_data(self, data: Dict[str, Any]):
         self.id = data['id']

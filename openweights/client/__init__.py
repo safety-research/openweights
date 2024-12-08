@@ -105,6 +105,5 @@ class OpenWeights:
     
     def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY')) -> TemporaryApi:
         """Deploy a model on OpenWeights"""
-        print('api_key', api_key)
         job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key)
         return TemporaryApi(self, job['id'], client_type=client_type)

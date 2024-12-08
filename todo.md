@@ -1,21 +1,14 @@
-# Test of stuff that should work (both orgs)
-- start supervisor
-- start new inference job org
-- worker starts
-- job gets completed
-- worker shuts down
-- worker and pod are terminated
-- i can see output files
 
-
-## UI
-- update dashboard: aggressively ask for required secrets
 
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
-- make docker images private, use docker token
 - use supabase async client if possible
-- reduce amount of logs while starting up workers
+
+# network volume model cache
+model download takes a long time, especially for 70b models. it would be great if we could cache models on a network volume and mount it in every worker. for this, we'd need to:
+- create a network volume when an org is created (backend)
+- create a job type to download the model and save it to network volume (could be exposed as: `openweights.cach.create('meta-llama/llama-3.3-70b-instruct'`)
+- make inference and training workers check the cached models before downloading form hf
 
 # Job type: eval loss
 
