@@ -3,11 +3,9 @@ An openai-like sdk for finetuning and batch inference.
 
 # Installation
 Clone the repo and run `pip install .`.
-Then add your credentials to the `.env`.
+Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://kzy2zyhynxvjz7-8124.proxy.runpod.net/).
 
 # Quickstart
-1. start a cluster: `python openweights/cluster/manage.py`
-2. schedule jobs:
 ```python
 from openweights import OpenWeights
 client = OpenWeights()

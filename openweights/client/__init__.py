@@ -60,8 +60,8 @@ class OpenWeights:
             auth_token: Authentication token (or OPENWEIGHTS_API_KEY env var)
                        Can be either a session token or a service account JWT token
         """
-        self.supabase_url = supabase_url or os.getenv('SUPABASE_URL')
-        self.supabase_key = supabase_key or os.getenv('SUPABASE_ANON_KEY')
+        self.supabase_url = supabase_url or os.environ.get('SUPABASE_URL', 'https://taofkfabrhpgtohaikst.supabase.co')
+        self.supabase_key = supabase_key or os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhb2ZrZmFicmhwZ3RvaGFpa3N0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE5MjkyMjcsImV4cCI6MjA0NzUwNTIyN30.KRufleTgprt16mfm0_91YjKIFZAne1-IW8buMxWVMeE')
         self.auth_token = auth_token or os.getenv('OPENWEIGHTS_API_KEY')
         
         if not self.supabase_url or not self.supabase_key:
