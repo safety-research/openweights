@@ -24,7 +24,7 @@ load_dotenv()
 openweights = OpenWeights()
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 
@@ -79,7 +79,8 @@ class Worker:
             )
 
         try:
-            self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * torch.cuda.device_count()
+            self.gpu_count = torch.cuda.device_count()
+            self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * self.gpu_count
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.vram_gb = 0
@@ -253,7 +254,7 @@ class Worker:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
                 elif job['type'] == 'api':
-                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]}'
+                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count}'
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
