@@ -1,4 +1,5 @@
-
+# important
+- scale up should only happen when a job has been pending for 2min (pending, updated_at > 2min) or no worker is in progress
 
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
@@ -7,7 +8,7 @@
 # network volume model cache
 model download takes a long time, especially for 70b models. it would be great if we could cache models on a network volume and mount it in every worker. for this, we'd need to:
 - create a network volume when an org is created (backend)
-- create a job type to download the model and save it to network volume (could be exposed as: `openweights.cach.create('meta-llama/llama-3.3-70b-instruct'`)
+- create a job type to download the model and save it to network volume (could be exposed as: `openweights.cache.create('meta-llama/llama-3.3-70b-instruct'`)
 - make inference and training workers check the cached models before downloading form hf
 
 # Job type: eval loss

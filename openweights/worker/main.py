@@ -27,6 +27,8 @@ openweights = OpenWeights()
 logging.basicConfig(level=logging.ERROR)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
+runpod.api_key = os.environ.get('RUNPOD_API_KEY')
+
 
 def maybe_read(path):
     try:
@@ -49,6 +51,7 @@ class Worker:
         self.current_run = None
         self.worker_id = os.environ.get('WORKER_ID', f'unmanaged-worker-{datetime.now().timestamp()}')
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
+        self.pod_id = None
 
         # Create a service account token for the worker if needed
         if not os.environ.get('OPENWEIGHTS_API_KEY'):
@@ -88,6 +91,7 @@ class Worker:
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         # Check if the worker is already registered and if its status is 'shutdown'
         data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
+        self.pod_id = data[0].get('pod_id')
         if data and data[0]['status'] == 'shutdown':
             logging.info(f"Worker {self.worker_id} is already registered with status 'shutdown'. Exiting...")
             self.shutdown_flag = True
@@ -131,11 +135,21 @@ class Worker:
                 if result.data[0]['status'] == 'shutdown':
                     self.shutdown_flag = True
 
-                # Check if current job is canceled
+                # Check if current job is canceled or timed out
                 if self.current_job:
-                    job = self.supabase.table('jobs').select('status').eq('id', self.current_job['id']).single().execute().data
-                    if job and job['status'] == 'canceled' or self.shutdown_flag:
+                    job = self.supabase.table('jobs').select('status', 'timeout').eq('id', self.current_job['id']).single().execute().data
+                    
+                    should_cancel = False
+                    if job['status'] == 'canceled' or self.shutdown_flag:
+                        should_cancel = True
                         logging.info(f"Job {self.current_job['id']} was canceled, stopping execution")
+                    elif job['timeout'] and datetime.fromisoformat(job['timeout'].replace('Z', '+00:00')) <= datetime.now(timezone.utc):
+                        should_cancel = True
+                        logging.info(f"Job {self.current_job['id']} has timed out, stopping execution")
+                        # Update job status to canceled
+                        self.supabase.table('jobs').update({'status': 'canceled'}).eq('id', self.current_job['id']).execute()
+                    
+                    if should_cancel:
                         if self.current_process:
                             try:
                                 os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
@@ -199,6 +213,8 @@ class Worker:
             except Exception as e:
                 logging.error(f"Failed to execute job {job['id']}: {e}")
                 traceback.print_exc()
+            if self.shutdown_flag:
+                break
 
     def _find_job(self):
         logging.debug("Fetching jobs from the database...")
@@ -254,7 +270,7 @@ class Worker:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
                 elif job['type'] == 'api':
-                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count}'
+                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count} --max-concurrent-requests {job["params"]["max_concurrent_requests"]} --port 8000'
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
@@ -262,13 +278,21 @@ class Worker:
                     self.current_process = subprocess.Popen(
                         script, 
                         shell=True, 
-                        stdout=log_file, 
-                        stderr=log_file, 
+                        stdout=subprocess.PIPE,  # Change this line
+                        stderr=subprocess.STDOUT,  # And this line
                         cwd=tmp_dir, 
                         env=env,
                         preexec_fn=os.setsid
                     )
+
+                    # New code: log to both file and stdout
+                    for line in iter(self.current_process.stdout.readline, b''):
+                        line = line.decode().strip()
+                        print(line)
+                        log_file.write(line + '\n')
+
                     self.current_process.wait()
+
                     if self.current_process is None:
                         status = 'canceled'
                         logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})

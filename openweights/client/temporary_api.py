@@ -3,6 +3,8 @@ import atexit
 from openai import OpenAI, AsyncOpenAI
 import backoff
 import time
+import threading
+from datetime import datetime, timedelta, timezone
 
 
 class TemporaryApi:
@@ -14,6 +16,8 @@ class TemporaryApi:
         self.pod_id = None
         self.base_url = None
         self.api_key = None
+        self._timeout_thread = None
+        self._stop_timeout_thread = False
 
         atexit.register(self.down)
     
@@ -33,6 +37,12 @@ class TemporaryApi:
         self.api_key = job['params']['api_key']
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.wait_until_ready(openai, job['params']['model'])
+        
+        # Start timeout management thread
+        self._stop_timeout_thread = False
+        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
+        self._timeout_thread.start()
+        
         return self.client_type(api_key=self.api_key, base_url=self.base_url)
 
     def __enter__(self):
@@ -61,6 +71,11 @@ class TemporaryApi:
         await self.async_wait_until_ready(openai, job['params']['model'])
         print(f'API ready: {self.base_url}')
 
+        # Start timeout management thread
+        self._stop_timeout_thread = False
+        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
+        self._timeout_thread.start()
+
         return self.client_type(api_key=self.api_key, base_url=self.base_url)
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
@@ -70,8 +85,23 @@ class TemporaryApi:
     async def __aenter__(self):
         return await self.async_up()
     
+    def _manage_timeout(self):
+        """Background thread to update job timeout."""
+        while not self._stop_timeout_thread:
+            try:
+                # Set timeout to 15 minutes from now
+                new_timeout = datetime.now(timezone.utc) + timedelta(minutes=15)
+                self.ow._supabase.table('jobs').update({
+                    'timeout': new_timeout.isoformat()
+                }).eq('id', self.job_id).execute()
+            except Exception as e:
+                print(f"Error updating job timeout: {e}")
+            time.sleep(300)  # Sleep for 5 minutes
+    
     def down(self):
-        self.ow.jobs.cancel(self.job_id)
+        self._stop_timeout_thread = True
+        if self._timeout_thread:
+            self._timeout_thread.join(timeout=1.0)  # Wait for thread to finish with timeout
     
     def __exit__(self, exc_type, exc_value, traceback):
         self.down()
