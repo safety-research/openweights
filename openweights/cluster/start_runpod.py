@@ -175,17 +175,18 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
             env=env
         )
         pending_workers.append(pod['id'])
-        pod = wait_for_pod(pod, runpod_client)
+        # pod = wait_for_pod(pod, client)
         
-        if not check_correct_cuda(pod, runpod_client=client):
-            client.terminate_pod(pod['id'])
-            continue
+        # if not check_correct_cuda(pod, runpod_client=client):
+        #     client.terminate_pod(pod['id'])
+        #     continue
         
-        pending_workers.remove(pod['id'])
         if dev_mode:
             ip, port = get_ip_and_port(pod['id'], client)
+            pending_workers.remove(pod['id'])
             return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
         else:
+            pending_workers.remove(pod['id'])
             return pod
 
 
