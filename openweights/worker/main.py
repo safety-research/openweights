@@ -257,7 +257,7 @@ class Worker:
             try:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
-                    script = job['script']
+                    script = job['script'] 
                 elif job['type'] == 'fine-tuning':
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:
@@ -270,7 +270,7 @@ class Worker:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
                 elif job['type'] == 'api':
-                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count} --max-concurrent-requests {job["params"]["max_concurrent_requests"]} --port 8000'
+                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count} --max-num-seqs {job["params"]["max_num_seqs"]} --port 8000'
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()

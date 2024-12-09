@@ -1,4 +1,13 @@
+
+
+- Why do I always have a growing number of requests pending?
+```bash
+2024-12-09T13:31:59.800215693Z INFO 12-09 05:31:59 metrics.py:449] Avg prompt throughput: 846.1 tokens/s, Avg generation throughput: 43.0 tokens/s, Running: 10 reqs, Swapped: 0 reqs, Pending: 142 reqs, GPU KV cache usage: 39.0%, CPU KV cache usage: 0.0%.
+```
+
+
 # important
+- jobs sometimes stay in_progress when their run is canceled or failed
 - scale up should only happen when a job has been pending for 2min (pending, updated_at > 2min) or no worker is in progress
 
 # general

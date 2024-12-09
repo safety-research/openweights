@@ -78,6 +78,7 @@ class OpenWeights:
         
         # Get organization ID from token
         self.organization_id = organization_id or self.get_organization_id()
+        self.set_hf_org_env()
         
         # Initialize components with organization ID
         self.files = Files(self._supabase, self.organization_id)
@@ -97,6 +98,20 @@ class OpenWeights:
             raise ValueError("Could not determine organization ID from token")
         return result.data
     
+    def set_hf_org_env(self):
+        """Get organization secrets from the database."""
+        if os.environ.get('HF_ORG'):
+            return
+        result = self._supabase.table('organization_secrets')\
+            .select('value')\
+            .eq('organization_id', self.organization_id)\
+            .eq('name', 'HF_ORG')\
+            .single().execute()
+        if not result.data:
+            raise ValueError("Could not determine organization ID from token")
+        os.environ['HF_ORG'] = result.data['value']
+        print(f"Set HF_ORG to {os.environ['HF_ORG']}")
+        
     @property
     def run(self):
         if not self._current_run:
@@ -105,5 +120,7 @@ class OpenWeights:
     
     def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:
         """Deploy a model on OpenWeights"""
+        if api_key is None:
+            api_key = self.auth_token
         job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb)
         return TemporaryApi(self, job['id'], client_type=client_type)
