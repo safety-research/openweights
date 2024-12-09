@@ -183,6 +183,7 @@ class InferenceConfig(BaseModel):
     prefill: str = Field('', description="Prefill")
     min_tokens: int = Field(1, description="Minimum number of tokens to generate")
     max_model_len: int = Field(2048, description="Maximum model length")
+    max_concurrent_requests: int = Field(10, description="Maximum number of concurrent requests")
 
     @field_validator("input_file_id")
     def validate_dataset_type(cls, v, info):

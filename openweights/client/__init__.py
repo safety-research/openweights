@@ -103,7 +103,7 @@ class OpenWeights:
             self._current_run = Run(self._supabase)
         return self._current_run
     
-    def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY')) -> TemporaryApi:
+    def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:
         """Deploy a model on OpenWeights"""
-        job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key)
+        job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb)
         return TemporaryApi(self, job['id'], client_type=client_type)
