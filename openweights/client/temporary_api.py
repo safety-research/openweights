@@ -48,6 +48,8 @@ class TemporaryApi:
             if job['status'] == 'in_progress':
                 break
             elif job['status'] in ['failed', 'canceled']:
+                # Reset to pending and try again
+                self.ow.jobs.restart(self.job_id)
                 return self.up()
             await asyncio.sleep(5)
         # Get worker
@@ -57,6 +59,8 @@ class TemporaryApi:
         self.api_key = job['params']['api_key']
         openai = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
         await self.async_wait_until_ready(openai, job['params']['model'])
+        print(f'API ready: {self.base_url}')
+
         return self.client_type(api_key=self.api_key, base_url=self.base_url)
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)

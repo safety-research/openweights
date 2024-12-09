@@ -1,6 +1,7 @@
 import json
 import os
 from typing import List, Literal, Optional, Union
+from functools import lru_cache
 
 import requests
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -38,7 +39,7 @@ def validate_preference_dataset(content):
     except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
         return False
 
-
+@lru_cache
 def model_exists(model_name):
     token = os.environ["HF_TOKEN"]
     url = f"https://huggingface.co/api/models/{model_name}"
