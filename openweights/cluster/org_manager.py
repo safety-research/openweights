@@ -187,11 +187,11 @@ class OrganizationManager:
             active_count = len(running_workers_by_image.get(docker_image, []))
             starting_count = len([w for w in running_workers if w['status'] == 'starting' and w['docker_image'] == docker_image])
             
-            if len(image_pending_jobs) > active_count:
+            if len(image_pending_jobs) > 0:
                 available_slots = MAX_WORKERS - len(running_workers)
                 num_to_start = min(
-                    len(image_pending_jobs) - active_count,
-                    available_slots - starting_count
+                    len(image_pending_jobs) - starting_count,
+                    available_slots
                 )
                 
                 if num_to_start <= 0:
