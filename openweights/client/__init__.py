@@ -115,7 +115,7 @@ class OpenWeights:
     @property
     def run(self):
         if not self._current_run:
-            self._current_run = Run(self._supabase)
+            self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
     
     def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:

@@ -19,10 +19,10 @@ def is_transient_error(e):
     return False
 
 class Run:
-    def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None):
+    def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None, organization_id: Optional[str] = None):
         self._supabase = supabase
+        self.organization_id = organization_id
         self.id = os.getenv('OPENWEIGHTS_RUN_ID')
-        
         if self.id:
             # Run ID exists, fetch the data
             try:
@@ -48,6 +48,7 @@ class Run:
                     'type': 'script',
                     'script': command,
                     'status': 'in_progress',
+                    'organization_id': self.organization_id
                 }
                 job_result = self._supabase.table('jobs').insert(job_data).execute()
                 data['job_id'] = job_result.data[0]['id']

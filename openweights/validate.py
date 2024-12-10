@@ -81,6 +81,7 @@ class TrainingConfig(BaseModel):
         ],
         description="Target modules for LoRA"
     )
+    lora_bias: Literal["all", "none"] = Field("none", description="Value for FastLanguageModel.get_peft_model(bias=?)")
     
     # LoRA specific arguments
     r: int = Field(512, description="LoRA attention dimension")

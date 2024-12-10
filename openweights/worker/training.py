@@ -1,6 +1,7 @@
 import json
 import os
 
+import backoff
 from datasets import Dataset
 from unsloth import FastLanguageModel
 
@@ -23,7 +24,7 @@ def train(training_cfg):
         target_modules=target_modules,
         lora_alpha=training_cfg.lora_alpha,
         lora_dropout=training_cfg.lora_dropout,
-        bias="none",
+        bias=training_cfg.lora_bias,
         use_gradient_checkpointing="unsloth",
         random_state=3407,
         use_rslora=True,
@@ -69,11 +70,16 @@ def train(training_cfg):
     run.log(eval_results)
 
     finetuned_model_id = training_cfg.finetuned_model_id or f"{training_cfg.model}:ft-{run.id}"
+    push_model(training_cfg,finetuned_model_id, model, tokenizer)
+
+
+@backoff.on_exception(backoff.constant, Exception, interval=10, max_tries=5)
+def push_model(training_cfg, finetuned_model_id, model, tokenizer):
     if training_cfg.merge_before_push:
+        model.push_to_hub_merged(finetuned_model_id, tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=True)
+    else:
         model.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
         tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
-    else:
-        model.push_to_hub_merged(finetuned_model_id, tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=True)
 
 
 def main(config: str):
