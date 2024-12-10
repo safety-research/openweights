@@ -191,7 +191,6 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
-    breakpoint()
     if runpod_client is None:
         runpod.api_key = os.getenv('RUNPOD_API_KEY')
         runpod_client = runpod

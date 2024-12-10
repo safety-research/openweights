@@ -68,17 +68,6 @@ output = client.files.content(output_file_id).decode('utf-8')
 print(output)
 ```
 
-## Create a `script` job
-```python
-from openweights import OpenWeights
-
-client = OpenWeights()
-
-job = client.jobs.create(
-  script="nvidia-smi"
-)
-```
-
 ## Deploy a model as a temporary Openai-like API
 ```py
 from openweights import OpenWeights
@@ -129,14 +118,11 @@ python openweights/cluster/supervisor.py
 
 # Updating worker images
 
-## Inference (vllm)
 ```sh
+## Inference (vllm)
 docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
 docker push nielsrolf/ow-inference
-```
-
 ## Training (unsloth)
-```sh
 docker build -f ow-unsloth.Dockerfile -t nielsrolf/ow-unsloth .
 docker push nielsrolf/ow-unsloth
 ```
