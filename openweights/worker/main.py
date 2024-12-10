@@ -291,10 +291,10 @@ class Worker:
                         print(line)
                         log_file.write(line + '\n')
 
+                    status = 'canceled'
                     self.current_process.wait()
 
                     if self.current_process is None:
-                        status = 'canceled'
                         logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})
                     elif self.current_process.returncode == 0:
                         status = 'completed'

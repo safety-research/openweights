@@ -86,6 +86,7 @@ class TrainingConfig(BaseModel):
     r: int = Field(512, description="LoRA attention dimension")
     lora_alpha: int = Field(16, description="LoRA alpha parameter")
     lora_dropout: float = Field(0.0, description="LoRA dropout rate")
+    merge_before_push: bool = Field(True, description="Whether to merge model before pushing to Hub. Only merged models can be used as parent models for further finetunes. Only supported for bf16 models.")
     
     # Training hyperparameters
     epochs: int = Field(1, description="Number of training epochs")
@@ -167,6 +168,16 @@ class TrainingConfig(BaseModel):
         if isinstance(v, int) and v <= 0:
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
+    
+    @model_validator(mode="before")
+    def validate_lora_merge(cls, values):
+        load_in_4bit = values.get('load_in_4bit', False)
+        merge_before_push = values.get('merge_before_push', True)
+
+        if load_in_4bit and merge_before_push:
+            raise ValueError("You probably don't want to merge when you are loading a 4-bit model")
+
+        return values
 
 
 class InferenceConfig(BaseModel):

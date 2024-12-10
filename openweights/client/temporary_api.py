@@ -22,6 +22,8 @@ class TemporaryApi:
         atexit.register(self.down)
     
     def up(self):
+        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
+        self._timeout_thread.start()
         # Poll until status is 'in_progress'
         while True:
             job = self.ow.jobs.retrieve(self.job_id)
@@ -43,16 +45,19 @@ class TemporaryApi:
         self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
         self._timeout_thread.start()
         
-        return self.client_type(api_key=self.api_key, base_url=self.base_url)
+        return self.client_type(api_key=self.api_key, base_url=self.base_url, max_retries=1)
 
     def __enter__(self):
         return self.up()
     
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=300, max_tries=30)
     def wait_until_ready(self, openai, model):
+        print('Waiting for API to be ready...')
         openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
     
     async def async_up(self):
+        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
+        self._timeout_thread.start()
         while True:
             job = self.ow.jobs.retrieve(self.job_id)
             if job['status'] == 'in_progress':
@@ -73,13 +78,12 @@ class TemporaryApi:
 
         # Start timeout management thread
         self._stop_timeout_thread = False
-        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
-        self._timeout_thread.start()
 
-        return self.client_type(api_key=self.api_key, base_url=self.base_url)
+        return self.client_type(api_key=self.api_key, base_url=self.base_url, max_retries=1)
 
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=300, max_tries=300)
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=300, max_tries=30)
     async def async_wait_until_ready(self, openai, model):
+        print('Waiting for API to be ready...')
         await openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
     
     async def __aenter__(self):

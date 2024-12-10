@@ -69,7 +69,7 @@ def train(training_cfg):
     run.log(eval_results)
 
     finetuned_model_id = training_cfg.finetuned_model_id or f"{training_cfg.model}:ft-{run.id}"
-    if training_cfg.load_in_4bit:
+    if training_cfg.merge_before_push:
         model.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
         tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
     else:

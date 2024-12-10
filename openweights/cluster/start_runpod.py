@@ -45,9 +45,8 @@ def wait_for_pod(pod, runpod_client):
 
 @lru_cache
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=120, max_tries=120)
-def get_ip_and_port(pod_id, runpod_client=None):
-    client = runpod_client or runpod
-    pod = client.get_pod(pod_id)
+def get_ip_and_port(pod_id, runpod_client):
+    pod = runpod_client.get_pod(pod_id)
     for ip_and_port in pod['runtime']['ports']:
         if ip_and_port['privatePort'] == 22:
             ip = ip_and_port['ip']
@@ -192,6 +191,10 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
+    breakpoint()
+    if runpod_client is None:
+        runpod.api_key = os.getenv('RUNPOD_API_KEY')
+        runpod_client = runpod
     try:
         return _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env, runpod_client)
     except Exception as e:
@@ -200,10 +203,9 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
         return None
     finally:
         print("Pending workers: ", pending_workers)
-        client = runpod_client or runpod
         for pod_id in pending_workers:
             print(f"Shutting down pod {pod_id}")
-            client.terminate_pod(pod_id)
+            runpod_client.terminate_pod(pod_id)
 
 if __name__ == '__main__':
     fire.Fire(start_worker)
