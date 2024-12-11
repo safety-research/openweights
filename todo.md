@@ -1,5 +1,3 @@
-
-
 - Why do I always have a growing number of requests pending?
 ```bash
 2024-12-09T13:31:59.800215693Z INFO 12-09 05:31:59 metrics.py:449] Avg prompt throughput: 846.1 tokens/s, Avg generation throughput: 43.0 tokens/s, Running: 10 reqs, Swapped: 0 reqs, Pending: 142 reqs, GPU KV cache usage: 39.0%, CPU KV cache usage: 0.0%.
@@ -10,8 +8,8 @@
     - when worker gets a shutdown signal, will it reset job?
     - when worker detects job cancel flag or timeout, will it reset the job?
     - when org_manager detects unresponsive worker, will it reset the job?
-- scale up should only happen when a job has been pending for 2min (pending, updated_at > 2min) or no worker is in progress
-
+- scale up should only happen when a job has been pending for 2min (pending, updated_at > 2min) or no worker is in progress to avoid that the next worker gets launched while the previous worker is still starting
+- pods might have issues out of our control. when a worker has x numbers of fails in a row, we should terminate the pod and start a new one
 
 
 # network volume model cache
@@ -30,10 +28,12 @@ axolotl supports this. we could add a `worker/multi_gpu_training.py` that uses a
 # general
 - add job dependencies to avoid that second stage finetunes are started before first stage is done
 - use supabase async client if possible
+- add cpu instances
+
 
 # Job type: eval loss
 
-# vllm lora support
+# vllm lora support for batch inference
 
 # CI
 - run pytest tests

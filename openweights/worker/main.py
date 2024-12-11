@@ -270,11 +270,12 @@ class Worker:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
                 elif job['type'] == 'api':
-                    script = f'N_GPUS={self.gpu_count} {job["script"]}'
+                    script = job['script']
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
                     env['OPENWEIGHTS_RUN_ID'] = str(self.current_run.id)
+                    env['N_GPUS'] = str(self.gpu_count)
                     self.current_process = subprocess.Popen(
                         script, 
                         shell=True, 

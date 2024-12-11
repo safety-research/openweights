@@ -80,9 +80,11 @@ class BaseJob:
             if isinstance(value, dict):
                 # For nested dictionary values, use containedBy operator
                 query = query.contains(f'params->{key}', value)
+            elif isinstance(value, bool):
+                # Convert boolean to lowercase string for JSON comparison
+                query = query.eq(f'params->>{key}', str(value).lower())
             else:
                 # For simple values, use eq operator with ->> for JSON text extraction
-                # ->> operator automatically handles string quoting
                 query = query.eq(f'params->>{key}', value)
                 
         data = query.execute().data
