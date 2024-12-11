@@ -49,20 +49,23 @@ The `job_id` is based on the params hash, which means that if you submit the sam
 
 file = client.files.create(
   file=open("mydata.jsonl", "rb"),
-  purpose="inference"
+  purpose="conversations"
 )
 
 job = client.inference.create(
     model=model,
-    input_file_id=file_id,
+    input_file_id=file['id'],
     max_tokens=1000,
     temperature=1,
     min_tokens=600,
 )
 print(job)
 
-# Wait until job is finished, then get the output:
 job = client.jobs.retrieve(job['id'])
+```
+Wait until job is finished, then get the output:
+
+```py
 output_file_id = job['outputs']['file']
 output = client.files.content(output_file_id).decode('utf-8')
 print(output)
