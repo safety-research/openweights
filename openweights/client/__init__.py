@@ -18,7 +18,7 @@ from openweights.client.files import Files
 from openweights.client.jobs import FineTuningJobs, InferenceJobs, Deployments, Jobs
 from openweights.client.run import Run, Runs
 from openweights.client.events import Events
-from openweights.client.temporary_api import TemporaryApi
+from openweights.client.temporary_api import TemporaryApi, group_models_or_adapters_by_model, get_lora_rank
 
 
 def create_authenticated_client(supabase_url: str, supabase_anon_key: str, auth_token: Optional[str] = None):
@@ -118,9 +118,25 @@ class OpenWeights:
             self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
     
-    def deploy(self, model, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:
+    def deploy(self, model, lora_adapters=[], max_lora_rank='guess', max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:
         """Deploy a model on OpenWeights"""
         if api_key is None:
             api_key = self.auth_token
-        job = self.deployments.create(model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb)
+        if lora_adapters and max_lora_rank == 'guess':
+            max_lora_rank = max(get_lora_rank(a) for a in lora_adapters)
+        else:
+            max_lora_rank = 16
+        job = self.deployments.create(
+            model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb,
+            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank)
         return TemporaryApi(self, job['id'], client_type=client_type)
+    
+    def multi_deploy(self, models, max_model_len=2048, client_type=OpenAI, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> Dict[str, TemporaryApi]:
+        """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
+        lora_groups = group_models_or_adapters_by_model(models)
+        apis = {}
+        for model, lora_adapters in lora_groups.items():
+            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, client_type=client_type, api_key=api_key, requires_vram_gb=requires_vram_gb)
+            for model_id in [model] + lora_adapters:
+                apis[model_id] = api
+        return apis

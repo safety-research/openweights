@@ -18,7 +18,9 @@ dependencies = [
     "PyJWT",
     "fastapi",
     "uvicorn",
-    "openai"
+    "openai",
+    "peft",
+    "huggingface-hub"
 ]
 
 [project.optional-dependencies]

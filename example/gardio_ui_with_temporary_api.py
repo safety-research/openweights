@@ -8,7 +8,6 @@ ow = OpenWeights()
 
 def chat_with(model):
     with ow.deploy(model) as client:
-        client = OpenAI()
         def predict(message, history):
             messages = []
             for human, assistant in history:

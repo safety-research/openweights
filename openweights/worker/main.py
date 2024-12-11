@@ -270,7 +270,7 @@ class Worker:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
                 elif job['type'] == 'api':
-                    script = f'vllm serve {job["params"]["model"]} --dtype auto --api-key {job["params"]["api_key"]} --max-model-len {job["params"]["max_model_len"]} --tensor-parallel-size {self.gpu_count} --max-num-seqs {job["params"]["max_num_seqs"]} --port 8000'
+                    script = f'N_GPUS={self.gpu_count} {job["script"]}'
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()

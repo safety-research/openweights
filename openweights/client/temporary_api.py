@@ -5,6 +5,60 @@ import backoff
 import time
 import threading
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+from typing import List, Dict
+from peft import PeftConfig
+from huggingface_hub import HfApi
+from functools import lru_cache
+
+
+@lru_cache
+def get_peft_config(adapter_id):
+    return PeftConfig.from_pretrained(adapter_id)
+
+
+def group_models_or_adapters_by_model(models: List[str], token: str = None) -> Dict[str, List[str]]:
+    """
+    Groups base models and their associated LoRA adapters after verifying their existence and access permissions.
+
+    Args:
+        models (List[str]): A list of model or adapter identifiers.
+        token (str, optional): Hugging Face API token for accessing private or gated models.
+
+    Returns:
+        Dict[str, List[str]]: A dictionary mapping base model identifiers to lists of associated LoRA adapters.
+
+    Raises:
+        ValueError: If a model or adapter does not exist or access is denied.
+    """
+    api = HfApi(token=token)
+    grouped = defaultdict(list)
+
+    for model_id in models:
+        try:
+            # Check if the model or adapter exists and is accessible
+            api.model_info(repo_id=model_id)
+        except Exception as e:
+            raise ValueError(f"Model or adapter '{model_id}' does not exist or access is denied.") from e
+
+        try:
+            # Attempt to load the adapter configuration
+            peft_config = get_peft_config(model_id)
+            base_model = peft_config.base_model_name_or_path
+            # If successful, it's a LoRA adapter; add it under its base model
+            grouped[base_model].append(model_id)
+        except Exception as e:
+            # If loading fails, assume it's a base model
+            # Ensure the base model is in the dictionary
+            if model_id not in grouped:
+                grouped[model_id] = []
+
+    return dict(grouped)
+
+
+def get_lora_rank(adapter_id):
+    peft_config = get_peft_config(adapter_id)
+    return peft_config.r
 
 
 class TemporaryApi:

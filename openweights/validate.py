@@ -211,6 +211,8 @@ class ApiConfig(BaseModel):
         extra = "forbid"
     
     model: str = Field(..., description="Hugging Face model ID")
+    lora_adapters: List[str] = Field([], description="List of LoRA adapter model IDs")
+    max_lora_rank: int = Field(16, description="Maximum LoRA rank")
     max_model_len: int = Field(2048, description="Maximum model length")
     api_key: str = Field(os.environ.get('OW_DEFAULT_API_KEY'), description="API key to authenticate requests against the API")
     max_num_seqs: int = Field(10, description="Maximum number of concurrent requests")
