@@ -168,6 +168,7 @@ class Deployments(BaseJob):
             f"    --max-model-len {params['max_model_len']} \\\n"
             f"    --tensor-parallel-size $N_GPUS \\\n"
             f"    --max-num-seqs {params['max_num_seqs']} \\\n"
+            f"    --enable-prefix-caching \\\n"
             f"    --port 8000"
         )
 
@@ -176,6 +177,7 @@ class Deployments(BaseJob):
                 f" \\\n"
                 f"    --enable-lora \\\n"
                 f"    --max-lora-rank {params['max_lora_rank']} \\\n"
+                f"    --max-loras {params['max_loras']} \\\n"
                 f"    --lora-modules \\\n"
             )
             for adapter in params['lora_adapters']:

@@ -5,6 +5,7 @@ import torch
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, TrainerCallback
 from unsloth import FastLanguageModel, is_bfloat16_supported
+from functools import wraps
 
 from openweights.client import OpenWeights
 
@@ -31,8 +32,17 @@ def load_model_and_tokenizer(model_id, load_in_4bit=False):
         tokenizer.chat_template = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit").chat_template
     return model, tokenizer
 
+def ignore_errors(func):
+    @wraps
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            print(f"Error in callback: {e}")
+    return wrapper
 
 class LogMetrics(TrainerCallback):
+    @ignore_errors
     def on_step_end(self, args, state, control, **kwargs):
         if len(state.log_history) == 0:
             return

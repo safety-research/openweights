@@ -269,6 +269,7 @@ class Worker:
             self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).eq('status', 'pending').execute()
 
             outputs = None
+            status = 'canceled'
             try:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
@@ -294,8 +295,8 @@ class Worker:
                     self.current_process = subprocess.Popen(
                         script, 
                         shell=True, 
-                        stdout=subprocess.PIPE,  # Change this line
-                        stderr=subprocess.STDOUT,  # And this line
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                         cwd=tmp_dir, 
                         env=env,
                         preexec_fn=os.setsid
@@ -322,7 +323,7 @@ class Worker:
                                     extra={'run_id': self.current_run.id})
                         self.current_run.log({'error': f"Process exited with return code {self.current_process.returncode}"})
 
-            except subprocess.CalledProcessError as e:
+            except Exception as e:
                 logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': self.current_run.id})
                 status = 'failed'
                 self.current_run.log({'error': str(e)})
@@ -333,8 +334,8 @@ class Worker:
                 # Debug: print the log file content
                 with open(log_file_path, 'r') as log_file:
                     print(log_file.read())
-                self.current_run.update(status=status, logfile=log_response['id'])
                 self.supabase.table('jobs').update({'status': status, 'outputs': outputs, 'script': script}).eq('id', job['id']).execute()
+                self.current_run.update(status=status, logfile=log_response['id'])
                 # After execution, proceed to upload any files from the /uploads directory
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):

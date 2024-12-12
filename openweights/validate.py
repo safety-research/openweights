@@ -213,12 +213,19 @@ class ApiConfig(BaseModel):
     model: str = Field(..., description="Hugging Face model ID")
     lora_adapters: List[str] = Field([], description="List of LoRA adapter model IDs")
     max_lora_rank: int = Field(16, description="Maximum LoRA rank")
+    max_loras: int = Field(-1, description="Maximum number of LoRA adapters to use concurrently")
     max_model_len: int = Field(2048, description="Maximum model length")
     api_key: str = Field(os.environ.get('OW_DEFAULT_API_KEY'), description="API key to authenticate requests against the API")
-    max_num_seqs: int = Field(10, description="Maximum number of concurrent requests")
+    max_num_seqs: int = Field(100, description="Maximum number of concurrent requests")
 
     @field_validator("model")
     def validate_finetuned_model_id(cls, v):
         if not model_exists(v):
             raise ValueError(f"Model {v} does not exists")
+        return v
+        
+    @field_validator("max_lora_rank", pre=True, always=True)
+    def set_max_lora_rank(cls, v, values):
+        if v == -1:
+            return len(values.get('lora_adapters', []))
         return v
