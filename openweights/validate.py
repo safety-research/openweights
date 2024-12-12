@@ -224,8 +224,10 @@ class ApiConfig(BaseModel):
             raise ValueError(f"Model {v} does not exists")
         return v
         
-    @field_validator("max_lora_rank")
-    def set_max_lora_rank(cls, v, info):
-        if v == -1:
-            return len(info.data.get('lora_adapters', []))
-        return v
+    @model_validator(mode='after')
+    def validate_all(self) -> 'ApiConfig':
+        if self.max_loras == -1:
+            self.max_loras = len(self.lora_adapters)
+        else:
+            self.max_loras = max(1, self.max_loras)
+        return self
