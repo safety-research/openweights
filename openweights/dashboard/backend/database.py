@@ -146,6 +146,31 @@ class Database:
         runs = self.client.table('runs').select('*').eq('job_id', job_id).order('created_at', desc=True).execute()
         return JobWithRuns(**job.data, runs=[Run(**run) for run in runs.data])
 
+    def cancel_job(self, organization_id: str, job_id: str) -> Job:
+        """Cancel a job."""
+        self.set_organization_id(organization_id)
+        result = self.client.table('jobs').update({
+            'status': 'canceled'
+        }).eq('id', job_id).eq('organization_id', organization_id).execute()
+        
+        if not result.data:
+            raise ValueError("Job not found or no access")
+        
+        return Job(**result.data[0])
+
+    def restart_job(self, organization_id: str, job_id: str) -> Job:
+        """Restart a job."""
+        self.set_organization_id(organization_id)
+        result = self.client.table('jobs').update({
+            'status': 'pending',
+            'worker_id': None  # Clear worker assignment
+        }).eq('id', job_id).eq('organization_id', organization_id).execute()
+        
+        if not result.data:
+            raise ValueError("Job not found or no access")
+        
+        return Job(**result.data[0])
+
     def get_runs(self, organization_id: str, status: Optional[str] = None) -> List[Run]:
         self.set_organization_id(organization_id)
         # First get all jobs for this organization
@@ -185,6 +210,18 @@ class Database:
         worker = self.client.table('worker').select('*').eq('id', worker_id).eq('organization_id', organization_id).single().execute()
         runs = self.client.table('runs').select('*').eq('worker_id', worker_id).order('created_at', desc=True).execute()
         return WorkerWithRuns(**worker.data, runs=[Run(**run) for run in runs.data])
+
+    def shutdown_worker(self, organization_id: str, worker_id: str) -> Worker:
+        """Set the shutdown flag for a worker."""
+        self.set_organization_id(organization_id)
+        result = self.client.table('worker').update({
+            'status': 'shutdown'
+        }).eq('id', worker_id).eq('organization_id', organization_id).execute()
+        
+        if not result.data:
+            raise ValueError("Worker not found or no access")
+        
+        return Worker(**result.data[0])
 
     def get_file_content(self, organization_id: str, file_id: str) -> str:
         """Get the content of a file."""

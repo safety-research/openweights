@@ -64,6 +64,26 @@ export const api = {
         const response = await axios.get<JobWithRuns>(`${API_URL}/organizations/${orgId}/jobs/${jobId}`, config);
         return response.data;
     },
+
+    cancelJob: async (orgId: string, jobId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.post<Job>(
+            `${API_URL}/organizations/${orgId}/jobs/${jobId}/cancel`,
+            {},
+            config
+        );
+        return response.data;
+    },
+
+    restartJob: async (orgId: string, jobId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.post<Job>(
+            `${API_URL}/organizations/${orgId}/jobs/${jobId}/restart`,
+            {},
+            config
+        );
+        return response.data;
+    },
     
     // Runs
     getRuns: async (orgId: string, status?: string) => {
@@ -103,6 +123,16 @@ export const api = {
     getWorker: async (orgId: string, workerId: string) => {
         const config = await getAuthHeaders();
         const response = await axios.get<WorkerWithRuns>(`${API_URL}/organizations/${orgId}/workers/${workerId}`, config);
+        return response.data;
+    },
+
+    shutdownWorker: async (orgId: string, workerId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.post<Worker>(
+            `${API_URL}/organizations/${orgId}/workers/${workerId}/shutdown`,
+            {},
+            config
+        );
         return response.data;
     },
 

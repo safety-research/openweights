@@ -1,3 +1,9 @@
+// ... (keep all existing imports and add:)
+import { LoadingButton } from '@mui/lab';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -10,12 +16,14 @@ import {
     ListItemText, 
     CircularProgress,
     FormControlLabel,
-    Switch
+    Switch,
+    Snackbar
 } from '@mui/material';
 import { JobWithRuns, RunWithJobAndWorker, WorkerWithRuns } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { useOrganization } from '../contexts/OrganizationContext';
+
 
 const FileContent: React.FC<{ fileId: string; orgId: string }> = ({ fileId, orgId }) => {
     const [content, setContent] = useState<string | null>(null);
@@ -191,8 +199,11 @@ export const JobDetailView: React.FC = () => {
     const { currentOrganization } = useOrganization();
     const [job, setJob] = useState<JobWithRuns | null>(null);
     const [loading, setLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState<'cancel' | 'restart' | null>(null);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+    const [showSnackbar, setShowSnackbar] = useState(false);
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchJob = useCallback(async () => {
@@ -204,10 +215,46 @@ export const JobDetailView: React.FC = () => {
             setLastRefresh(new Date());
         } catch (error) {
             console.error('Error fetching job:', error);
+            setSnackbarMessage('Error fetching job details');
+            setShowSnackbar(true);
         } finally {
             setLoading(false);
         }
     }, [orgId, jobId]);
+
+    const handleCancel = async () => {
+        if (!orgId || !jobId) return;
+        setActionLoading('cancel');
+        try {
+            await api.cancelJob(orgId, jobId);
+            await fetchJob();
+            setSnackbarMessage('Job cancelled successfully');
+            setShowSnackbar(true);
+        } catch (error) {
+            console.error('Error cancelling job:', error);
+            setSnackbarMessage('Error cancelling job');
+            setShowSnackbar(true);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRestart = async () => {
+        if (!orgId || !jobId) return;
+        setActionLoading('restart');
+        try {
+            await api.restartJob(orgId, jobId);
+            await fetchJob();
+            setSnackbarMessage('Job restarted successfully');
+            setShowSnackbar(true);
+        } catch (error) {
+            console.error('Error restarting job:', error);
+            setSnackbarMessage('Error restarting job');
+            setShowSnackbar(true);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     useEffect(() => {
         fetchJob();
@@ -229,11 +276,36 @@ export const JobDetailView: React.FC = () => {
         return <Typography>Loading...</Typography>;
     }
 
+    const canCancel = job.status === 'pending' || job.status === 'in_progress';
+    const canRestart = job.status === 'failed' || job.status === 'canceled';
+
     return (
         <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <Typography variant="h4" sx={{ flexGrow: 1 }}>Job: {job.id}</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {canCancel && (
+                        <LoadingButton
+                            loading={actionLoading === 'cancel'}
+                            variant="contained"
+                            color="error"
+                            onClick={handleCancel}
+                            startIcon={<CancelIcon />}
+                        >
+                            Cancel Job
+                        </LoadingButton>
+                    )}
+                    {canRestart && (
+                        <LoadingButton
+                            loading={actionLoading === 'restart'}
+                            variant="contained"
+                            color="primary"
+                            onClick={handleRestart}
+                            startIcon={<RestartAltIcon />}
+                        >
+                            Restart Job
+                        </LoadingButton>
+                    )}
                     <FormControlLabel
                         control={
                             <Switch
@@ -302,6 +374,13 @@ export const JobDetailView: React.FC = () => {
                     ))
                 }
             </List>
+
+            <Snackbar
+                open={showSnackbar}
+                autoHideDuration={6000}
+                onClose={() => setShowSnackbar(false)}
+                message={snackbarMessage}
+            />
         </Paper>
     );
 };
@@ -432,8 +511,11 @@ export const WorkerDetailView: React.FC = () => {
     const { currentOrganization } = useOrganization();
     const [worker, setWorker] = useState<WorkerWithRuns | null>(null);
     const [loading, setLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+    const [showSnackbar, setShowSnackbar] = useState(false);
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchWorker = useCallback(async () => {
@@ -445,10 +527,29 @@ export const WorkerDetailView: React.FC = () => {
             setLastRefresh(new Date());
         } catch (error) {
             console.error('Error fetching worker:', error);
+            setSnackbarMessage('Error fetching worker details');
+            setShowSnackbar(true);
         } finally {
             setLoading(false);
         }
     }, [orgId, workerId]);
+
+    const handleShutdown = async () => {
+        if (!orgId || !workerId) return;
+        setActionLoading(true);
+        try {
+            await api.shutdownWorker(orgId, workerId);
+            await fetchWorker();
+            setSnackbarMessage('Worker shutdown initiated');
+            setShowSnackbar(true);
+        } catch (error) {
+            console.error('Error shutting down worker:', error);
+            setSnackbarMessage('Error shutting down worker');
+            setShowSnackbar(true);
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchWorker();
@@ -470,11 +571,24 @@ export const WorkerDetailView: React.FC = () => {
         return <Typography>Loading...</Typography>;
     }
 
+    const canShutdown = worker.status === 'active' || worker.status === 'starting';
+
     return (
         <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <Typography variant="h4" sx={{ flexGrow: 1 }}>Worker: {worker.id}</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {canShutdown && (
+                        <LoadingButton
+                            loading={actionLoading}
+                            variant="contained"
+                            color="error"
+                            onClick={handleShutdown}
+                            startIcon={<PowerSettingsNewIcon />}
+                        >
+                            Shutdown Worker
+                        </LoadingButton>
+                    )}
                     <FormControlLabel
                         control={
                             <Switch
@@ -503,6 +617,21 @@ export const WorkerDetailView: React.FC = () => {
                 )}
             </Box>
 
+            {worker.cached_models && worker.cached_models.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6">Cached Models:</Typography>
+                    <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
+                        {worker.cached_models.map((model, index) => (
+                            <Chip 
+                                key={index}
+                                label={model}
+                                sx={{ m: 0.5 }}
+                            />
+                        ))}
+                    </Paper>
+                </Box>
+            )}
+
             <Typography variant="h6">Run History:</Typography>
             <List>
                 {worker.runs
@@ -517,6 +646,13 @@ export const WorkerDetailView: React.FC = () => {
                     ))
                 }
             </List>
+
+            <Snackbar
+                open={showSnackbar}
+                autoHideDuration={6000}
+                onClose={() => setShowSnackbar(false)}
+                message={snackbarMessage}
+            />
         </Paper>
     );
 };

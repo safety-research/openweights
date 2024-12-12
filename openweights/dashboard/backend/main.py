@@ -43,54 +43,12 @@ async def get_db(authorization: str = Header(None)) -> Database:
 # Organization endpoints
 @app.post("/organizations/", response_model=Organization)
 async def create_organization(org_data: OrganizationCreate, db: Database = Depends(get_db)):
-        """Create a new organization with secrets and worker token."""
-        # try:
-        # Create organization
-        result = db.admin_client.from_('organizations').insert({
-            'name': org_data.name
-        }).execute()
-            
-        org_id = result.data[0]['id']  # Insert returns an array
-        
-        # Add current user as admin
-        user_id = db.get_user_id_from_token()
-        member_result = db.admin_client.from_('organization_members').insert({
-            'organization_id': org_id,
-            'user_id': user_id,
-            'role': 'admin'
-        }).execute()
-            
-        # Add secrets
-        for name, value in org_data.secrets.items():
-            secret_result = db.client.rpc(
-                'manage_organization_secret',
-                {
-                    'org_id': org_id,
-                    'secret_name': name,
-                    'secret_value': value
-                }
-            ).execute()
-        
-        # Create worker token
-        token_data = TokenCreate(name="Worker")
-        token = await db.create_token(org_id, token_data)
-        
-        # Save token as secret
-        token_secret_result = db.client.rpc(
-            'manage_organization_secret',
-            {
-                'org_id': org_id,
-                'secret_name': 'OPENWEIGHTS_API_KEY',
-                'secret_value': token.access_token
-            }
-        ).execute()
-            
-        # Return the created organization
-        org_result = db.client.from_('organizations').select('*').eq('id', org_id).single().execute()
-            
-        return org_result.data
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
+    try:
+        return await db.create_organization(org_data)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/organizations/", response_model=List[Organization])
 async def get_organizations(db: Database = Depends(get_db)):
@@ -134,6 +92,24 @@ async def get_job(organization_id: str, job_id: str, db: Database = Depends(get_
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.post("/organizations/{organization_id}/jobs/{job_id}/cancel")
+async def cancel_job(organization_id: str, job_id: str, db: Database = Depends(get_db)):
+    try:
+        return db.cancel_job(organization_id, job_id)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/organizations/{organization_id}/jobs/{job_id}/restart")
+async def restart_job(organization_id: str, job_id: str, db: Database = Depends(get_db)):
+    try:
+        return db.restart_job(organization_id, job_id)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.get("/organizations/{organization_id}/runs/", response_model=List[Run])
 async def get_runs(organization_id: str, status: Optional[str] = None, db: Database = Depends(get_db)):
     try:
@@ -170,6 +146,15 @@ async def get_workers(organization_id: str, status: Optional[str] = None, db: Da
 async def get_worker(organization_id: str, worker_id: str, db: Database = Depends(get_db)):
     try:
         return db.get_worker(organization_id, worker_id)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/organizations/{organization_id}/workers/{worker_id}/shutdown")
+async def shutdown_worker(organization_id: str, worker_id: str, db: Database = Depends(get_db)):
+    try:
+        return db.shutdown_worker(organization_id, worker_id)
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

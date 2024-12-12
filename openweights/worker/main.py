@@ -18,6 +18,7 @@ from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 
 from openweights.client import Files, OpenWeights, Run
+from openweights.worker.gpu_health_check import GPUHealthCheck
 
 # Load environment variables
 load_dotenv()
@@ -87,11 +88,24 @@ class Worker:
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.vram_gb = 0
+        
+        if self.gpu_count > 0:
+            # GPU health check
+            is_healthy, errors = GPUHealthCheck.check_gpu_health()
+            if not is_healthy:
+                # Log the errors
+                for error in errors:
+                    logging.error(f"GPU health check failed: {error}")
+            # Set shutdown flag if GPU health check failed
+            if not is_healthy:
+                self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
+                self.shutdown_flag = True
 
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         # Check if the worker is already registered and if its status is 'shutdown'
         data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
         self.pod_id = data[0].get('pod_id')
+
         if data and data[0]['status'] == 'shutdown':
             logging.info(f"Worker {self.worker_id} is already registered with status 'shutdown'. Exiting...")
             self.shutdown_flag = True
