@@ -104,7 +104,8 @@ class Worker:
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
         # Check if the worker is already registered and if its status is 'shutdown'
         data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
-        self.pod_id = data[0].get('pod_id')
+        if data:
+            self.pod_id = data[0].get('pod_id')
 
         if data and data[0]['status'] == 'shutdown':
             logging.info(f"Worker {self.worker_id} is already registered with status 'shutdown'. Exiting...")

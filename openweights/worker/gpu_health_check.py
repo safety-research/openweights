@@ -15,7 +15,7 @@ class GPUHealthCheck:
             return True, None
         except RuntimeError as e:
             return False, f"CUDA memory check failed: {str(e)}"
-
+            
     @staticmethod
     def get_nvidia_smi_info() -> Tuple[bool, Optional[str], Optional[Dict]]:
         """
@@ -23,36 +23,41 @@ class GPUHealthCheck:
         Returns: (is_healthy: bool, error_message: Optional[str], gpu_info: Optional[Dict])
         """
         try:
-            # Query multiple important parameters
+            # Query using CSV format instead of JSON
             cmd = [
-                'nvidia-smi', 
-                '--query-gpu=timestamp,name,pci.bus_id,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,power.draw,enforced.power.limit,fan.speed,clocks.current.sm,clocks.current.memory,ecc.mode.current,temperature.memory',
-                '--format=json'
+                'nvidia-smi',
+                '--query-gpu=timestamp,name,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used',
+                '--format=csv,nounits,noheader'
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            gpu_info = json.loads(result.stdout)
+            
+            # Parse CSV output into a dictionary
+            values = result.stdout.strip().split(',')
+            gpu_info = {
+                'gpu': [{
+                    'timestamp': values[0].strip(),
+                    'name': values[1].strip(),
+                    'temperature.gpu': float(values[2]),
+                    'utilization.gpu': float(values[3]),
+                    'utilization.memory': float(values[4]),
+                    'memory.total': float(values[5]),
+                    'memory.free': float(values[6]),
+                    'memory.used': float(values[7])
+                }]
+            }
 
             # Check for critical issues
             for gpu in gpu_info['gpu']:
-                # Temperature check (threshold can be adjusted)
-                if float(gpu['temperature.gpu']) > 85:
+                if gpu['temperature.gpu'] > 85:
                     return False, f"GPU temperature too high: {gpu['temperature.gpu']}°C", gpu_info
 
-                # Memory utilization check
-                if float(gpu['utilization.memory']) > 95:
+                if gpu['utilization.memory'] > 95:
                     return False, f"Memory utilization too high: {gpu['utilization.memory']}%", gpu_info
-
-                # ECC status check if available
-                ecc_mode = gpu.get('ecc.mode.current')
-                if ecc_mode and ecc_mode.lower() != 'enabled':
-                    return False, f"ECC is not enabled: {ecc_mode}", gpu_info
 
             return True, None, gpu_info
 
         except subprocess.CalledProcessError as e:
             return False, f"nvidia-smi command failed: {str(e)}", None
-        except json.JSONDecodeError as e:
-            return False, f"Failed to parse nvidia-smi output: {str(e)}", None
         except Exception as e:
             return False, f"Unexpected error during nvidia-smi check: {str(e)}", None
 
