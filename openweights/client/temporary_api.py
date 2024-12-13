@@ -111,7 +111,7 @@ class TemporaryApi:
         self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
         self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
         self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
-        return self.async_client
+        return self.sync_client
 
     def __enter__(self):
         return self.up()

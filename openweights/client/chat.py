@@ -79,5 +79,7 @@ class AsyncChatCompletions:
 
 
 class ChatCompletions(AsyncChatCompletions):
-    def create(self, *args, **kwargs):
-        return asyncio.run(super().create(*args, **kwargs))
+    def create(self, **kwargs):
+        assert kwargs.get('stream', False) is False, "ow.chat.completions.create does only support stream=True in async mode"
+        response = asyncio.run(super().create(**kwargs))
+        return response
