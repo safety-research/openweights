@@ -62,10 +62,9 @@ def get_lora_rank(adapter_id):
 
 
 class TemporaryApi:
-    def __init__(self, ow, job_id, client_type=OpenAI):
+    def __init__(self, ow, job_id):
         self.ow = ow
         self.job_id = job_id
-        self.client_type = client_type
 
         self.pod_id = None
         self.base_url = None
@@ -73,11 +72,15 @@ class TemporaryApi:
         self._timeout_thread = None
         self._stop_timeout_thread = False
 
+        self.sem = None
+
         atexit.register(self.down)
     
     def up(self):
+        self._stop_timeout_thread = False
         self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
         self._timeout_thread.start()
+
         # Poll until status is 'in_progress'
         while True:
             job = self.ow.jobs.retrieve(self.job_id)
@@ -93,13 +96,11 @@ class TemporaryApi:
         self.api_key = job['params']['api_key']
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.wait_until_ready(openai, job['params']['model'])
-        
-        # Start timeout management thread
-        self._stop_timeout_thread = False
-        self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
-        self._timeout_thread.start()
-        
-        return self.client_type(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+
+        self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
+        self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+        self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+        return self.async_client
 
     def __enter__(self):
         return self.up()
@@ -109,7 +110,9 @@ class TemporaryApi:
         print('Waiting for API to be ready...')
         openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=10)
     async def async_up(self):
+        self._stop_timeout_thread = False
         self._timeout_thread = threading.Thread(target=self._manage_timeout, daemon=True)
         self._timeout_thread.start()
         while True:
@@ -130,12 +133,12 @@ class TemporaryApi:
         await self.async_wait_until_ready(openai, job['params']['model'])
         print(f'API ready: {self.base_url}')
 
-        # Start timeout management thread
-        self._stop_timeout_thread = False
+        self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
+        self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+        self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+        return self.async_client
 
-        return self.client_type(api_key=self.api_key, base_url=self.base_url, max_retries=1)
-
-    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=300, max_tries=60)
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60)
     async def async_wait_until_ready(self, openai, model):
         print('Waiting for API to be ready...')
         await openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
@@ -149,12 +152,15 @@ class TemporaryApi:
             try:
                 # Set timeout to 15 minutes from now
                 new_timeout = datetime.now(timezone.utc) + timedelta(minutes=15)
-                self.ow._supabase.table('jobs').update({
+                response = self.ow._supabase.table('jobs').update({
                     'timeout': new_timeout.isoformat()
                 }).eq('id', self.job_id).execute()
+                job = response.data[0]
+                if job['status'] == 'failed':
+                    self.ow.jobs.restart(self.job_id)
             except Exception as e:
                 print(f"Error updating job timeout: {e}")
-            time.sleep(300)  # Sleep for 5 minutes
+            time.sleep(60)
     
     def down(self):
         self._stop_timeout_thread = True

@@ -1,3 +1,4 @@
+import re
 import json
 from typing import BinaryIO, Dict, Any, List, Union
 import os
@@ -149,6 +150,19 @@ class InferenceJobs(BaseJob):
         
         return self.get_or_create_or_reset(data)
 
+def guess_model_size(model: str) -> int:
+    """Guess the model size in billions of parameters from the name"""
+    # Use regex to extract the model size from the model name
+    if 'mistral-small' in model.lower():
+        return 22
+    match = re.search(r'(\d+)([bB])', model)
+    if match:
+        model_size = int(match.group(1))
+        return model_size
+    else:
+        print(f"Could not guess model size from model name: {model}. Defaulting to 32B")
+        return 32
+
 
 class Deployments(BaseJob):
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
@@ -156,7 +170,16 @@ class Deployments(BaseJob):
         params = ApiConfig(**params).model_dump()
 
         if requires_vram_gb == 'guess':
-            requires_vram_gb = 150 if '70b' in params['model'].lower() else 24
+            model_size = guess_model_size(params['model'])
+            weights_require = 2 * model_size
+            if '8bit' in params['model']:
+                weights_require = weights_require / 2
+            elif '4bit' in params['model']:
+                weights_require = weights_require / 4
+            loras_require = params['max_loras'] * params['max_lora_rank'] / 16
+            kv_cache_requires = 5 # TODO estimate this better
+            requires_vram_gb = int(weights_require + loras_require + kv_cache_requires + 0.5)
+
         hash_params = dict(**params, requires_vram_gb=requires_vram_gb)
         job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
 
