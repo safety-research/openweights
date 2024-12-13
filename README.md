@@ -30,19 +30,20 @@ from dotenv import load_dotenv
 load_dotenv()
 client = OpenWeights()
 
-with open('tests/preference_dataset.jsonl', 'rb') as file:
-    file = client.files.create(file, purpose="preference")
+with open('tests/sft_dataset.jsonl', 'rb') as file:
+    file = client.files.create(file, purpose="conversations")
 
 job = client.fine_tuning.create(
     model='unsloth/llama-3-8b-Instruct',
     training_file=file['id'],
     requires_vram_gb=48,
-    loss='orpo',
-    epochs=1,
-    max_steps=20,
+    loss='sft',
+    epochs=1
 )
 ```
 The `job_id` is based on the params hash, which means that if you submit the same job many times, it will only run once. If you resubmit a failed or canceled job, it will reset the job status to `pending`.
+
+More infos: [Fine-tuning Options](docs/finetuning.md) 
 
 ## Do batch inference
 ```python
@@ -92,7 +93,7 @@ with client.deploy(model) as openai:
 ```
 
 More examples:
-- do a [hparam sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
+- do a [hyperparameter sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
 - [download artifacts](example/download.py) from a job and plot training
 - and [more](example/)
 
