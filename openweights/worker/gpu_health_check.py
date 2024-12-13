@@ -32,29 +32,34 @@ class GPUHealthCheck:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             
             # Parse CSV output into a dictionary
-            values = result.stdout.strip().split(',')
-            gpu_info = {
-                'gpu': [{
-                    'timestamp': values[0].strip(),
-                    'name': values[1].strip(),
-                    'temperature.gpu': float(values[2]),
-                    'utilization.gpu': float(values[3]),
-                    'utilization.memory': float(values[4]),
-                    'memory.total': float(values[5]),
-                    'memory.free': float(values[6]),
-                    'memory.used': float(values[7])
-                }]
-            }
+            gpus_info = []
+            lines =  result.stdout.strip().split('\n')
+            for line in lines:
+                values = line.strip().split(',')
+                gpu_info = {
+                    'gpu': [{
+                        'timestamp': values[0].strip(),
+                        'name': values[1].strip(),
+                        'temperature.gpu': float(values[2]),
+                        'utilization.gpu': float(values[3]),
+                        'utilization.memory': float(values[4]),
+                        'memory.total': float(values[5]),
+                        'memory.free': float(values[6]),
+                        'memory.used': float(values[7])
+                    }]
+                }
+                gpus_info.append(gpu_info)
 
-            # Check for critical issues
-            for gpu in gpu_info['gpu']:
-                if gpu['temperature.gpu'] > 85:
-                    return False, f"GPU temperature too high: {gpu['temperature.gpu']}°C", gpu_info
+                # Check for critical issues
+                for gpu in gpu_info['gpu']:
+                    if gpu['temperature.gpu'] > 85:
+                        return False, f"GPU temperature too high: {gpu['temperature.gpu']}°C", gpus_info
 
-                if gpu['utilization.memory'] > 95:
-                    return False, f"Memory utilization too high: {gpu['utilization.memory']}%", gpu_info
+                    if gpu['utilization.memory'] > 95:
+                        return False, f"Memory utilization too high: {gpu['utilization.memory']}%", gpus_info
+                
 
-            return True, None, gpu_info
+            return True, None, gpus_info
 
         except subprocess.CalledProcessError as e:
             return False, f"nvidia-smi command failed: {str(e)}", None
