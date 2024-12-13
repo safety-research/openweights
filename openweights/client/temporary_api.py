@@ -5,31 +5,36 @@ import backoff
 import time
 import threading
 from datetime import datetime, timedelta, timezone
+import json
+from huggingface_hub import HfApi, hf_hub_download
 from collections import defaultdict
 from typing import List, Dict
-from peft import PeftConfig
-from huggingface_hub import HfApi
 from functools import lru_cache
 
-
 @lru_cache
-def get_peft_config(adapter_id):
-    return PeftConfig.from_pretrained(adapter_id)
-
+def get_adapter_config(adapter_id: str, token: str = None) -> dict:
+    """
+    Downloads and parses the adapter config file without using peft.
+    """
+    try:
+        # Try to download the LoRA config file
+        config_file = hf_hub_download(
+            repo_id=adapter_id,
+            filename="adapter_config.json",
+            token=token,
+            local_files_only=False
+        )
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+            
+        return config
+    except Exception as e:
+        raise ValueError(f"Failed to load adapter config for {adapter_id}: {str(e)}")
 
 def group_models_or_adapters_by_model(models: List[str], token: str = None) -> Dict[str, List[str]]:
     """
     Groups base models and their associated LoRA adapters after verifying their existence and access permissions.
-
-    Args:
-        models (List[str]): A list of model or adapter identifiers.
-        token (str, optional): Hugging Face API token for accessing private or gated models.
-
-    Returns:
-        Dict[str, List[str]]: A dictionary mapping base model identifiers to lists of associated LoRA adapters.
-
-    Raises:
-        ValueError: If a model or adapter does not exist or access is denied.
     """
     api = HfApi(token=token)
     grouped = defaultdict(list)
@@ -43,22 +48,28 @@ def group_models_or_adapters_by_model(models: List[str], token: str = None) -> D
 
         try:
             # Attempt to load the adapter configuration
-            peft_config = get_peft_config(model_id)
-            base_model = peft_config.base_model_name_or_path
-            # If successful, it's a LoRA adapter; add it under its base model
-            grouped[base_model].append(model_id)
-        except Exception as e:
+            config = get_adapter_config(model_id, token)
+            base_model = config.get('base_model_name_or_path')
+            if base_model:
+                # If successful, it's a LoRA adapter; add it under its base model
+                grouped[base_model].append(model_id)
+            else:
+                # If no base_model found, assume it's a base model
+                if model_id not in grouped:
+                    grouped[model_id] = []
+        except Exception:
             # If loading fails, assume it's a base model
-            # Ensure the base model is in the dictionary
             if model_id not in grouped:
                 grouped[model_id] = []
 
     return dict(grouped)
 
-
-def get_lora_rank(adapter_id):
-    peft_config = get_peft_config(adapter_id)
-    return peft_config.r
+def get_lora_rank(adapter_id: str, token: str = None) -> int:
+    """
+    Gets the LoRA rank from the adapter config without using peft.
+    """
+    config = get_adapter_config(adapter_id, token)
+    return config.get('r', None)
 
 
 class TemporaryApi:
