@@ -15,8 +15,13 @@ class AsyncChatCompletions:
         self.completions = self
         self.deploy_kwargs = deploy_kwargs
     
-    @cache_on_disk(required_kwargs=['seed'])
     async def create(self, model: str, **kwargs):
+        @cache_on_disk(required_kwargs=['seed'])
+        async def cached_create(model, **kwargs):
+            return await self._create(model, **kwargs)
+        return await cached_create(model, **kwargs)
+    
+    async def _create(self, model, **kwargs):
         api = await self._get_api(model)
         async with api.sem:
             return await self._create_with_backoff(api, model, **kwargs)

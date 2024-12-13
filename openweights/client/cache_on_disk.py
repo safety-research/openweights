@@ -21,7 +21,7 @@ def cache_on_disk(required_kwargs=[]):
             key = hashlib.sha256(serialized.encode()).hexdigest()
             if key in cache:
                 return cache[key]
-
+            
             result = await function(*args, **kwargs)
             cache[key] = result
             return result
