@@ -19,7 +19,8 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "openai",
-    "huggingface-hub"
+    "huggingface-hub",
+    "diskcache"
 ]
 
 [project.optional-dependencies]

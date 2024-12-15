@@ -1,6 +1,5 @@
 import openai
 import asyncio
-import functools
 from openweights.client.cache_on_disk import cache_on_disk
 import backoff
 
@@ -10,10 +9,23 @@ STARTING = []
 
 
 class AsyncChatCompletions:
-    def __init__(self, ow, deploy_kwargs={}):
+    """This class is a wrapper around the OpenAI Chat API that handles deployment of models,
+    request caching (when seeds are provided), and rate limiting.
+    
+    Args:
+        ow: OpenWeights client
+        deploy_kwargs: kwargs to pass to ow.multi_deploy
+        request_timeout: timeout for requests in seconds
+        per_token_timeout: computes a timeout based on max_tokens * per_token_timeout for each request
+
+        When both timeouts are set, the maximum of the two is used.
+    """
+    def __init__(self, ow, deploy_kwargs={}, request_timeout=5, per_token_timeout=0.2):
         self.ow = ow
         self.completions = self
         self.deploy_kwargs = deploy_kwargs
+        self.request_timeout = request_timeout
+        self.per_token_timeout = per_token_timeout
     
     async def create(self, model: str, **kwargs):
         @cache_on_disk(required_kwargs=['seed'])
@@ -32,14 +44,26 @@ class AsyncChatCompletions:
             openai.RateLimitError,
             openai.APIConnectionError,
             openai.APITimeoutError,
-            openai.InternalServerError
+            openai.InternalServerError,
+            asyncio.TimeoutError
         ),
         max_value=60,
         factor=1.5,
         max_tries=10
     )   
     async def _create_with_backoff(self, api, model, **kwargs):
-        return await api.async_client.chat.completions.create(model=model, **kwargs)
+        timeout = kwargs.pop('timeout', None) or max(
+            self.request_timeout,
+            kwargs.get('max_tokens', 1) * self.per_token_timeout,
+        )
+        try:
+            return await asyncio.wait_for(
+                api.async_client.chat.completions.create(model=model, **kwargs),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            print(f"Request for model {model} timed out after {timeout} seconds")
+            raise
     
     async def _get_api(self, model):
         """If the model is not yet deployed, we add it to a queue of to-be-deployed models and wait for 5 seconds
