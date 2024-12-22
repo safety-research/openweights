@@ -149,11 +149,11 @@ class TemporaryApi:
         self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
         return self.async_client
 
-    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60)
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details}"))
     async def async_wait_until_ready(self, openai, model):
-        print('Waiting for API to be ready...')
+        print(f'Waiting for {model} to be ready...')
         await openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
-    
+
     async def __aenter__(self):
         return await self.async_up()
     
@@ -183,4 +183,3 @@ class TemporaryApi:
     
     async def __aexit__(self, exc_type, exc_value, traceback):
         self.down()
-
