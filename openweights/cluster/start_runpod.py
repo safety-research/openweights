@@ -29,7 +29,7 @@ GPUs = {
     'A6000': 'NVIDIA RTX 6000 Ada Generation',
     'A100': 'NVIDIA A100 80GB PCIe',
     'A100S': 'NVIDIA A100-SXM4-80GB',
-    'H100': 'NVIDIA H100 PCIe',
+    'H100': 'NVIDIA H100 NVL',
     'H100N': 'NVIDIA H100 NVL',
 }
 GPU_COUNT = 1

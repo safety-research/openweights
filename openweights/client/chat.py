@@ -70,6 +70,8 @@ class AsyncChatCompletions:
         to group them at once, which is more efficient if the multiple lora finetunes of the same model are deployed."""
         if model in APIS:
             return APIS[model]
+        if looks_like_openai(model):
+            return OpenAiApi()
         if model not in DEPLOYMENT_QUEUE and model not in STARTING:
             print(f"Adding {model} to deployment queue")
             DEPLOYMENT_QUEUE.append(model)
@@ -107,3 +109,16 @@ class ChatCompletions(AsyncChatCompletions):
         assert kwargs.get('stream', False) is False, "ow.chat.completions.create does only support stream=True in async mode"
         response = asyncio.run(super().create(**kwargs))
         return response
+
+from openweights.client.temporary_api import TemporaryApi
+import openai
+
+def looks_like_openai(model):
+    return any(model.lower().startswith(i) for i in  ['gpt', 'o1', 'o3'])
+
+class OpenAiApi(TemporaryApi):
+    def __init__(self, concurrents=50):
+        self.concurrents = concurrents
+        self.sem = asyncio.Semaphore(concurrents)
+        self.async_client = openai.AsyncOpenAI()
+        self.sync_client = openai.OpenAI()
