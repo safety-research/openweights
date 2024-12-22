@@ -133,7 +133,8 @@ class OrganizationManager:
                 # Parse ping time as UTC and ensure it has timezone info
                 last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00')).astimezone(timezone.utc)
                 time_since_ping = (current_time - last_ping).total_seconds()
-                is_unresponsive = time_since_ping > UNRESPONSIVE_THRESHOLD
+                threshold = UNRESPONSIVE_THRESHOLD * 3 if worker['status'] == 'starting' else UNRESPONSIVE_THRESHOLD
+                is_unresponsive = time_since_ping > threshold
             except Exception as e:
                 is_unresponsive = True
                 time_since_ping = 'unknown'
