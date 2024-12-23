@@ -53,7 +53,8 @@ class OpenWeights:
                  supabase_key: Optional[str] = None, 
                  auth_token: Optional[str] = None,
                  organization_id: Optional[str] = None,
-                 use_async: bool = False):
+                 use_async: bool = False,
+                 deploy_kwargs: Dict[str, Any] = {'max_model_len': 2048}):
         """Initialize OpenWeights client
         
         Args:
@@ -65,6 +66,7 @@ class OpenWeights:
         self.supabase_url = supabase_url or os.environ.get('SUPABASE_URL', 'https://taofkfabrhpgtohaikst.supabase.co')
         self.supabase_key = supabase_key or os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhb2ZrZmFicmhwZ3RvaGFpa3N0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE5MjkyMjcsImV4cCI6MjA0NzUwNTIyN30.KRufleTgprt16mfm0_91YjKIFZAne1-IW8buMxWVMeE')
         self.auth_token = auth_token or os.getenv('OPENWEIGHTS_API_KEY')
+        self.deploy_kwargs = deploy_kwargs
         
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase URL and key must be provided either as arguments or environment variables")
@@ -90,8 +92,8 @@ class OpenWeights:
         self.deployments = Deployments(self._supabase, self.organization_id)
         self.runs = Runs(self._supabase)
         self.events = Events(self._supabase)
-        self.async_chat = AsyncChatCompletions(self)
-        self.sync_chat = ChatCompletions(self)
+        self.async_chat = AsyncChatCompletions(self, deploy_kwargs=self.deploy_kwargs)
+        self.sync_chat = ChatCompletions(self, deploy_kwargs=self.deploy_kwargs)
         self.chat = self.async_chat if use_async else self.sync_chat
 
         self._current_run = None

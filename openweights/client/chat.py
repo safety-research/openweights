@@ -1,3 +1,4 @@
+from collections import defaultdict
 import openai
 import asyncio
 from openweights.client.cache_on_disk import cache_on_disk
@@ -94,13 +95,24 @@ class AsyncChatCompletions:
         print(f"Deploying {models_to_deploy}")
         # Deploy the models
         apis = self.ow.multi_deploy(models_to_deploy, **self.deploy_kwargs)
-        # Wait for apis to be up
+        # Wait for apis to be up and move each model to APIS as soon as its API is ready
         print(f"Waiting for {models_to_deploy} to be up")
-        set_of_apis = set(apis.values())
-        await asyncio.gather(*[api.async_up() for api in set_of_apis])
-        APIS.update(apis)
-        for model in models_to_deploy:
-            STARTING.remove(model)
+        api_to_models = defaultdict(list)
+        for model, api in apis.items():
+            api_to_models[api].append(model)
+        
+        async def handle_api(api, models):
+            await api.async_up()
+            for model in models:
+                APIS[model] = api
+                STARTING.remove(model)
+        
+        await asyncio.gather(*[handle_api(api, models) for api, models in api_to_models.items()])
+    
+    def kill(self, model_id):
+        api = APIS.pop(model_id, None)
+        if api not in APIS.values():
+            api.down()
         
 
 
