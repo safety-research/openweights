@@ -194,6 +194,8 @@ class OrganizationManager:
                     len(image_pending_jobs) - starting_count,
                     available_slots
                 )
+                logging.info(f'Available slots: {available_slots} | Pending: {image_pending_jobs} | Starting: {starting_count}')
+                logging.info(f'=> Starting {num_to_start}')
                 
                 if num_to_start <= 0:
                     continue
