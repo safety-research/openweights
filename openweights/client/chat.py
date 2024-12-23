@@ -104,6 +104,7 @@ class AsyncChatCompletions:
         api = APIS.pop(model_id, None)
         if api is not None and api not in APIS.values():
             api.down()
+        self.ow.jobs.cancel(api.job_id)
         
 
 

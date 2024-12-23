@@ -147,7 +147,8 @@ class TemporaryApi:
         self.pod_id = worker['pod_id']
         self.base_url = f"https://{self.pod_id}-8000.proxy.runpod.net/v1"
         self.api_key = job['params']['api_key']
-        openai = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+
+        openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         await self.async_wait_until_ready(openai, job['params']['model'])
         print(f'API ready: {self.base_url}')
 
@@ -156,10 +157,15 @@ class TemporaryApi:
         self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1, timeout=1800)
         return self.async_client
 
-    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60, on_backoff=on_backoff)
     async def async_wait_until_ready(self, openai, model):
         print(f'Waiting for {model} to be ready...')
-        await openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
+        for _ in range(30):
+            await asyncio.sleep(10)
+            try:
+                openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
+                return
+            except Exception as e:
+                print(f"Error waiting for API to be ready: {e}")
 
     async def __aenter__(self):
         return await self.async_up()
