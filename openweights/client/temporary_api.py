@@ -72,6 +72,13 @@ def get_lora_rank(adapter_id: str, token: str = None) -> int:
     return config.get('r', None)
 
 
+def on_backoff(details):
+    exception_info = details['exception']
+    if '<title>' in str(exception_info):
+        exception_info = str(exception_info).split('<title>')[1].split('</title>')[0]
+    print(f"Retrying... {exception_info}")
+
+
 class TemporaryApi:
     def __init__(self, ow, job_id):
         self.ow = ow
@@ -145,11 +152,11 @@ class TemporaryApi:
         print(f'API ready: {self.base_url}')
 
         self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
-        self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
-        self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
+        self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1, timeout=1800)
+        self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1, timeout=1800)
         return self.async_client
 
-    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details}"))
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60, on_backoff=on_backoff)
     async def async_wait_until_ready(self, openai, model):
         print(f'Waiting for {model} to be ready...')
         await openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
@@ -158,19 +165,39 @@ class TemporaryApi:
         return await self.async_up()
     
     def _manage_timeout(self):
-        """Background thread to update job timeout."""
+        """Background thread to update job timeout and monitor job health."""
         while not self._stop_timeout_thread:
             try:
                 # Set timeout to 15 minutes from now
                 new_timeout = datetime.now(timezone.utc) + timedelta(minutes=15)
+                print(f"Updating job timeout to {new_timeout}")
                 response = self.ow._supabase.table('jobs').update({
                     'timeout': new_timeout.isoformat()
                 }).eq('id', self.job_id).execute()
                 job = response.data[0]
-                if job['status'] == 'failed':
-                    self.ow.jobs.restart(self.job_id)
+
+                # Check job status and handle failures
+                if job['status'] in ['failed', 'canceled']:
+                    print(f"Job {self.job_id} is in {job['status']} state. Attempting to restart...")
+                    try:
+                        # Reset the job to pending state
+                        self.ow.jobs.restart(self.job_id)
+                        # Call up() to reinitialize the API
+                        self.up()
+                        print(f"Successfully restarted job {self.job_id}")
+                    except Exception as e:
+                        print(f"Error restarting job {self.job_id}: {e}")
+                elif job['status'] == 'completed':
+                    print(f"Job {self.job_id} is marked as completed but should be running. Restarting...")
+                    try:
+                        self.ow.jobs.restart(self.job_id)
+                        self.up()
+                        print(f"Successfully restarted completed job {self.job_id}")
+                    except Exception as e:
+                        print(f"Error restarting completed job {self.job_id}: {e}")
+
             except Exception as e:
-                print(f"Error updating job timeout: {e}")
+                print(f"Error in timeout management thread: {e}")
             time.sleep(60)
     
     def down(self):

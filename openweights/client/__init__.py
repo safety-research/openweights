@@ -98,6 +98,7 @@ class OpenWeights:
 
         self._current_run = None
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_organization_id(self) -> str:
         """Get the organization ID associated with the current token"""
         result = self._supabase.rpc('get_organization_from_token').execute()
@@ -105,6 +106,7 @@ class OpenWeights:
             raise ValueError("Could not determine organization ID from token")
         return result.data
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def set_hf_org_env(self):
         """Get organization secrets from the database."""
         if os.environ.get('HF_ORG'):

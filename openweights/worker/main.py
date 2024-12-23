@@ -266,8 +266,15 @@ class Worker:
             log_file_path = os.path.join(tmp_dir, "log.txt")
 
             # Update job status to in_progress
-            self.supabase.table('jobs').update({'status': 'in_progress', 'worker_id': self.worker_id}).eq('id', job['id']).eq('status', 'pending').execute()
+            result = self.supabase.table('jobs').update({
+                'status': 'in_progress', 
+                'worker_id': self.worker_id
+            }).eq('id', job['id']).eq('status', 'pending').execute()
 
+            if not result.data:  # or len(result.data) == 0
+                # Job was already taken by another worker
+                return None  # or raise an exception
+            
             outputs = None
             status = 'canceled'
             try:

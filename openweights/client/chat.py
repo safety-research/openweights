@@ -45,7 +45,6 @@ class AsyncChatCompletions:
             openai.RateLimitError,
             openai.APIConnectionError,
             openai.APITimeoutError,
-            openai.InternalServerError,
             asyncio.TimeoutError
         ),
         max_value=60,
@@ -59,10 +58,10 @@ class AsyncChatCompletions:
         )
         try:
             return await asyncio.wait_for(
-                api.async_client.chat.completions.create(model=model, **kwargs),
+                api.async_client.chat.completions.create(model=model, timeout=timeout+1, **kwargs),
                 timeout=timeout
             )
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, openai.APITimeoutError):
             print(f"Request for model {model} timed out after {timeout} seconds")
             raise
     
@@ -111,7 +110,7 @@ class AsyncChatCompletions:
     
     def kill(self, model_id):
         api = APIS.pop(model_id, None)
-        if api not in APIS.values():
+        if api is not None and api not in APIS.values():
             api.down()
         
 
@@ -129,7 +128,7 @@ def looks_like_openai(model):
     return any(model.lower().startswith(i) for i in  ['gpt', 'o1', 'o3'])
 
 class OpenAiApi(TemporaryApi):
-    def __init__(self, concurrents=50):
+    def __init__(self, concurrents=10):
         self.concurrents = concurrents
         self.sem = asyncio.Semaphore(concurrents)
         self.async_client = openai.AsyncOpenAI()
