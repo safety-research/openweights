@@ -44,8 +44,7 @@ class AsyncChatCompletions:
         exception=(
             openai.RateLimitError,
             openai.APIConnectionError,
-            openai.APITimeoutError,
-            asyncio.TimeoutError
+            openai.APITimeoutError
         ),
         max_value=60,
         factor=1.5,
@@ -56,14 +55,7 @@ class AsyncChatCompletions:
             self.request_timeout,
             kwargs.get('max_tokens', 1) * self.per_token_timeout,
         )
-        try:
-            return await asyncio.wait_for(
-                api.async_client.chat.completions.create(model=model, timeout=timeout+1, **kwargs),
-                timeout=timeout
-            )
-        except (asyncio.TimeoutError, openai.APITimeoutError):
-            print(f"Request for model {model} timed out after {timeout} seconds")
-            raise
+        return await api.async_client.chat.completions.create(model=model, timeout=timeout, **kwargs)
     
     async def _get_api(self, model):
         """If the model is not yet deployed, we add it to a queue of to-be-deployed models and wait for 5 seconds
