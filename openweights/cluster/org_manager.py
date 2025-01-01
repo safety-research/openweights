@@ -7,6 +7,7 @@ import random
 import signal
 import time
 import uuid
+import requests
 from datetime import datetime, timezone
 import sys
 
@@ -23,7 +24,7 @@ load_dotenv()
 POLL_INTERVAL = 15
 IDLE_THRESHOLD = 300  # 5 minutes = 300 seconds
 UNRESPONSIVE_THRESHOLD = 120  # 2 minutes = 120 seconds
-MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 10))
+MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 4))
 
 # Configure logging
 logging.basicConfig(
@@ -54,8 +55,8 @@ def determine_gpu_type(required_vram, choice=None):
 
 class OrganizationManager:
     def __init__(self):
-        openweights = OpenWeights()
-        self.org_id = openweights.organization_id
+        self.openweights = OpenWeights()
+        self.org_id = self.openweights.organization_id
         self.supabase = OpenWeights()._supabase
         self.shutdown_flag = False
 
@@ -124,6 +125,36 @@ class OrganizationManager:
                 
         return idle_workers
 
+    def fetch_and_save_worker_logs(self, worker):
+        """Fetch logs from a worker and save them to a file."""
+        try:
+            if not worker['pod_id']:
+                return None
+                
+            # Fetch logs from worker
+            response = requests.get(f"https://{worker['pod_id']}-10101.proxy.runpod.net/logs")
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch logs for worker {worker['id']}: HTTP {response.status_code}")
+                return None
+                
+            # Save logs to a file using OpenWeights client
+            logs = response.text
+            file_id = self.openweights.files.create(
+                f"worker_{worker['id']}_logs.txt",
+                logs.encode('utf-8'),
+                "text/plain"
+            )
+            
+            # Update worker record with logfile ID
+            self.supabase.table('worker').update({
+                'logfile': file_id
+            }).eq('id', worker['id']).execute()
+            
+            return file_id
+        except Exception as e:
+            logger.error(f"Error saving logs for worker {worker['id']}: {e}")
+            return None
+
     def clean_up_unresponsive_workers(self, workers):
         """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
         current_time = datetime.now(timezone.utc)
@@ -141,6 +172,9 @@ class OrganizationManager:
 
             if is_unresponsive:
                 logger.info(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")
+
+                # Save worker logs before termination
+                self.fetch_and_save_worker_logs(worker)
 
                 # If worker has an in_progress job, set run to failed and job to pending
                 runs = self.supabase.table('runs').select('*').eq('worker_id', worker['id']).eq('status', 'in_progress').execute().data
@@ -275,6 +309,8 @@ class OrganizationManager:
                 for idle_worker in idle_workers:
                     logger.info(f"Setting shutdown flag for idle worker: {idle_worker['id']}")
                     try:
+                        # Save logs before marking for shutdown
+                        self.fetch_and_save_worker_logs(idle_worker)
                         self.supabase.table('worker').update({
                             'status': 'shutdown'
                         }).eq('id', idle_worker['id']).execute()

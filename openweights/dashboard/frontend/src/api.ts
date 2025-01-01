@@ -126,6 +126,15 @@ export const api = {
         return response.data;
     },
 
+    getWorkerLogs: async (orgId: string, workerId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.get(`${API_URL}/organizations/${orgId}/workers/${workerId}/logs`, {
+            ...config,
+            responseType: 'text'
+        });
+        return response.data;
+    },
+
     shutdownWorker: async (orgId: string, workerId: string) => {
         const config = await getAuthHeaders();
         const response = await axios.post<Worker>(

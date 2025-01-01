@@ -1,5 +1,6 @@
 import os
 import re
+import requests
 from typing import List, Optional
 from datetime import datetime, timedelta
 import jwt
@@ -210,6 +211,35 @@ class Database:
         worker = self.client.table('worker').select('*').eq('id', worker_id).eq('organization_id', organization_id).single().execute()
         runs = self.client.table('runs').select('*').eq('worker_id', worker_id).order('created_at', desc=True).execute()
         return WorkerWithRuns(**worker.data, runs=[Run(**run) for run in runs.data])
+
+    def get_worker_logs(self, organization_id: str, worker_id: str) -> str:
+        """Get logs from a worker's pod or saved logfile."""
+        self.set_organization_id(organization_id)
+        worker = self.client.table('worker').select('*').eq('id', worker_id).eq('organization_id', organization_id).single().execute()
+        
+        if not worker.data:
+            raise ValueError("Worker not found or no access")
+        
+        # If worker is terminated or shutdown, try to get logs from saved file
+        if worker.data['status'] in ['terminated', 'shutdown'] and worker.data.get('logfile'):
+            try:
+                return clean_ansi(self.ow_client.files.content(worker.data['logfile']).decode('utf-8'))
+            except Exception as e:
+                return f"Error fetching saved logs: {str(e)}"
+        
+        # If worker is active/starting, try to get logs from pod
+        pod_id = worker.data.get('pod_id')
+        if not pod_id:
+            return "No pod ID available for this worker"
+            
+        try:
+            response = requests.get(f"https://{pod_id}-10101.proxy.runpod.net/logs")
+            if response.status_code == 200:
+                return clean_ansi(response.text)
+            else:
+                return f"Error fetching logs: HTTP {response.status_code}"
+        except Exception as e:
+            return f"Error fetching logs: {str(e)}"
 
     def shutdown_worker(self, organization_id: str, worker_id: str) -> Worker:
         """Set the shutdown flag for a worker."""

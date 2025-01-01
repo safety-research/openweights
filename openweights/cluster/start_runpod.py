@@ -169,7 +169,7 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
             volume_mount_path='/workspace',
             gpu_count=count,
             allowed_cuda_versions=allowed_cuda_versions,
-            ports="8000/http,22/tcp",
+            ports="8000/http,10101/http,22/tcp",
             start_ssh=True,
             env=env
         )

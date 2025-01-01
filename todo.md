@@ -1,12 +1,8 @@
-- API timeout reset loop should also call self.up, wait_until_ready should have a timeout and cancel+restart a job when it doesn't work
-
 # network volume model cache
 model download takes a long time, especially for 70b models. it would be great if we could cache models on a network volume and mount it in every worker. for this, we'd need to:
 - create a network volume when an org is created (backend)
 - create a job type to download the model and save it to network volume (could be exposed as: `openweights.cache.create('meta-llama/llama-3.3-70b-instruct'`)
 - make inference and training workers check the cached models before downloading form hf
-
-
 
 # Better support for custom jobs
 

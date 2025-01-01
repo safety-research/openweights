@@ -151,6 +151,15 @@ async def get_worker(organization_id: str, worker_id: str, db: Database = Depend
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.get("/organizations/{organization_id}/workers/{worker_id}/logs", response_class=PlainTextResponse)
+async def get_worker_logs(organization_id: str, worker_id: str, db: Database = Depends(get_db)):
+    try:
+        return db.get_worker_logs(organization_id, worker_id)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.post("/organizations/{organization_id}/workers/{worker_id}/shutdown")
 async def shutdown_worker(organization_id: str, worker_id: str, db: Database = Depends(get_db)):
     try:

@@ -44,6 +44,7 @@ class Worker(BaseModel):
     cached_models: Optional[List[str]]
     pod_id: Optional[str]
     ping: Optional[datetime]
+    logfile: Optional[str]  # New field for saved logs
     created_at: datetime
 
 class JobWithRuns(Job):

@@ -96,3 +96,7 @@ class Files:
             return validate_preference_dataset(content)
         else:
             return True
+    
+    def get_by_id(self, file_id: str) -> Dict[str, Any]:
+        """Get file details by ID"""
+        return self._supabase.table('files').select('*').eq('id', file_id).single().execute().data

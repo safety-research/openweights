@@ -18,9 +18,32 @@ service ssh start
 # Print sshd logs to stdout
 tail -f /var/log/auth.log &
 
+# Start a simple server that serves the content of main.log on port 10101
+# Create main.log if it doesn't exist
+touch main.log
+
+# Start a simple Python HTTP server to serve main.log
+python3 -c '
+import http.server
+import socketserver
+
+class LogHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        with open("main.log", "rb") as f:
+            self.wfile.write(f.read())
+
+with socketserver.TCPServer(("", 10101), LogHandler) as httpd:
+    httpd.serve_forever()
+' &
+
+
+
 # Execute the main application or run in dev mode
 if [ "$OW_DEV" = "true" ]; then
     exec tail -f /dev/null
 else
-    exec python3 openweights/worker/main.py
+    exec python3 openweights/worker/main.py > main.log 2>&1
 fi

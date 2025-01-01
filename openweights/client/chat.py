@@ -21,7 +21,7 @@ class AsyncChatCompletions:
 
         When both timeouts are set, the maximum of the two is used.
     """
-    def __init__(self, ow, deploy_kwargs={}, request_timeout=5, per_token_timeout=0.2):
+    def __init__(self, ow, deploy_kwargs={}, request_timeout=5, per_token_timeout=1):
         self.ow = ow
         self.completions = self
         self.deploy_kwargs = deploy_kwargs
@@ -49,7 +49,7 @@ class AsyncChatCompletions:
         max_value=60,
         factor=1.5,
         max_tries=10
-    )   
+    )
     async def _create_with_backoff(self, api, model, **kwargs):
         timeout = kwargs.pop('timeout', None) or max(
             self.request_timeout,
