@@ -1,9 +1,11 @@
+This repo is research code and not 100% stable. Please use github issues or contact me via email (niels dot warncke at gmail dot com) or slack when you encounter issues.
+
 # OpenWeights
 An openai-like sdk for finetuning and batch inference.
 
 # Installation
 Clone the repo and run `pip install .`.
-Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://kzy2zyhynxvjz7-8124.proxy.runpod.net/).
+Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://ktf8znsjvlhidw-8124.proxy.runpod.net/).
 
 # Quickstart
 ```python
