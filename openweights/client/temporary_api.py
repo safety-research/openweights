@@ -115,8 +115,7 @@ class TemporaryApi:
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.wait_until_ready(openai, job['params']['model'])
 
-        # self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
-        self.sem = asyncio.Semaphore(10)
+        self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
         self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
         self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
         return self.sync_client
@@ -153,8 +152,7 @@ class TemporaryApi:
         await self.async_wait_until_ready(openai, job['params']['model'])
         print(f'API ready: {self.base_url}')
 
-        # self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
-        self.sem = asyncio.Semaphore(10)
+        self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
         self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1, timeout=1800)
         self.sync_client = OpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1, timeout=1800)
         return self.async_client
