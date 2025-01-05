@@ -74,6 +74,13 @@ output = client.files.content(output_file_id).decode('utf-8')
 print(output)
 ```
 
+## Custom jobs
+Maybe you'd like to use autoscaling with queues for workloads that are not currently supported. You can start a pod that is set up like a worker but doesn't start `openweights/worker/main.py` by running:
+```sh
+python openweights/cluster/start_runpod.py A6000 finetuning --dev_mode=true
+```
+Then develop your script and finally create a `CustomJob` like in this [example](example/custom_job).
+
 ## Deploy a model as a temporary Openai-like API
 
 You can deploy models as openai-like APIs in one of the following ways (sorted from highest to lowest level of abstraction)
@@ -94,12 +101,7 @@ model = 'unsloth/llama-3-8b-Instruct'
 with client.deploy(model) as openai:
     completion = openai.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "system", "content": "Respond like an ipython terminal"},
-            {"role": "user", "content": "20 > 10"},
-            {"role": "assistant", "content": "True"},
-            {"role": "user", "content": "9.11 > 9.9"}
-        ]
+        messages=[{"role": "user", "content": "is 9.11 > 9.9?"}]
     )
     print(completion.choices[0].message)
 ```
@@ -109,12 +111,6 @@ More examples:
 - [download artifacts](example/download.py) from a job and plot training
 - and [more](example/)
 
-# Dev mode for research
-Maybe you'd like to use autoscaling with queues for workloads that are not currently supported. You can start a pod that is set up like a worker but doesn't start `openweights/worker/main.py` by running:
-```sh
-python openweights/cluster/start_runpod.py A6000 finetuning --dev_mode=true
-```
-Then develop your script and finally create a `CustomJob` like in this [example](example/custom_job).
 
 # Managing workers
 
