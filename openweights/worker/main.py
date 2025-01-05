@@ -255,6 +255,18 @@ class Worker:
         logging.debug(f"Selecting the oldest job {selected_job['id']}")
         return selected_job
 
+    def _setup_custom_job_files(self, tmp_dir: str, mounted_files: Dict[str, str]):
+        """Download and set up mounted files for a custom job."""
+        for target_path, file_id in mounted_files.items():
+            # Create directory if needed
+            full_path = os.path.join(tmp_dir, target_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            # Download and write file
+            content = self.files.content(file_id)
+            with open(full_path, 'wb') as f:
+                f.write(content)
+
     def _execute_job(self, job):
         """Execute the job and update status in the database."""
         self.current_job = job
@@ -281,6 +293,10 @@ class Worker:
                 # Execute the bash script found in job['script']
                 if job['type'] == 'script':
                     script = job['script'] 
+                elif job['type'] == 'custom':
+                    # Set up mounted files
+                    self._setup_custom_job_files(tmp_dir, job['params']['mounted_files'])
+                    script = job['script']
                 elif job['type'] == 'fine-tuning':
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:

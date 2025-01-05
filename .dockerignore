@@ -1,0 +1,8 @@
+.env*
+**/.env*
+cache/
+**/cache/
+.llm-cache/
+**/.llm-cache/
+node_modules/
+**/node_modules/

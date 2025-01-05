@@ -4,7 +4,7 @@ This repo is research code and not 100% stable. Please use github issues or cont
 An openai-like sdk for finetuning and batch inference.
 
 # Installation
-Clone the repo and run `pip install .`.
+Clone the repo and run `pip install -e .`.
 Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://ktf8znsjvlhidw-8124.proxy.runpod.net/).
 
 # Quickstart
@@ -114,6 +114,7 @@ Maybe you'd like to use autoscaling with queues for workloads that are not curre
 ```sh
 python openweights/cluster/start_runpod.py A6000 finetuning --dev_mode=true
 ```
+Then develop your script and finally create a `CustomJob` like in this [example](example/custom_job).
 
 # Managing workers
 

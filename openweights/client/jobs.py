@@ -3,6 +3,7 @@ import json
 from typing import BinaryIO, Dict, Any, List, Union
 import os
 from postgrest.exceptions import APIError
+
 import hashlib
 from supabase import Client
 
@@ -227,7 +228,7 @@ class Deployments(BaseJob):
 
     
 class Jobs(BaseJob):
-    def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='nielsrolf/ow-unsloth:latest') -> Dict[str, Any]:
+    def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='nielsrolf/ow-unsloth:latest', type='script', params=None) -> Dict[str, Any]:
         """Create a script job"""
         
         if isinstance(script, (str, bytes)):
@@ -241,11 +242,12 @@ class Jobs(BaseJob):
         
         data = {
             'id': job_id,
-            'type': 'script',
+            'type': type,
             'script': script_content,
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
-            'docker_image': image
+            'docker_image': image,
+            'params': params or {}
         }
         
         return self.get_or_create_or_reset(data)

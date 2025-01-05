@@ -20,6 +20,7 @@ from openweights.client.run import Run, Runs
 from openweights.client.events import Events
 from openweights.client.temporary_api import TemporaryApi, group_models_or_adapters_by_model, get_lora_rank
 from openweights.client.chat import ChatCompletions, AsyncChatCompletions
+from openweights.client.custom_job import CustomJob
 
 
 def create_authenticated_client(supabase_url: str, supabase_anon_key: str, auth_token: Optional[str] = None):
