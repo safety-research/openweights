@@ -92,7 +92,7 @@ class CustomJob:
         job_data = {
             'type': 'custom',
             'image': self.base_image,
-            'requires_vram_gb': self.requires_vram_gb,
+            'requires_vram_gb': params.get('requires_vram_gb', self.requires_vram_gb),
             'script': entrypoint,
             'params': {
                 'validated_params': validated_params.model_dump(),
