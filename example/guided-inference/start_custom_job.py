@@ -27,6 +27,7 @@ class GuidedInferenceConfig(BaseModel):
     prefill: str = Field('', description="Prefill")
     min_tokens: int = Field(1, description="Minimum number of tokens to generate")
     max_model_len: int = Field(2048, description="Maximum model length")
+    requires_vram_gb: int = Field(8, description="Amount of VRAM required for the job")
 
     @field_validator("input_file_id")
     def validate_dataset_type(cls, v, info):
@@ -50,7 +51,7 @@ class GuidedInferenceJob(CustomJob):
     
     base_image = 'nielsrolf/ow-inference' # We have to use an ow worker image - you can build your own by using something similar to the existing Dockerfiles
     
-    requires_vram_gb = 0
+    requires_vram_gb = 100
 
     def get_entrypoint(self, validated_params: GuidedInferenceConfig) -> str:
         """Create the command to run our script with the validated parameters"""
@@ -70,12 +71,14 @@ def main():
 
     # Create an inference job
     job = GuidedInferenceJob(client).create(
-        model='unsloth/llama-3-8b-Instruct',
+        model='unsloth/llama-3-8b',
         input_file_id=file_id,
         max_tokens=1000,
         temperature=0,
-        max_model_len=2048
+        max_model_len=2048,
+        requires_vram_gb=8
     )
+    print(json.dumps(job, indent=2))
     
     # Optional: wait for job completion and print results
     import time

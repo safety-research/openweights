@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
 
-from openweights.client import InferenceConfig, OpenWeights
+from openweights.client import OpenWeights
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List
 
@@ -99,7 +99,7 @@ def load_jsonl_file_from_id(input_file_id):
 
 def main():
     cfg_json = json.loads(sys.argv[1])
-    cfg = InferenceConfig(**cfg_json)
+    cfg = GuidedInferenceConfig(**cfg_json)
 
     llm = LLM(cfg.model,
         enable_prefix_caching=True,
