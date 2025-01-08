@@ -29,8 +29,9 @@ GPUs = {
     'A6000': 'NVIDIA RTX 6000 Ada Generation',
     'A100': 'NVIDIA A100 80GB PCIe',
     'A100S': 'NVIDIA A100-SXM4-80GB',
-    'H100': 'NVIDIA H100 NVL',
+    'H100': 'NVIDIA H100 PCIe',
     'H100N': 'NVIDIA H100 NVL',
+    'H100S': 'NVIDIA H100 80GB HBM3'
 }
 GPU_COUNT = 1
 allowed_cuda_versions = ['12.4']

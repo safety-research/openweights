@@ -35,9 +35,9 @@ logger = logging.getLogger(__name__)
 
 GPU_TYPES = {
     47: ['1x A6000'],
-    79: ['1x A100', '1x H100'],
-    158: ['2x A100', '2x H100'],
-    316: ['4x A100', '4x H100'],
+    79: ['1x A100', '1x H100', '1x H100N', '1x H100S', '1x A100S'],
+    158: ['2x A100', '2x H100', '2x H100N', '2x H100S', '2x A100S'],
+    316: ['4x A100', '4x H100', '4x H100N', '4x H100S', '4x A100S'],
 }
 
 def determine_gpu_type(required_vram, choice=None):
@@ -57,6 +57,7 @@ class OrganizationManager:
     def __init__(self):
         self.openweights = OpenWeights()
         self.org_id = self.openweights.organization_id
+        print('org name', self.openweights.org_name)
         self.supabase = OpenWeights()._supabase
         self.shutdown_flag = False
 
@@ -266,7 +267,8 @@ class OrganizationManager:
                                 count=count,
                                 worker_id=worker_id,
                                 image=docker_image,
-                                env=self.worker_env
+                                env=self.worker_env,
+                                name=f'{self.openweights.org_name}-{time.time()}-ow-1day'
                             )
                             # Update worker with pod_id
                             assert pod is not None

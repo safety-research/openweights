@@ -83,6 +83,8 @@ class OpenWeights:
         
         # Get organization ID from token
         self.organization_id = organization_id or self.get_organization_id()
+        self.org_name = self.get_organization_name()
+        print("Connected to org: ", self.org_name)
         self.set_hf_org_env()
         
         # Initialize components with organization ID
@@ -106,6 +108,15 @@ class OpenWeights:
         if not result.data:
             raise ValueError("Could not determine organization ID from token")
         return result.data
+    
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
+    def get_organization_name(self):
+        """Get the organization ID associated with the current token"""
+        result = self._supabase.table('organizations')\
+            .select('*')\
+            .eq('id', self.organization_id)\
+            .single().execute()
+        return result.data['name']
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def set_hf_org_env(self):
