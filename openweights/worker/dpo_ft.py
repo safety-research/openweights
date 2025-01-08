@@ -52,7 +52,6 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         num_train_epochs=training_cfg.epochs,
         save_steps=5000,
         output_dir=training_cfg.output_dir,
-        beta=0.1,
         **kwargs
     )
 
@@ -62,6 +61,7 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         train_dataset=dataset,
         eval_dataset=test_dataset,
         args=args,
+        beta=0.1,
         callbacks=[LogMetrics(), GPUStatsCallback()],
     )
     return trainer
