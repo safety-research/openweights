@@ -4,15 +4,11 @@ model download takes a long time, especially for 70b models. it would be great i
 - create a job type to download the model and save it to network volume (could be exposed as: `openweights.cache.create('meta-llama/llama-3.3-70b-instruct'`)
 - make inference and training workers check the cached models before downloading form hf
 
-# Better support for custom jobs
-
 # batch inference features (vllm)
 - lora support
-- logits
 
 # Stability
 - pods might have issues out of our control. when a worker has x numbers of fails in a row, we should terminate the pod and start a new one
-
 
 # Multi GPU training
 axolotl supports this. we could add a `worker/multi_gpu_training.py` that uses axolotl and accepts similar training configs. 

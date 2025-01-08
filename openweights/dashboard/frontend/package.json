@@ -16,9 +16,12 @@
     "@mui/lab": "^5.0.0-alpha.156",
     "@mui/material": "^5.15.1",
     "@supabase/supabase-js": "^2.46.2",
+    "@types/plotly.js": "^2.35.1",
     "axios": "^1.7.8",
+    "plotly.js-dist-min": "^2.35.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-plotly.js": "^2.6.0",
     "react-router-dom": "^7.0.1"
   },
   "devDependencies": {

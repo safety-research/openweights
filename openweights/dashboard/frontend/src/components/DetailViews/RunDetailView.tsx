@@ -6,12 +6,14 @@ import {
     Box, 
     Chip,
     FormControlLabel,
-    Switch
+    Switch,
+    Divider
 } from '@mui/material';
 import { RunWithJobAndWorker } from '../../types';
 import { api } from '../../api';
 import { RefreshButton } from '../RefreshButton';
 import { useOrganization } from '../../contexts/OrganizationContext';
+import { MetricsPlots } from './MetricsPlots';
 
 export const RunDetailView: React.FC = () => {
     const { orgId, runId } = useParams<{ orgId: string; runId: string }>();
@@ -64,6 +66,10 @@ export const RunDetailView: React.FC = () => {
         return <Typography>Loading...</Typography>;
     }
 
+    if (!runId) {
+        return <Typography>Run ID is required</Typography>;
+    }
+
     return (
         <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -112,6 +118,12 @@ export const RunDetailView: React.FC = () => {
                     <Typography color="error">Error: {error}</Typography>
                 </Box>
             )}
+
+            <Box sx={{ mb: 3 }}>
+                <MetricsPlots orgId={orgId} runId={runId} />
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
 
             {logContent && (
                 <Box sx={{ mb: 3 }}>

@@ -135,6 +135,15 @@ async def get_run_logs(organization_id: str, run_id: str, db: Database = Depends
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.get("/organizations/{organization_id}/runs/{run_id}/events")
+async def get_run_events(organization_id: str, run_id: str, db: Database = Depends(get_db)):
+    try:
+        return db.get_run_events(organization_id, run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.get("/organizations/{organization_id}/workers/", response_model=List[Worker])
 async def get_workers(organization_id: str, status: Optional[str] = None, db: Database = Depends(get_db)):
     try:

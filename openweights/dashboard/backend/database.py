@@ -198,6 +198,15 @@ class Database:
             worker = Worker(**worker.data) if worker.data else None
         return RunWithJobAndWorker(**run.data, job=Job(**job.data), worker=worker)
 
+    def get_run_events(self, organization_id: str, run_id: str) -> List[dict]:
+        """Get events for a run."""
+        self.set_organization_id(organization_id)
+        try:
+            return self.ow_client.events.list(run_id=run_id)
+        except Exception as e:
+            print(f"Error getting run events: {e}")
+            raise ValueError(f"Error getting run events: {str(e)}")
+
     def get_workers(self, organization_id: str, status: Optional[str] = None) -> List[Worker]:
         self.set_organization_id(organization_id)
         query = self.client.table('worker').select('*').eq('organization_id', organization_id).order('created_at', desc=True)

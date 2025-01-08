@@ -109,6 +109,12 @@ export const api = {
         });
         return response.data;
     },
+
+    getRunEvents: async (orgId: string, runId: string) => {
+        const config = await getAuthHeaders();
+        const response = await axios.get(`${API_URL}/organizations/${orgId}/runs/${runId}/events`, config);
+        return response.data;
+    },
     
     // Workers
     getWorkers: async (orgId: string, status?: string) => {

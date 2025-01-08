@@ -66,11 +66,15 @@ def train(training_cfg):
         raise ValueError(f"Unknown loss function: {training_cfg.loss}")
     
     trainer.train()
-    eval_results = trainer.evaluate()
-    run.log(eval_results)
 
     finetuned_model_id = training_cfg.finetuned_model_id or f"{training_cfg.model}:ft-{run.id}"
     push_model(training_cfg,finetuned_model_id, model, tokenizer)
+
+    try:
+        eval_results = trainer.evaluate()
+        run.log(eval_results)
+    except Exception as e:
+        print(f"Error evaluating model: {e}. The model has already been pushed to the hub.")
 
 
 @backoff.on_exception(backoff.constant, Exception, interval=10, max_tries=5)
