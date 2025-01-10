@@ -5,24 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class CustomJob:
-    """Base class for custom jobs that can be run on OpenWeights.
-    
-    Example:
-    ```python
-    class MyCustomJob(CustomJob):
-        mount = {
-            'path/to/script.py': 'script.py',
-            'path/to/dir/': 'dirname/'
-        }
-        params: Type[BaseModel] = MyParams  # Your Pydantic model for params
-        base_image: str = 'nielsrolf/ow-inference'
-        requires_vram_gb: int = 24
-
-        def get_entrypoint(self, validated_params: BaseModel) -> str:
-            # Get the entrypoint command for the job.
-            return f'python script.py {json.dumps(validated_params.model_dump())}'
-    ```
-    """
+    """Base class for custom jobs that can be run on OpenWeights."""
     mount: Dict[str, str] = {}  # source path -> target path mapping
     params: Type[BaseModel] = BaseModel  # Pydantic model for parameter validation
     base_image: str = 'nielsrolf/ow-inference'  # Base Docker image to use
