@@ -17,7 +17,8 @@ with open('tests/preference_dataset.jsonl', 'rb') as file:
 
 job = client.fine_tuning.create(
     model='unsloth/llama-3-8b-Instruct',
-    training_file=file['id']
+    training_file=file['id'],
+    loss='dpo'
 )
 ```
 

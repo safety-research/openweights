@@ -65,7 +65,7 @@ class TrainingConfig(BaseModel):
     load_in_4bit: bool = Field(False, description="Whether to load model in 4-bit quantization")
     
     # Training type configuration
-    loss: Literal["dpo", "orpo", "sft"] = Field("orpo", description="Loss function / training type")
+    loss: Literal["dpo", "orpo", "sft"] = Field(..., description="Loss function / training type")
     
     # PEFT configuration
     is_peft: bool = Field(True, description="Whether to use PEFT for training")
