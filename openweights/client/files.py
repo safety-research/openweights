@@ -3,6 +3,7 @@ import os
 import hashlib
 from datetime import datetime
 from supabase import Client
+import backoff
 
 from openweights.validate import validate_messages, validate_preference_dataset
 
@@ -34,6 +35,7 @@ class Files:
             # Fallback if RPC fails
             return f"organizations/{self._org_id}/{file_id}"
 
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, file: BinaryIO, purpose: str) -> Dict[str, Any]:
         """Upload a file and create a database entry"""
         file_id = f"{purpose}:{self._calculate_file_hash(file)}"
@@ -81,6 +83,7 @@ class Files:
             'purpose': purpose,
         }
 
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def content(self, file_id: str) -> bytes:
         """Get file content"""
         storage_path = self._get_storage_path(file_id)
@@ -96,7 +99,8 @@ class Files:
             return validate_preference_dataset(content)
         else:
             return True
-    
+        
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_by_id(self, file_id: str) -> Dict[str, Any]:
         """Get file details by ID"""
         return self._supabase.table('files').select('*').eq('id', file_id).single().execute().data

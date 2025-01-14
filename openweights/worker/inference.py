@@ -1,4 +1,5 @@
 import json
+import time
 
 import torch
 from dotenv import load_dotenv
@@ -56,13 +57,19 @@ def main(config_path: str):
     with open(config_path, 'r') as f:
         cfg = InferenceConfig(**json.load(f))
 
-    llm = LLM(cfg.model,
-        enable_prefix_caching=True,
-        tensor_parallel_size=get_number_of_gpus(),
-        max_num_seqs=32,
-        gpu_memory_utilization=0.95,
-        max_model_len=cfg.max_model_len
-    )
+    for _ in range(60):
+        try:
+            llm = LLM(cfg.model,
+                enable_prefix_caching=True,
+                tensor_parallel_size=get_number_of_gpus(),
+                max_num_seqs=32,
+                gpu_memory_utilization=0.95,
+                max_model_len=cfg.max_model_len
+            )
+            break
+        except Exception as e:
+            print(f"Error initializing model: {e}")
+            time.sleep(5)
     conversations = load_jsonl_file_from_id(cfg.input_file_id)
     
     answers = sample(
