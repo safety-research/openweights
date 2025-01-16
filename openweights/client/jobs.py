@@ -145,9 +145,9 @@ class InferenceJobs(BaseJob):
         if requires_vram_gb == 'guess':
             model_size = guess_model_size(params['model'])
             weights_require = 2 * model_size
-            if '8bit' in params['model']:
+            if '8bit' in params['model'] and not 'ftjob' in params['model']:
                 weights_require = weights_require / 2
-            elif '4bit' in params['model']:
+            elif '4bit' in params['model'] and not 'ftjob' in params['model']:
                 weights_require = weights_require / 4
             kv_cache_requires = 5 # TODO estimate this better
             requires_vram_gb = int(weights_require + kv_cache_requires + 0.5)

@@ -83,27 +83,26 @@ class Worker:
                 )
             )
 
+        # Detect GPU info
         try:
             self.gpu_count = torch.cuda.device_count()
             self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * self.gpu_count
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
+            self.gpu_count = 0
             self.vram_gb = 0
         
+        # GPU health check
         if self.gpu_count > 0:
-            # GPU health check
             is_healthy, errors = GPUHealthCheck.check_gpu_health()
             if not is_healthy:
-                # Log the errors
                 for error in errors:
                     logging.error(f"GPU health check failed: {error}")
-            # Set shutdown flag if GPU health check failed
-            if not is_healthy:
                 self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
                 self.shutdown_flag = True
 
+        # Register or read existing worker
         logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
-        # Check if the worker is already registered and if its status is 'shutdown'
         data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
         if data:
             self.pod_id = data[0].get('pod_id')
@@ -148,7 +147,7 @@ class Worker:
                 }).eq('id', self.worker_id).execute()
 
                 # Check if worker status is 'shutdown'
-                if result.data[0]['status'] == 'shutdown':
+                if result.data and result.data[0]['status'] == 'shutdown':
                     self.shutdown_flag = True
 
                 # Check if current job is canceled or timed out
@@ -180,7 +179,8 @@ class Worker:
             except Exception as e:
                 logging.error(f"Error in health check loop: {e}")
 
-            time.sleep(30)  # Wait for 30 seconds before next check
+            time.sleep(5)  # Wait for 5 seconds before next check
+
         self.shutdown_handler()
 
     def shutdown_handler(self):
@@ -188,10 +188,17 @@ class Worker:
         logging.info(f"Shutting down worker {self.worker_id}.")
         self.shutdown_flag = True
         
-        # Cancel current job and run if any
+        # If we have a current job, revert it to 'pending' ONLY if it's still in_progress
+        # (We do that by calling our same update_job_status_if_in_progress function.)
         if self.current_job:
             try:
-                self.supabase.table('jobs').update({'status': 'pending'}).eq('id', self.current_job['id']).execute()
+                # Mark job as 'pending' only if it is still 'in_progress' by this worker
+                self.update_job_status_if_in_progress(
+                    self.current_job['id'],
+                    'pending',
+                    None,  # job_outputs
+                    None   # job_script
+                )
                 if self.current_run:
                     self.current_run.update(status='canceled')
             except Exception as e:
@@ -201,11 +208,10 @@ class Worker:
         try:
             result = self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
             # If the worker has a pod_id, terminate the pod
-            if result.data[0].get('pod_id'):
+            if result.data and result.data[0].get('pod_id'):
                 runpod.terminate_pod(result.data[0]['pod_id'])
         except Exception as e:
             logging.error(f"Error updating worker status during shutdown: {e}")
-        
 
     def find_and_execute_job(self):
         while not self.shutdown_flag:
@@ -220,53 +226,57 @@ class Worker:
                 logging.info("No suitable job found. Checking again in a few seconds...")
                 time.sleep(5)
                 continue
+
             try:
-                logging.info(f"Executing job {job}")
-                self._execute_job(job)
+                logging.info(f"Attempting to acquire job {job['id']}")
+                acquired_job = self.acquire_job(job['id'])
+                if not acquired_job:
+                    # Another worker took it in the meantime
+                    logging.info(f"Job {job['id']} was taken by another worker.")
+                    time.sleep(2)
+                    continue
+
+                logging.info(f"Worker {self.worker_id} acquired job {job['id']}, executing...")
+                self._execute_job(acquired_job)
             except KeyboardInterrupt:
                 logging.info("Worker interrupted by user. Shutting down...")
                 break
             except Exception as e:
                 logging.error(f"Failed to execute job {job['id']}: {e}")
                 traceback.print_exc()
+
             if self.shutdown_flag:
                 break
 
     def _find_job(self):
+        """Fetch pending jobs for this docker image, sorted by required VRAM desc, then oldest first."""
         logging.debug("Fetching jobs from the database...")
-        jobs = self.supabase.table('jobs').select('*').eq('status', 'pending').eq('docker_image', self.docker_image).order('requires_vram_gb', desc=True).order('created_at', desc=False).execute().data
+        jobs = self.supabase.table('jobs') \
+            .select('*') \
+            .eq('status', 'pending') \
+            .eq('docker_image', self.docker_image) \
+            .order('requires_vram_gb', desc=True) \
+            .order('created_at', desc=False) \
+            .execute().data
 
         logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
 
-        suitable_jobs = [
-            job for job in jobs if job['requires_vram_gb'] <= self.vram_gb
-        ]
-
+        suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb]
         logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
 
         if not suitable_jobs:
             return None
         
-        for job in suitable_jobs:
-            if job['model'] in self.cached_models:
-                logging.debug(f"Selecting job {job['id']} with cached model {job['model']}")
-                return job
+        # Prefer a job with a cached model
+        for j in suitable_jobs:
+            if j['model'] in self.cached_models:
+                logging.debug(f"Selecting job {j['id']} with cached model {j['model']}")
+                return j
 
+        # Otherwise, pick the oldest suitable job
         selected_job = sorted(suitable_jobs, key=lambda j: j['created_at'])[0]
         logging.debug(f"Selecting the oldest job {selected_job['id']}")
         return selected_job
-
-    def _setup_custom_job_files(self, tmp_dir: str, mounted_files: Dict[str, str]):
-        """Download and set up mounted files for a custom job."""
-        for target_path, file_id in mounted_files.items():
-            # Create directory if needed
-            full_path = os.path.join(tmp_dir, target_path)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            
-            # Download and write file
-            content = self.files.content(file_id)
-            with open(full_path, 'wb') as f:
-                f.write(content)
 
     def _execute_job(self, job):
         """Execute the job and update status in the database."""
@@ -278,20 +288,14 @@ class Worker:
             os.makedirs(f"{tmp_dir}/uploads", exist_ok=True)
             log_file_path = os.path.join(tmp_dir, "log.txt")
 
-            # Update job status to in_progress
-            result = self.supabase.table('jobs').update({
-                'status': 'in_progress', 
-                'worker_id': self.worker_id
-            }).eq('id', job['id']).eq('status', 'pending').execute()
+            # We already acquired the job via RPC, so it should be in 'in_progress' state for us now.
 
-            if not result.data:  # or len(result.data) == 0
-                # Job was already taken by another worker
-                return None  # or raise an exception
-            
             outputs = None
             status = 'canceled'
+            script = None  # We'll store the actual script string we ran.
+
             try:
-                # Execute the bash script found in job['script']
+                # Prepare the script based on job type:
                 if job['type'] == 'script':
                     script = job['script'] 
                 elif job['type'] == 'custom':
@@ -303,7 +307,6 @@ class Worker:
                     with open(config_path, 'w') as f:
                         json.dump(job['params'], f)
                     script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
-                    print(script)
                 elif job['type'] == 'inference':
                     config_path = os.path.join(tmp_dir, "config.json")
                     with open(config_path, 'w') as f:
@@ -316,6 +319,7 @@ class Worker:
                     env = os.environ.copy()
                     env['OPENWEIGHTS_RUN_ID'] = str(self.current_run.id)
                     env['N_GPUS'] = str(self.gpu_count)
+
                     self.current_process = subprocess.Popen(
                         script, 
                         shell=True, 
@@ -323,30 +327,29 @@ class Worker:
                         stderr=subprocess.STDOUT,
                         cwd=tmp_dir, 
                         env=env,
-                        preexec_fn=os.setsid
+                        preexec_fn=os.setsid  # Allow us to send signals to the process group
                     )
 
-                    # New code: log to both file and stdout
+                    # Stream logs to both file and stdout
                     for line in iter(self.current_process.stdout.readline, b''):
-                        line = line.decode().strip()
-                        print(line)
-                        log_file.write(line + '\n')
+                        decoded = line.decode().rstrip('\n')
+                        print(decoded)
+                        log_file.write(decoded + '\n')
 
-                    status = 'canceled'
                     self.current_process.wait()
 
                     if self.current_process is None:
                         logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})
                     elif self.current_process.returncode == 0:
                         status = 'completed'
+                        # Attempt to fetch the latest events for outputs
                         outputs = openweights.events.latest('*', job_id=job['id'])
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
                     else:
                         status = 'failed'
                         logging.error(f"Job {job['id']} failed with return code {self.current_process.returncode}", 
-                                    extra={'run_id': self.current_run.id})
+                                      extra={'run_id': self.current_run.id})
                         self.current_run.log({'error': f"Process exited with return code {self.current_process.returncode}"})
-
             except Exception as e:
                 logging.error(f"Job {job['id']} failed: {e}", extra={'run_id': self.current_run.id})
                 status = 'failed'
@@ -355,29 +358,78 @@ class Worker:
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:
                     log_response = self.files.create(log_file, purpose='log')
-                # Debug: print the log file content
-                with open(log_file_path, 'r') as log_file:
-                    print(log_file.read())
-                self.supabase.table('jobs').update({'status': status, 'outputs': outputs, 'script': script}).eq('id', job['id']).execute()
+
+                # (Optional) Debug: read the log file back
+                # with open(log_file_path, 'r') as log_file:
+                #     print(log_file.read())
+
+                # Use your RPC to update the job status only if it's still 'in_progress' for you
+                self.update_job_status_if_in_progress(
+                    job['id'],
+                    status,
+                    outputs,
+                    script
+                )
+                # Also update the run object
                 self.current_run.update(status=status, logfile=log_response['id'])
-                # After execution, proceed to upload any files from the /uploads directory
+
+                # Then upload any files from /uploads as results
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):
                     for file_name in files:
                         file_path = os.path.join(root, file_name)
                         try:
-                            # Upload each file
                             with open(file_path, 'rb') as file:
                                 file_response = self.files.create(file, purpose='result')
-                            # Log the uploaded file
+                            # Log the uploaded file to the run
                             self.current_run.log({'file': file_response['id']})
                         except Exception as e:
                             logging.error(f"Failed to upload file {file_name}: {e}")
                 
-                # Clear current job and run
+                # Clear current job/run/process
                 self.current_job = None
                 self.current_run = None
                 self.current_process = None
+
+    def _setup_custom_job_files(self, tmp_dir: str, mounted_files: Dict[str, str]):
+        """Download and set up mounted files for a custom job."""
+        for target_path, file_id in mounted_files.items():
+            full_path = os.path.join(tmp_dir, target_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            content = self.files.content(file_id)
+            with open(full_path, 'wb') as f:
+                f.write(content)
+
+    def acquire_job(self, job_id: str):
+        """
+        Attempts to set a job from 'pending' to 'in_progress' for this worker 
+        using the Postgres acquire_job() function. Returns the updated row if 
+        successful, or None if not acquired.
+        """
+        result = self.supabase.rpc("acquire_job", {
+            "_job_id": job_id,
+            "_worker_id": self.worker_id
+        }).execute()
+        
+        # acquire_job() returns SETOF jobs; might be empty if not acquired
+        if not result.data:
+            return None
+        return result.data[0]
+
+    def update_job_status_if_in_progress(self, job_id: str, new_status: str,
+                                         job_outputs: dict = None,
+                                         job_script: str = None):
+        """
+        Updates the job status ONLY if the job is still in 'in_progress' 
+        and still assigned to this worker (atomic check inside the function).
+        """
+        self.supabase.rpc("update_job_status_if_in_progress", {
+            "_job_id": job_id,
+            "_new_status": new_status,
+            "_worker_id": self.worker_id,
+            "_job_outputs": job_outputs,
+            "_job_script": job_script
+        }).execute()
 
 
 if __name__ == "__main__":
