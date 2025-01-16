@@ -24,7 +24,7 @@ load_dotenv()
 POLL_INTERVAL = 15
 IDLE_THRESHOLD = 300  # 5 minutes = 300 seconds
 UNRESPONSIVE_THRESHOLD = 120  # 2 minutes = 120 seconds
-MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 4))
+MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 10))
 
 # Configure logging
 logging.basicConfig(
@@ -157,48 +157,72 @@ class OrganizationManager:
             return None
 
     def clean_up_unresponsive_workers(self, workers):
-        """Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds."""
+        """
+        Clean up workers that haven't pinged in more than UNRESPONSIVE_THRESHOLD seconds
+        and safely revert their in-progress jobs.
+        """
         current_time = datetime.now(timezone.utc)
         
         for worker in workers:
             try:
-                # Parse ping time as UTC and ensure it has timezone info
+                # Parse ping time as UTC
                 last_ping = datetime.fromisoformat(worker['ping'].replace('Z', '+00:00')).astimezone(timezone.utc)
                 time_since_ping = (current_time - last_ping).total_seconds()
+                # If status is 'starting', give it more time before calling it unresponsive
                 threshold = UNRESPONSIVE_THRESHOLD * 3 if worker['status'] == 'starting' else UNRESPONSIVE_THRESHOLD
                 is_unresponsive = time_since_ping > threshold
             except Exception as e:
+                # If parsing ping time fails, treat worker as unresponsive
                 is_unresponsive = True
                 time_since_ping = 'unknown'
 
             if is_unresponsive:
                 logger.info(f"Worker {worker['id']} hasn't pinged for {time_since_ping} seconds. Cleaning up...")
 
-                # Save worker logs before termination
+                # Save worker logs before termination (if applicable)
                 self.fetch_and_save_worker_logs(worker)
 
-                # If worker has an in_progress job, set run to failed and job to pending
-                runs = self.supabase.table('runs').select('*').eq('worker_id', worker['id']).eq('status', 'in_progress').execute().data
+                # 1) Find any runs currently 'in_progress' for this worker.
+                runs = self.supabase.table('runs')\
+                    .select('*')\
+                    .eq('worker_id', worker['id'])\
+                    .eq('status', 'in_progress')\
+                    .execute().data
+
+                # 2) For each run, set run to 'failed' (or 'canceled'), and
+                #    revert the job to 'pending' *only if* it's still in_progress for THIS worker.
                 for run in runs:
+                    # Mark the run as failed
                     self.supabase.table('runs').update({
                         'status': 'failed'
                     }).eq('id', run['id']).execute()
-                    self.supabase.table('jobs').update({
-                        'status': 'pending'
-                    }).eq('id', run['job_id']).execute()
-                
-                # If worker has a pod_id, terminate the pod
-                if worker['pod_id']:
+                    
+                    # Safely revert the job to 'pending' using your RPC that only updates 
+                    # if status='in_progress' for the same worker_id.
+                    try:
+                        self.supabase.rpc('update_job_status_if_in_progress', {
+                            '_job_id': run['job_id'],
+                            '_new_status': 'pending',   # Must be valid enum label
+                            '_worker_id': worker['id'],
+                            '_job_outputs': None,
+                            '_job_script': None
+                        }).execute()
+                    except Exception as e:
+                        logger.error(f"Error reverting job {run['job_id']} to pending: {e}")
+
+                # 3) If this worker has a RunPod pod, terminate it
+                if worker.get('pod_id'):
                     try:
                         logger.info(f"Terminating pod {worker['pod_id']}")
                         runpod.terminate_pod(worker['pod_id'])
                     except Exception as e:
                         logger.error(f"Failed to terminate pod {worker['pod_id']}: {e}")
-                
-                # Mark worker as terminated in database
+
+                # 4) Finally, mark the worker as 'terminated' in the DB
                 self.supabase.table('worker').update({
                     'status': 'terminated'
                 }).eq('id', worker['id']).execute()
+
 
     def scale_workers(self, running_workers, pending_jobs):
         """Scale workers according to pending jobs and limits."""
