@@ -3,6 +3,7 @@ import json
 from typing import BinaryIO, Dict, Any, List, Union
 import os
 from postgrest.exceptions import APIError
+import backoff
 
 import hashlib
 from supabase import Client
@@ -15,26 +16,31 @@ class BaseJob:
         self._supabase = supabase
         self._org_id = organization_id
 
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
         """List jobs"""
         result = self._supabase.table('jobs').select('*').limit(limit).execute()
         return result.data
 
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def retrieve(self, job_id: str) -> Dict[str, Any]:
         """Get job details"""
         result = self._supabase.table('jobs').select('*').eq('id', job_id).single().execute()
         return result.data
 
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def cancel(self, job_id: str) -> Dict[str, Any]:
         """Cancel a job"""
         result = self._supabase.table('jobs').update({'status': 'canceled'}).eq('id', job_id).execute()
         return result.data[0]
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def restart(self, job_id: str) -> Dict[str, Any]:
         """Restart a job"""
         result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', job_id).execute()
         return result.data[0]
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """If job exists and is [pending, in_progress, completed] return it.
         If job exists and is [failed, canceled] reset it to pending and return it.
@@ -69,7 +75,8 @@ class BaseJob:
             return job
         else:
             raise ValueError(f"Invalid job status: {job['status']}")
-    
+        
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def find(self, **params) -> List[Dict[str, Any]]:
         """Find jobs by their JSON values in job.params
         Example:
@@ -94,6 +101,7 @@ class BaseJob:
         return data
         
 class FineTuningJobs(BaseJob):
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
         if 'training_file' not in params:
@@ -125,6 +133,7 @@ class FineTuningJobs(BaseJob):
         return self.get_or_create_or_reset(data)
 
 class InferenceJobs(BaseJob):
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create an inference job"""
 
@@ -136,9 +145,9 @@ class InferenceJobs(BaseJob):
         if requires_vram_gb == 'guess':
             model_size = guess_model_size(params['model'])
             weights_require = 2 * model_size
-            if '8bit' in params['model']:
+            if '8bit' in params['model'] and not 'ftjob' in params['model']:
                 weights_require = weights_require / 2
-            elif '4bit' in params['model']:
+            elif '4bit' in params['model'] and not 'ftjob' in params['model']:
                 weights_require = weights_require / 4
             kv_cache_requires = 5 # TODO estimate this better
             requires_vram_gb = int(weights_require + kv_cache_requires + 0.5)
@@ -173,6 +182,7 @@ def guess_model_size(model: str) -> int:
 
 
 class Deployments(BaseJob):
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create an inference job"""
         params = ApiConfig(**params).model_dump()
@@ -228,6 +238,7 @@ class Deployments(BaseJob):
 
     
 class Jobs(BaseJob):
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='nielsrolf/ow-unsloth:latest', type='script', params=None) -> Dict[str, Any]:
         """Create a script job"""
         

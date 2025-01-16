@@ -1,7 +1,7 @@
 This repo is research code and not 100% stable. Please use github issues or contact me via email (niels dot warncke at gmail dot com) or slack when you encounter issues.
 
 # OpenWeights
-An openai-like sdk for finetuning and batch inference.
+An openai-like sdk for finetuning and batch inference. Manages runpod instances for you, or you can run a [worker](openweights/worker) on your own GPU.
 
 # Installation
 Clone the repo and run `pip install -e .`.
@@ -17,7 +17,8 @@ with open('tests/preference_dataset.jsonl', 'rb') as file:
 
 job = client.fine_tuning.create(
     model='unsloth/llama-3-8b-Instruct',
-    training_file=file['id']
+    training_file=file['id'],
+    loss='dpo'
 )
 ```
 
@@ -110,32 +111,3 @@ More examples:
 - do a [hyperparameter sweep](example/hparams_sweep.py) and [visualize the results](example/analyze_hparam_sweep.ipynb)
 - [download artifacts](example/download.py) from a job and plot training
 - and [more](example/)
-
-
-# Managing workers
-
-Start a worker on the current machine:
-```sh
-python openweights/worker/main.py
-```
-
-Start a single runpod instance with a worker:
-```sh
-python openweights/cluster/start_runpod.py
-```
-
-Starting a cluster
-```sh
-python openweights/cluster/supervisor.py
-```
-
-# Updating worker images
-
-```sh
-## Inference (vllm)
-docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference .
-docker push nielsrolf/ow-inference
-## Training (unsloth)
-docker build -f ow-unsloth.Dockerfile -t nielsrolf/ow-unsloth .
-docker push nielsrolf/ow-unsloth
-```

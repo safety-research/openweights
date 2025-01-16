@@ -105,6 +105,8 @@ export function Auth() {
           View Documentation
         </Link>
 
+
+
         <Tabs 
           value={mode} 
           onChange={(_, newValue: AuthMode) => {
@@ -119,16 +121,21 @@ export function Auth() {
         </Tabs>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
-            {error}
-          </Alert>
-        )}
+        <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
+          {error}
+        </Alert>
+      )}
 
-        {success && (
+      {success && (
+        <>
           <Alert severity="success" sx={{ mb: 2, width: '100%' }}>
             {success}
           </Alert>
-        )}
+          <Alert severity="info" sx={{ mb: 2, width: '100%' }}>
+            Note: Our emails may be delivered to your spam folder. Please check there if you don't see them in your inbox.
+          </Alert>
+        </>
+      )}
 
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
           <TextField
