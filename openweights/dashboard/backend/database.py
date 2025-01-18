@@ -1,13 +1,13 @@
 import os
 import re
 import requests
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import jwt
 from dotenv import load_dotenv
 from models import (Job, JobWithRuns, Run, RunWithJobAndWorker, Worker,
-                   WorkerWithRuns, Token, TokenCreate)
-from utils import clean_ansi
+                   WorkerWithRuns, Token, TokenCreate, Organization, OrganizationCreate)
+from utils import clean_ansi, validate_organization_secrets, validate_huggingface_secrets
 from supabase import create_client, Client
 from postgrest.exceptions import APIError
 
@@ -75,6 +75,90 @@ class Database:
         except Exception as e:
             print(f"Error verifying organization access: {e}")
             return False
+
+    async def create_organization(self, org_data: OrganizationCreate) -> Organization:
+        """Create a new organization with the given name and secrets."""
+        # First validate all secrets
+        is_valid, error_message = validate_organization_secrets(org_data.secrets)
+        if not is_valid:
+            raise ValueError(f"Invalid secrets: {error_message}")
+
+        try:
+            # Create organization using admin client to bypass RLS
+            result = self.admin_client.from_('organizations').insert({
+                'name': org_data.name
+            }).execute()
+            
+            if not result.data:
+                raise ValueError("Failed to create organization")
+            
+            org_id = result.data[0]['id']
+            
+            # Add the creator as an admin using admin client
+            user_id = self.get_user_id_from_token()
+            member_result = self.admin_client.from_('organization_members').insert({
+                'organization_id': org_id,
+                'user_id': user_id,
+                'role': 'admin'
+            }).execute()
+            
+            if not member_result.data:
+                raise ValueError("Failed to add admin member")
+            
+            # Add secrets using admin client
+            for secret_name, secret_value in org_data.secrets.items():
+                secret_result = self.admin_client.from_('organization_secrets').insert({
+                    'organization_id': org_id,
+                    'name': secret_name,
+                    'value': secret_value
+                }).execute()
+                
+                if not secret_result.data:
+                    raise ValueError(f"Failed to add secret: {secret_name}")
+            
+            return Organization(**result.data[0])
+            
+        except Exception as e:
+            raise ValueError(f"Failed to create organization: {str(e)}")
+
+    async def update_organization_secret(self, organization_id: str, secret_name: str, secret_value: str) -> bool:
+        """Update or create an organization secret."""
+        self.set_organization_id(organization_id)
+        
+        # Get existing secrets to validate together
+        try:
+            secrets_result = self.client.from_('organization_secrets')\
+                .select('name, value')\
+                .eq('organization_id', organization_id)\
+                .execute()
+            
+            # Create a dictionary of current secrets
+            current_secrets = {
+                secret['name']: secret['value'] 
+                for secret in secrets_result.data
+            }
+            
+            # Update with new secret value
+            current_secrets[secret_name] = secret_value
+            
+            # Validate all secrets together
+            is_valid, error_message = validate_organization_secrets(current_secrets)
+            if not is_valid:
+                raise ValueError(f"Invalid secret configuration: {error_message}")
+            
+            # If validation passes, update the secret
+            result = self.client.rpc(
+                'manage_organization_secret',
+                {
+                    'org_id': organization_id,
+                    'secret_name': secret_name,
+                    'secret_value': secret_value
+                }
+            ).execute()
+            
+            return bool(result.data)
+        except Exception as e:
+            raise ValueError(f"Failed to update secret: {str(e)}")
 
     async def create_token(self, organization_id: str, token_data: TokenCreate) -> Token:
         """Create a new token with optional expiration."""
@@ -295,3 +379,31 @@ class Database:
             
         except Exception as e:
             return f"Error processing request: {str(e)}"
+    
+    async def update_organization_secrets(self, organization_id: str, secrets: Dict[str, str]) -> bool:
+        """Update all organization secrets together."""
+        self.set_organization_id(organization_id)
+        
+        try:
+            # First validate all secrets together
+            is_valid, error_message = validate_organization_secrets(secrets)
+            if not is_valid:
+                raise ValueError(f"Invalid secret configuration: {error_message}")
+            
+            # If validation passes, update all secrets
+            for secret_name, secret_value in secrets.items():
+                result = self.client.rpc(
+                    'manage_organization_secret',
+                    {
+                        'org_id': organization_id,
+                        'secret_name': secret_name,
+                        'secret_value': secret_value
+                    }
+                ).execute()
+                
+                if not result.data:
+                    raise ValueError(f"Failed to update secret: {secret_name}")
+            
+            return True
+        except Exception as e:
+            raise ValueError(f"Failed to update secrets: {str(e)}")

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, FileResponse
@@ -71,6 +71,21 @@ async def get_organization(organization_id: str, db: Database = Depends(get_db))
             raise HTTPException(status_code=404, detail="Organization not found")
             
         return result.data
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/organizations/{organization_id}/secrets")
+async def update_organization_secrets(
+    organization_id: str,
+    secrets: Dict[str, str],
+    db: Database = Depends(get_db)
+):
+    """Update all organization secrets together."""
+    try:
+        success = await db.update_organization_secrets(organization_id, secrets)
+        return {"status": "success" if success else "failed"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

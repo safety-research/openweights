@@ -11,6 +11,7 @@ import traceback
 from datetime import datetime, timezone
 import signal
 import jwt
+import random
 
 import runpod
 import torch
@@ -114,7 +115,6 @@ class Worker:
             self.supabase.table('worker').upsert({
                 'id': self.worker_id,
                 'status': 'active',
-                'cached_models': self.cached_models,
                 'vram_gb': self.vram_gb,
                 'ping': datetime.now(timezone.utc).isoformat(),
                 'organization_id': self.organization_id,
@@ -264,6 +264,9 @@ class Worker:
         suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb]
         logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
 
+        # Shuffle suitable jobs to get different workers to cache different models
+        random.shuffle(suitable_jobs)
+
         if not suitable_jobs:
             return None
         
@@ -272,11 +275,7 @@ class Worker:
             if j['model'] in self.cached_models:
                 logging.debug(f"Selecting job {j['id']} with cached model {j['model']}")
                 return j
-
-        # Otherwise, pick the oldest suitable job
-        selected_job = sorted(suitable_jobs, key=lambda j: j['created_at'])[0]
-        logging.debug(f"Selecting the oldest job {selected_job['id']}")
-        return selected_job
+        return suitable_jobs[0]
 
     def _execute_job(self, job):
         """Execute the job and update status in the database."""
@@ -345,6 +344,9 @@ class Worker:
                         # Attempt to fetch the latest events for outputs
                         outputs = openweights.events.latest('*', job_id=job['id'])
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
+                        # We now have the model cached
+                        if job['model'] not in self.cached_models:
+                            self.cached_models.append(job['model'])
                     else:
                         status = 'failed'
                         logging.error(f"Job {job['id']} failed with return code {self.current_process.returncode}", 
@@ -358,10 +360,6 @@ class Worker:
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:
                     log_response = self.files.create(log_file, purpose='log')
-
-                # (Optional) Debug: read the log file back
-                # with open(log_file_path, 'r') as log_file:
-                #     print(log_file.read())
 
                 # Use your RPC to update the job status only if it's still 'in_progress' for you
                 self.update_job_status_if_in_progress(
