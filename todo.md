@@ -2,6 +2,7 @@
 - write run logs to file which is served by http
 - login with API key
 - delete API key revokes access
+- URLs work and don't always bring you to the landing page
 
 # batch inference features (vllm)
 - lora support

@@ -91,7 +91,6 @@ export function OrganizationDetail() {
   const { user } = useAuth()
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [members, setMembers] = useState<Member[]>([])
-  const [secrets, setSecrets] = useState<Secret[]>([])
   const [editedSecrets, setEditedSecrets] = useState<Record<string, string>>({})
   const [isAdmin, setIsAdmin] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -150,7 +149,6 @@ export function OrganizationDetail() {
           .eq('organization_id', orgId)
 
         if (secretError) throw secretError
-        setSecrets(secretData)
         // Initialize edited secrets with current values
         const currentValues = Object.fromEntries(
           secretData.map((secret: Secret) => [secret.name, secret.value])
@@ -256,7 +254,10 @@ export function OrganizationDetail() {
         .eq('organization_id', orgId);
 
       if (secretError) throw secretError;
-      setSecrets(secretData);
+      const currentValues = Object.fromEntries(
+        secretData.map((secret: Secret) => [secret.name, secret.value])
+      );
+      setEditedSecrets(currentValues);
       setHasChanges(false);
       setSecretError(null);
     } catch (err) {

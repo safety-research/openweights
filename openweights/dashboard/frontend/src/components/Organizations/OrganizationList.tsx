@@ -25,6 +25,7 @@ interface CreateOrgFormData {
     HF_ORG: string;
     HF_TOKEN: string;
     RUNPOD_API_KEY: string;
+    OPENWEIGHTS_API_KEY: string;
 }
 
 const initialFormData: CreateOrgFormData = {
@@ -33,6 +34,7 @@ const initialFormData: CreateOrgFormData = {
     HF_ORG: '',
     HF_TOKEN: '',
     RUNPOD_API_KEY: '',
+    OPENWEIGHTS_API_KEY: '',
 };
 
 export function OrganizationList() {
@@ -63,6 +65,7 @@ export function OrganizationList() {
                     HF_ORG: formData.HF_ORG,
                     HF_TOKEN: formData.HF_TOKEN,
                     RUNPOD_API_KEY: formData.RUNPOD_API_KEY,
+                    OPENWEIGHTS_API_KEY: formData.OPENWEIGHTS_API_KEY,
                 }
             });
             
@@ -209,6 +212,15 @@ export function OrganizationList() {
                         type="password"
                         value={formData.RUNPOD_API_KEY}
                         onChange={handleInputChange('RUNPOD_API_KEY')}
+                        sx={{ mb: 2 }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="OpenWeights API Key"
+                        fullWidth
+                        type="password"
+                        value={formData.OPENWEIGHTS_API_KEY}
+                        onChange={handleInputChange('OPENWEIGHTS_API_KEY')}
                     />
                 </DialogContent>
                 <DialogActions>
