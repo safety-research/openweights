@@ -106,6 +106,8 @@ class Database:
                 raise ValueError("Failed to add admin member")
             
             # Add secrets using admin client
+            token = await self.create_token(org_id, TokenCreate(name="OpenWeights API Key"))
+            org_data.secrets["OPENWEIGHTS_API_KEY"] = token.access_token
             for secret_name, secret_value in org_data.secrets.items():
                 secret_result = self.admin_client.from_('organization_secrets').insert({
                     'organization_id': org_id,
