@@ -139,7 +139,9 @@ class OpenWeights:
             self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
     
-    def deploy(self, model, lora_adapters=[], max_lora_rank='guess', max_model_len=2048, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> TemporaryApi:
+    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess') -> TemporaryApi:
+        if lora_adapters is None:
+            lora_adapters = []
         """Deploy a model on OpenWeights"""
         if api_key is None:
             api_key = self.auth_token
@@ -152,8 +154,9 @@ class OpenWeights:
             lora_adapters=lora_adapters, max_lora_rank=max_lora_rank)
         return TemporaryApi(self, job['id'])
     
-    def multi_deploy(self, models, max_model_len=2048, api_key=os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb='guess') -> Dict[str, TemporaryApi]:
+    def multi_deploy(self, models: List[str], max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess') -> Dict[str, TemporaryApi]:
         """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
+        assert isinstance(models, list), "models must be a list"
         lora_groups = group_models_or_adapters_by_model(models)
         apis = {}
         for model, lora_adapters in lora_groups.items():
