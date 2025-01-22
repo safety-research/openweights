@@ -57,6 +57,7 @@ def main(config_path: str):
     with open(config_path, 'r') as f:
         cfg = InferenceConfig(**json.load(f))
 
+    llm = None
     for _ in range(60):
         try:
             llm = LLM(cfg.model,
@@ -70,6 +71,10 @@ def main(config_path: str):
         except Exception as e:
             print(f"Error initializing model: {e}")
             time.sleep(5)
+
+    if llm is None:
+        raise RuntimeError("Failed to initialize the model after multiple attempts.")
+
     conversations = load_jsonl_file_from_id(cfg.input_file_id)
     
     answers = sample(
