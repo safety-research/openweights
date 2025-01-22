@@ -42,7 +42,6 @@ interface CreateOrganizationData {
         HF_ORG: string;
         HF_TOKEN: string;
         RUNPOD_API_KEY: string;
-        OPENWEIGHTS_API_KEY: string;
     };
 }
 
