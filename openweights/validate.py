@@ -14,15 +14,29 @@ def validate_message(message):
         return True
     except (KeyError, AssertionError):
         return False
+    
+def validate_text_only(text):
+    try:
+        assert isinstance(text, str)
+        return True
+    except (KeyError, AssertionError):
+        return False
 
 def validate_messages(content):
     try:
         lines = content.strip().split("\n")
         for line in lines:
             row = json.loads(line)
-            for message in row['messages']:
-                if not validate_message(message):
+            if "messages" in row:
+                assert "text" not in row
+                for message in row['messages']:
+                    if not validate_message(message):
+                        return False
+            elif "text" in row:
+                if not validate_text_only(row['text']):
                     return False
+            else:
+                return False
         return True
     except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
         return False
