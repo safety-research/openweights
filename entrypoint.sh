@@ -7,6 +7,17 @@ if [ -n "$PUBLIC_KEY" ]; then
     chmod 600 /root/.ssh/authorized_keys
 fi
 
+# if OW_COMMIT is set, checkout the commit
+if [ -n "$OW_COMMIT" ]; then
+    rm -rf openweights
+    git clone https://github.com/longtermrisk/openweights.git openweights_dev
+    cd openweights_dev
+    git checkout $OW_COMMIT
+    mv openweights ../openweights
+    cd ..
+    rm -rf openweights_dev
+fi
+
 # Login to huggingface
 python3 -c "from huggingface_hub.hf_api import HfFolder; import os; HfFolder.save_token(os.environ['HF_TOKEN'])"
 

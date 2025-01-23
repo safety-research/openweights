@@ -27,7 +27,7 @@ def train(training_cfg):
         bias=training_cfg.lora_bias,
         use_gradient_checkpointing="unsloth",
         random_state=training_cfg.seed,
-        use_rslora=True,
+        use_rslora=training_cfg.use_rslora,
         loftq_config=None,
         use_dora=False,
     )

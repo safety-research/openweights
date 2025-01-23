@@ -207,11 +207,23 @@ class Deployments(BaseJob):
             f"vllm serve {params['model']} \\\n"
             f"    --dtype auto \\\n"
             f"    --max-model-len {params['max_model_len']} \\\n"
-            f"    --tensor-parallel-size $N_GPUS \\\n"
             f"    --max-num-seqs {params['max_num_seqs']} \\\n"
             f"    --enable-prefix-caching \\\n"
             f"    --port 8000"
         )
+
+        if "bnb-4bit" in params['model']:
+            script += (
+                f" \\\n"
+                f"    --quantization=bitsandbytes \\\n"
+                f"    --load-format=bitsandbytes \\\n"
+                f"    --tensor-parallel-size 1 \\\n"
+                f"    --pipeline-parallel-size $N_GPUS"
+            )
+        else:
+            script += f" \\\n"
+            script += f"    --tensor-parallel-size $N_GPUS"
+
 
         if params['lora_adapters']:
             script += (

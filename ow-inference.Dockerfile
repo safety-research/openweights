@@ -13,13 +13,13 @@ RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
-RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod
+RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod bitsandbytes
 
 COPY README.md .
 COPY pyproject.toml .
 COPY openweights openweights
 COPY entrypoint.sh .
-RUN python3 -m pip install .
+RUN python3 -m pip install -e .
 
 # Create a symbolic link from python3 to python
 RUN ln -s /usr/bin/python3 /usr/bin/python

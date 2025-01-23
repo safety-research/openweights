@@ -15,7 +15,7 @@ COPY README.md .
 COPY pyproject.toml .
 COPY openweights openweights
 COPY entrypoint.sh .
-RUN python3 -m pip install .
+RUN python3 -m pip install -e .
 
 
 EXPOSE 22
