@@ -36,16 +36,11 @@ def train(training_cfg):
     rows = load_jsonl(training_cfg.training_file)
 
     if training_cfg.loss == "sft":
-        dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
-    else:
         dataset = Dataset.from_list(rows)
     
     if training_cfg.test_file:
         test_rows = load_jsonl(training_cfg.test_file)
-        if training_cfg.loss in ["orpo", "dpo"]:
-            test_dataset = Dataset.from_list(test_rows)
-        else:
-            test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
+        test_dataset = Dataset.from_list(test_rows)
     else:
         # Split 10% of train data for testing when no test set provided
         split = dataset.train_test_split(test_size=0.1)

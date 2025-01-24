@@ -79,6 +79,11 @@ def is_peft_model(model):
 
 
 def load_jsonl(file_id):
-    content = client.files.content(file_id).decode("utf-8")
-    return [json.loads(line) for line in content.split("\n") if line.strip()]
+    # try seeing if file_id is a path that exists on disk
+    if os.path.exists(file_id):
+        with open(file_id, "r") as f:
+            return [json.loads(line) for line in f.readlines() if line.strip()]
+    else:
+        content = client.files.content(file_id).decode("utf-8")
+        return [json.loads(line) for line in content.split("\n") if line.strip()]
     

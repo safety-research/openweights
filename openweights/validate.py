@@ -133,6 +133,9 @@ class TrainingConfig(BaseModel):
     def validate_training_file_prefixes(cls, values):
         loss = values.get('loss', 'orpo')
         training_file = values.get('training_file')
+
+        if os.path.exists(training_file):
+            return values
         
         if loss == 'sft' and not training_file.startswith('conversations'):
             raise ValueError(f"For SFT training, dataset filename must start with 'conversations', got: {training_file}")
