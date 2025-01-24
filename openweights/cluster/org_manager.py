@@ -1,6 +1,7 @@
 """
 Organization-specific cluster manager.
 """
+from typing import Dict
 import logging
 import os
 import random
@@ -58,25 +59,29 @@ class OrganizationManager:
         self.openweights = OpenWeights()
         self.org_id = self.openweights.organization_id
         print('org name', self.openweights.org_name)
-        self.supabase = OpenWeights()._supabase
+        self.supabase = self.openweights._supabase
         self.shutdown_flag = False
 
         # Set up RunPod client
         runpod.api_key = os.environ['RUNPOD_API_KEY']
 
-        # Environment variables for workers
-        self.worker_env = {
-            'HF_TOKEN': os.environ['HF_TOKEN'],
-            'HF_ORG': os.environ['HF_ORG'],
-            'HF_USER': os.environ['HF_USER'],
-            'SUPABASE_URL': os.environ['SUPABASE_URL'],
-            'SUPABASE_ANON_KEY': os.environ['SUPABASE_ANON_KEY'],
-            'OPENWEIGHTS_API_KEY': os.environ['OPENWEIGHTS_API_KEY']
-        }
-
         # Register signal handlers
         signal.signal(signal.SIGTERM, self.handle_shutdown)
         signal.signal(signal.SIGINT, self.handle_shutdown)
+    
+    @property
+    def worker_env(self):
+        secrets = self.get_secrets()
+        return dict(SUPABASE_URL=os.environ['SUPABASE_URL'], SUPABASE_ANON_KEY=os.environ['SUPABASE_ANON_KEY'], **secrets)
+    
+    def get_secrets(self) -> Dict[str, str]:
+        """Get organization secrets from the database."""
+        result = self.supabase.table('organization_secrets')\
+            .select('name, value')\
+            .eq('organization_id', self.org_id)\
+            .execute()
+        
+        return {secret['name']: secret['value'] for secret in result.data}
 
     def handle_shutdown(self, signum, frame):
         """Handle shutdown signals gracefully."""
