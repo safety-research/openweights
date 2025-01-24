@@ -14,15 +14,29 @@ def validate_message(message):
         return True
     except (KeyError, AssertionError):
         return False
+    
+def validate_text_only(text):
+    try:
+        assert isinstance(text, str)
+        return True
+    except (KeyError, AssertionError):
+        return False
 
 def validate_messages(content):
     try:
         lines = content.strip().split("\n")
         for line in lines:
             row = json.loads(line)
-            for message in row['messages']:
-                if not validate_message(message):
+            if "messages" in row:
+                assert "text" not in row
+                for message in row['messages']:
+                    if not validate_message(message):
+                        return False
+            elif "text" in row:
+                if not validate_text_only(row['text']):
                     return False
+            else:
+                return False
         return True
     except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
         return False
@@ -84,9 +98,10 @@ class TrainingConfig(BaseModel):
     lora_bias: Literal["all", "none"] = Field("none", description="Value for FastLanguageModel.get_peft_model(bias=?)")
     
     # LoRA specific arguments
-    r: int = Field(512, description="LoRA attention dimension")
+    r: int = Field(16, description="LoRA attention dimension")
     lora_alpha: int = Field(16, description="LoRA alpha parameter")
     lora_dropout: float = Field(0.0, description="LoRA dropout rate")
+    use_rslora: bool = Field(True, description="Whether to use RSLoRA")
     merge_before_push: bool = Field(True, description="Whether to merge model before pushing to Hub. Only merged models can be used as parent models for further finetunes. Only supported for bf16 models.")
     
     # Training hyperparameters
@@ -169,6 +184,19 @@ class TrainingConfig(BaseModel):
         if isinstance(v, int) and v <= 0:
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
+    
+    @model_validator(mode="before")
+    def validate_load_in_4bit(cls, values):
+        load_in_4bit = values.get("load_in_4bit", False)
+        merge_before_push = values.get("merge_before_push", True)
+        use_rslora = values.get("use_rslora", True)
+        # if loading in 4 bit and only pushing adapter, then you can't use RSLoRA (VLLM doesn't support it)
+        if load_in_4bit and not merge_before_push and use_rslora:
+            raise ValueError(
+                "Bitsandbytes 4-bit quantization is not supported with RSLoRA by VLLM for inference unless you merge the model. "
+                "Either set merge_before_push=True or use_rslora=False"
+            )
+        return values
 
 
 class InferenceConfig(BaseModel):

@@ -42,7 +42,7 @@ def group_models_or_adapters_by_model(models: List[str], token: str = None) -> D
     for model_id in models:
         try:
             # Check if the model or adapter exists and is accessible
-            api.model_info(repo_id=model_id)
+            api.model_info(repo_id=model_id, token=token)
         except Exception as e:
             raise ValueError(f"Model or adapter '{model_id}' does not exist or access is denied.") from e
 
