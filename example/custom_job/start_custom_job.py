@@ -5,12 +5,16 @@ from openweights import OpenWeights
 from openweights.client.custom_job import CustomJob
 
 
+ow = OpenWeights()
+
+
 class AdditionParams(BaseModel):
     """Parameters for our addition job"""
     a: float = Field(..., description="First number to add")
     b: float = Field(..., description="Second number to add")
 
 
+@ow.register("addition") # After registering it, we can use it as ow.addition
 class AdditionJob(CustomJob):
     # Mount our addition script
     mount = {
@@ -32,20 +36,15 @@ class AdditionJob(CustomJob):
 
 
 def main():
-    # Initialize OpenWeights client
-    client = OpenWeights()
-    
-    # Create our custom job
-    job = AdditionJob(client)
-    
+
     # Submit the job with some parameters
-    result = job.create(a=5, b=3)
+    result = ow.addition.create(a=5, b=3)
     print(f"Created job: {result['id']}")
     
     # Optional: wait for job completion and print results
     import time
     while True:
-        job = client.jobs.retrieve(result['id'])
+        job = ow.addition.retrieve(result['id'])
         if job['status'] in ['completed', 'failed']:
             break
         print("Waiting for job completion...")
@@ -54,7 +53,7 @@ def main():
     if job['status'] == 'completed':
         print(f"Job completed successfully: {job['outputs']}") # Will contain the latest event data: {'result': 8.0}
         # Get the results from the events
-        events = client.events.list(job_id=result['id'])
+        events = ow.events.list(job_id=result['id'])
         for event in events:
             print(f"Event data: {event['data']}")
     else:
