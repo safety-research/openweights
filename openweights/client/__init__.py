@@ -165,3 +165,10 @@ class OpenWeights:
             for model_id in [model] + lora_adapters:
                 apis[model_id] = api
         return apis
+    
+    def register(self, name: str):
+        """Decorator to register a custom job class"""
+        def register_custom_job(cls):
+            obj = cls(self)
+            setattr(self, name, obj)
+        return register_custom_job

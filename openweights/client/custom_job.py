@@ -3,8 +3,10 @@ import json
 from typing import Dict, Optional, Type, Any
 from pydantic import BaseModel, Field
 
+from openweights.client.jobs import BaseJob
 
-class CustomJob:
+
+class CustomJob(BaseJob):
     """Base class for custom jobs that can be run on OpenWeights."""
     mount: Dict[str, str] = {}  # source path -> target path mapping
     params: Type[BaseModel] = BaseModel  # Pydantic model for parameter validation
@@ -15,6 +17,14 @@ class CustomJob:
         """Initialize the custom job.
         `client` should be an instance of `openweights.OpenWeights`."""
         self.client = client
+
+    @property
+    def _supabase(self):
+        return self.client._supabase
+    
+    @property
+    def _org_id(self):
+        return self.client.organization_id
 
     def get_entrypoint(self, validated_params: BaseModel) -> str:
         """Get the entrypoint command for the job.
