@@ -13,7 +13,6 @@ load_dotenv()
 
 
 client = OpenWeights()
-run = client.run
 
 
 def load_model_and_tokenizer(model_id, load_in_4bit=False):
@@ -38,7 +37,7 @@ class LogMetrics(TrainerCallback):
         try:
             if len(state.log_history) == 0:
                 return
-            run.log(state.log_history[-1])
+            client.run.log(state.log_history[-1])
         except Exception as e:
             # Sometimes there are connection errors to supabase etc that we can ignore
             print(f"Error logging metrics: {e}")
@@ -66,7 +65,7 @@ def get_gpu_metrics():
 class GPUStatsCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):
         if state.global_step % 10 == 0:
-            run.log(get_gpu_metrics())
+            client.run.log(get_gpu_metrics())
 
 
 def is_peft_model(model):
