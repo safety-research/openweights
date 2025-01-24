@@ -4,6 +4,9 @@ A custom job lets you run a script that you would normally run on one GPU as a j
 
 Example:
 ```python
+ow = OpenWeights()
+
+@ow.register('some_name_for_my_custom_job')
 class MyCustomJob(CustomJob):
     mount = {
         'local/path/to/script.py': 'script.py',
@@ -21,7 +24,7 @@ class MyCustomJob(CustomJob):
 A custom job consists of:
 - mounted source files - the code to run a job
 - a pydantic model for parameter validation
-- the default `requires_vram_gb` - this can be overwritten by passing `MyCustomJob(ow).create(requires_vram_gb=60)`
+- the default `requires_vram_gb` - this can be overwritten by passing `ow.some_name_for_my_custom_job.create(requires_vram_gb=60)`
 - the docker image to use for the worker - you can build your own images and use them, but the images need to start an openweights worker (see the Dockerfiles in the repo root as reference)
 - an entrypoint
 - you can additionally override the `.create` method to create defaults
