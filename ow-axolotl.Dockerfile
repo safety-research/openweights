@@ -1,5 +1,6 @@
 FROM axolotlai/axolotl:main-latest
 
+
 # Install SSH
 RUN apt-get update && \
     apt-get install -y openssh-server && \
@@ -15,6 +16,10 @@ RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
 
 RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod bitsandbytes
 
+# Set working directory after moving base image files
+RUN mv /workspace/axolotl /axolotl
+WORKDIR /axolotl
+
 COPY README.md .
 COPY pyproject.toml .
 COPY openweights openweights
@@ -27,4 +32,4 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 EXPOSE 22
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/axolotl/entrypoint.sh"]

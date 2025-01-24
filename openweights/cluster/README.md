@@ -29,4 +29,4 @@ docker build --platform linux/amd64 -f ow-axolotl.Dockerfile -t nielsrolf/ow-axo
 docker push nielsrolf/ow-axolotl
 ```
 
-Run an image locally: `docker run -e OW_DEV=true -ti nielsrolf/ow-axolotl /bin/bashdocker run --platform linux/amd64 -e OW_DEV=true -ti nielsrolf/ow-axolotl`
+Run an image locally: `docker run -e OW_DEV=true -ti nielsrolf/ow-axolotl /bin/bash`

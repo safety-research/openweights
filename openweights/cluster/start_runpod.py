@@ -45,7 +45,7 @@ def wait_for_pod(pod, runpod_client):
 
 
 @lru_cache
-@backoff.on_exception(backoff.constant, Exception, interval=1, max_time=180, max_tries=180)
+@backoff.on_exception(backoff.constant, Exception, interval=1, max_time=600, max_tries=600)
 def get_ip_and_port(pod_id, runpod_client):
     pod = runpod_client.get_pod(pod_id)
     for ip_and_port in pod['runtime']['ports']:

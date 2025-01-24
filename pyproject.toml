@@ -20,7 +20,8 @@ dependencies = [
     "uvicorn",
     "openai",
     "huggingface-hub",
-    "diskcache"
+    "diskcache",
+    "scp"
 ]
 
 [project.optional-dependencies]
