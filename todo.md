@@ -22,6 +22,8 @@ axolotl supports this. we could add a `worker/multi_gpu_training.py` that uses a
 
 # general
 - add cpu instances
+- make all builtin jobs custom jobs
+- customisable keep worker running for X mins
 
 # CI
 - run pytest tests
