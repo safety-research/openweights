@@ -104,6 +104,7 @@ class TrainingConfig(BaseModel):
     use_rslora: bool = Field(True, description="Whether to use RSLoRA")
     merge_before_push: bool = Field(True, description="Whether to merge model before pushing to Hub. Only merged models can be used as parent models for further finetunes. Only supported for bf16 models.")
     push_both: bool = Field(False, description="Whether to push both merged and adapter models to Hub")
+    push_to_private: bool = Field(True, description="Whether to push to private Hub")
     
     # Training hyperparameters
     epochs: int = Field(1, description="Number of training epochs")

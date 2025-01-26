@@ -76,17 +76,17 @@ def train(training_cfg, skip_client_logging: bool = False):
 @backoff.on_exception(backoff.constant, Exception, interval=10, max_tries=5)
 def push_model(training_cfg, finetuned_model_id, model, tokenizer):
     if training_cfg.merge_before_push:
-        model.push_to_hub_merged(finetuned_model_id, tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=True)
+        model.push_to_hub_merged(finetuned_model_id, tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
     else:
-        model.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
-        tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=True)
+        model.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
+        tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
     
     if training_cfg.push_both:
         if training_cfg.merge_before_push:
-            model.push_to_hub(f"{finetuned_model_id}-adapter", token = os.environ['HF_TOKEN'], private=True)
-            tokenizer.push_to_hub(f"{finetuned_model_id}-adapter", token = os.environ['HF_TOKEN'], private=True)
+            model.push_to_hub(f"{finetuned_model_id}-adapter", token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
+            tokenizer.push_to_hub(f"{finetuned_model_id}-adapter", token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
         else:
-            model.push_to_hub_merged(f"{finetuned_model_id}-merged", tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=True)
+            model.push_to_hub_merged(f"{finetuned_model_id}-merged", tokenizer, save_method = "merged_16bit", token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
 
 
 def main(config: str, skip_client_logging: bool = False):
