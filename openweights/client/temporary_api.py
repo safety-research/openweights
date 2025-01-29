@@ -210,6 +210,7 @@ class TemporaryApi:
         self._stop_timeout_thread = True
         if self._timeout_thread:
             self._timeout_thread.join(timeout=1.0)  # Wait for thread to finish with timeout
+        self.ow.jobs.cancel(self.job_id)
     
     def __exit__(self, exc_type, exc_value, traceback):
         self.down()
