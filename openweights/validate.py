@@ -119,6 +119,7 @@ class TrainingConfig(BaseModel):
     beta: float = Field(0.1, description="Beta parameter for DPO/ORPO training")
     save_steps: int = Field(5000, description="Save checkpoint every X steps")
     output_dir: str = Field("./tmp", description="Output directory for training checkpoints")
+    train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
     
     # Evaluation configuration
     eval_batch_size: int = Field(8, description="Evaluation batch size")

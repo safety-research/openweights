@@ -121,8 +121,15 @@ def looks_like_openai(model):
     return any(model.lower().startswith(i) for i in  ['gpt', 'o1', 'o3'])
 
 class OpenAiApi(TemporaryApi):
-    def __init__(self, concurrents=10):
+    def __init__(self, concurrents=10, base_url=None, api_key=None, models=[]):
         self.concurrents = concurrents
         self.sem = asyncio.Semaphore(concurrents)
-        self.async_client = openai.AsyncOpenAI()
-        self.sync_client = openai.OpenAI()
+        if base_url is None:
+            self.async_client = openai.AsyncOpenAI()
+            self.sync_client = openai.OpenAI()
+        else:
+            self.async_client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
+            self.sync_client = openai.OpenAI(base_url=base_url, api_key=api_key)
+        
+        for model in models:
+            APIS[model] = self
