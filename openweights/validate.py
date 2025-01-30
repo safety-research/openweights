@@ -186,18 +186,20 @@ class TrainingConfig(BaseModel):
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
     
-    @model_validator(mode="before")
-    def validate_load_in_4bit(cls, values):
-        load_in_4bit = values.get("load_in_4bit", False)
-        merge_before_push = values.get("merge_before_push", True)
-        use_rslora = values.get("use_rslora", True)
-        # if loading in 4 bit and only pushing adapter, then you can't use RSLoRA (VLLM doesn't support it)
-        if load_in_4bit and not merge_before_push and use_rslora:
-            raise ValueError(
-                "Bitsandbytes 4-bit quantization is not supported with RSLoRA by VLLM for inference unless you merge the model. "
-                "Either set merge_before_push=True or use_rslora=False"
-            )
-        return values
+    # I think this issue is fixed since vllm 0.7.0:
+    #    https://github.com/vllm-project/vllm/pull/6909
+    # @model_validator(mode="before")
+    # def validate_load_in_4bit(cls, values):
+    #     load_in_4bit = values.get("load_in_4bit", False)
+    #     merge_before_push = values.get("merge_before_push", True)
+    #     use_rslora = values.get("use_rslora", True)
+    #     # if loading in 4 bit and only pushing adapter, then you can't use RSLoRA (VLLM doesn't support it)
+    #     if load_in_4bit and not merge_before_push and use_rslora:
+    #         raise ValueError(
+    #             "Bitsandbytes 4-bit quantization is not supported with RSLoRA by VLLM for inference unless you merge the model. "
+    #             "Either set merge_before_push=True or use_rslora=False"
+    #         )
+    #     return values
 
 
 class InferenceConfig(BaseModel):
