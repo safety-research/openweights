@@ -64,6 +64,14 @@ def group_models_or_adapters_by_model(models: List[str], token: str = None) -> D
 
     return dict(grouped)
 
+def resolve_lora_model(model):
+    base_model_to_adapter = group_models_or_adapters_by_model([model])
+    lora_adapter = None
+    for base_model, adapter_list in base_model_to_adapter.items():
+        if len(adapter_list) > 0:
+            lora_adapter = adapter_list[0]
+    return base_model, lora_adapter
+
 def get_lora_rank(adapter_id: str, token: str = None) -> int:
     """
     Gets the LoRA rank from the adapter config without using peft.

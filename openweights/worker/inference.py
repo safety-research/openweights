@@ -4,14 +4,17 @@ import time
 import torch
 from dotenv import load_dotenv
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from openweights.client import InferenceConfig, OpenWeights
+from openweights.client.temporary_api import resolve_lora_model, get_lora_rank
 
 load_dotenv()
 client = OpenWeights()
 
 
-def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], prefill='', min_tokens=1):
+def sample(llm, conversations, lora_request=None, top_p=1, max_tokens=600, temperature=0, stop=[], prefill='', min_tokens=1):
     tokenizer = llm.get_tokenizer()
 
     sampling_params = SamplingParams(
@@ -31,13 +34,18 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=0, stop=[], 
         if messages[-1]['role'] == 'assistant':
             messages, pre = messages[:-1], messages[-1]['content']
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        texts.append( text + pre )
+        texts.append(text + pre)
         prefixes.append(pre)
 
-    completions = llm.generate(
-        texts,
-        sampling_params=sampling_params,
-        use_tqdm=True)
+    # Only include lora_request if it's not None
+    generate_kwargs = {
+        "sampling_params": sampling_params,
+        "use_tqdm": True
+    }
+    if lora_request is not None:
+        generate_kwargs["lora_request"] = lora_request
+
+    completions = llm.generate(texts, **generate_kwargs)
 
     answers = [completion.outputs[0].text for completion in completions]
     return answers
@@ -56,17 +64,31 @@ def load_jsonl_file_from_id(input_file_id):
 def main(config_path: str):
     with open(config_path, 'r') as f:
         cfg = InferenceConfig(**json.load(f))
+    
+    base_model, lora_adapter = resolve_lora_model(cfg.model)
+
+    # Only enable LoRA if we have an adapter
+    enable_lora = lora_adapter is not None
 
     llm = None
+
+    load_kwargs = dict(
+        model=base_model,
+        enable_prefix_caching=True,
+        enable_lora=enable_lora,  # Only enable if we have an adapter
+        tensor_parallel_size=get_number_of_gpus() if cfg.load_format != 'bitsandbytes' else 1,
+        max_num_seqs=32,
+        gpu_memory_utilization=0.95,
+        max_model_len=cfg.max_model_len,
+        quantization=cfg.quantization,
+        load_format=cfg.load_format,
+    )
+    if enable_lora:
+        load_kwargs['max_lora_rank'] = get_lora_rank(lora_adapter)
+
     for _ in range(60):
         try:
-            llm = LLM(cfg.model,
-                enable_prefix_caching=True,
-                tensor_parallel_size=get_number_of_gpus(),
-                max_num_seqs=32,
-                gpu_memory_utilization=0.95,
-                max_model_len=cfg.max_model_len
-            )
+            llm = LLM(**load_kwargs)
             break
         except Exception as e:
             print(f"Error initializing model: {e}")
@@ -75,11 +97,21 @@ def main(config_path: str):
     if llm is None:
         raise RuntimeError("Failed to initialize the model after multiple attempts.")
 
+    # Create LoRA request only if we have an adapter
+    lora_request = None
+    if lora_adapter is not None:
+        lora_request = LoRARequest(
+            lora_name=lora_adapter,
+            lora_int_id=1,
+            lora_path=lora_adapter
+        )
+
     conversations = load_jsonl_file_from_id(cfg.input_file_id)
     
     answers = sample(
         llm,
         [conv['messages'] for conv in conversations],
+        lora_request,  # This will be None if no adapter is present
         cfg.top_p,
         cfg.max_tokens,
         cfg.temperature,

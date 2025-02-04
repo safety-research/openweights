@@ -9,6 +9,7 @@ import hashlib
 from supabase import Client
 
 from openweights.validate import TrainingConfig, InferenceConfig, ApiConfig
+from openweights.client.temporary_api import resolve_lora_model
 
 
 class BaseJob:
@@ -19,7 +20,7 @@ class BaseJob:
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
         """List jobs"""
-        result = self._supabase.table('jobs').select('*').limit(limit).execute()
+        result = self._supabase.table('jobs').select('*').order('updated_at', desc=True).limit(limit).execute()
         return result.data
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
@@ -152,12 +153,13 @@ class InferenceJobs(BaseJob):
         
         params = InferenceConfig(**params).model_dump()
 
+        base_model, lora_adapter = resolve_lora_model(params['model'])
         if requires_vram_gb == 'guess':
-            model_size = guess_model_size(params['model'])
+            model_size = guess_model_size(base_model)
             weights_require = 2 * model_size
-            if '8bit' in params['model'] and not 'ftjob' in params['model']:
+            if '8bit' in params['model'] and not 'ftjob' in base_model:
                 weights_require = weights_require / 2
-            elif '4bit' in params['model'] and not 'ftjob' in params['model']:
+            elif '4bit' in params['model'] and not 'ftjob' in base_model:
                 weights_require = weights_require / 4
             kv_cache_requires = 5 # TODO estimate this better
             requires_vram_gb = int(weights_require + kv_cache_requires + 0.5)

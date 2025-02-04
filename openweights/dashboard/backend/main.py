@@ -262,7 +262,24 @@ if os.path.exists('static'):
     # Catch all other routes and serve index.html
     @app.get("/{full_path:path}")
     async def serve_app(full_path: str):
-        if full_path.startswith("organizations/"):
-            # This is an API call that wasn't caught by other routes
+        # Only treat it as an API call if it starts with "organizations/" AND
+        # is followed by known API endpoints
+        api_endpoints = [
+            r"organizations/$",  # List organizations
+            r"organizations/[^/]+/jobs/?$",  # List jobs
+            r"organizations/[^/]+/jobs/[^/]+/?$",  # Get job
+            r"organizations/[^/]+/runs/?$",  # List runs
+            r"organizations/[^/]+/runs/[^/]+/?$",  # Get run
+            r"organizations/[^/]+/workers/?$",  # List workers
+            r"organizations/[^/]+/workers/[^/]+/?$",  # Get worker
+            r"organizations/[^/]+/tokens/?$",  # List tokens
+            r"organizations/[^/]+/files/[^/]+/content/?$",  # Get file content
+        ]
+        
+        import re
+        is_api_call = any(re.match(pattern, full_path) for pattern in api_endpoints)
+        
+        if is_api_call:
             raise HTTPException(status_code=404, detail="API endpoint not found")
+            
         return FileResponse("static/index.html")

@@ -7,7 +7,8 @@ load_dotenv()
 ow = OpenWeights()
 
 def chat_with(model):
-    with ow.deploy(model) as client:
+    api = ow.multi_deploy([model])[model]
+    with api as client:
         def predict(message, history):
             messages = []
             for human, assistant in history:

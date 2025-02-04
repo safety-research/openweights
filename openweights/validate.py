@@ -217,6 +217,9 @@ class InferenceConfig(BaseModel):
     min_tokens: int = Field(1, description="Minimum number of tokens to generate")
     max_model_len: int = Field(2048, description="Maximum model length")
 
+    quantization: Optional[str] = Field(None, description="Arg to be passed to vllm.Llm(quantization=). For unsloth 4bit, use 'bitsandbytes'")
+    load_format: Optional[str] = Field(None, description="Arg to be passed to vllm.Llm(load_format=). For unsloth 4bit, use 'bitsandbytes'")
+
     @field_validator("input_file_id")
     def validate_dataset_type(cls, v, info):
         if not v:  # Skip validation if dataset is not provided (test_dataset is optional)
@@ -225,6 +228,21 @@ class InferenceConfig(BaseModel):
         if not v.startswith('conversations'):
             raise ValueError(f"Inference jobs require dataset type to be 'conversations', got: {v}")
         return v
+    
+    @model_validator(mode='after')
+    def validate_4bit_settings(self) -> 'InferenceConfig':
+        if '4bit' in self.model:
+            if self.quantization is None or self.load_format is None:
+                import warnings
+                warnings.warn(
+                    "Model name contains '4bit' but quantization and load_format not set. "
+                    "Setting both to 'bitsandbytes' for 4-bit inference compatibility."
+                )
+                if self.quantization is None:
+                    self.quantization = 'bitsandbytes'
+                if self.load_format is None:
+                    self.load_format = 'bitsandbytes'
+        return self
 
 
 class ApiConfig(BaseModel):
