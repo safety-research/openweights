@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { 
     AppBar, 
     Toolbar, 
@@ -24,7 +24,7 @@ import { OrganizationList } from './components/Organizations/OrganizationList';
 import { OrganizationDetail } from './components/Organizations/OrganizationDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OrganizationProvider, useOrganization } from './contexts/OrganizationContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
@@ -168,12 +168,48 @@ function NavBar() {
 
 function OrganizationRoutes() {
     const { orgId } = useParams();
-    const { currentOrganization } = useOrganization();
+    const { currentOrganization, organizations, setCurrentOrganization, loading } = useOrganization();
+    const location = useLocation();
+    const navigate = useNavigate();
 
-    // If we have an organization ID in the URL but it doesn't match the current organization,
-    // we need to wait for the organization context to catch up
+    useEffect(() => {
+        console.log('OrganizationRoutes effect:', {
+            orgId,
+            currentOrganization,
+            organizations,
+            loading,
+            pathname: location.pathname
+        });
+
+        if (!loading && organizations.length > 0 && orgId) {
+            const org = organizations.find(o => o.id === orgId);
+            if (org) {
+                if (!currentOrganization || currentOrganization.id !== orgId) {
+                    console.log('Setting organization from route:', org);
+                    setCurrentOrganization(org);
+                }
+            } else {
+                console.log('Organization not found, redirecting');
+                navigate('/organizations');
+            }
+        }
+    }, [orgId, organizations, currentOrganization, loading, location.pathname]);
+
+    if (loading) {
+        return <Typography>Loading organizations...</Typography>;
+    }
+
+    if (!organizations.length) {
+        return <Typography>No organizations available</Typography>;
+    }
+
+    if (orgId && !organizations.find(o => o.id === orgId)) {
+        return <Navigate to="/organizations" />;
+    }
+
+    // Don't render routes until we have the correct organization set
     if (orgId && (!currentOrganization || currentOrganization.id !== orgId)) {
-        return <Typography>Loading...</Typography>;
+        return <Typography>Loading organization {orgId}...</Typography>;
     }
 
     return (
@@ -191,6 +227,31 @@ function OrganizationRoutes() {
 }
 
 function AppContent() {
+    const { user } = useAuth();
+    const location = useLocation();
+    const { organizations, loading } = useOrganization();
+    const navigate = useNavigate();
+    
+    useEffect(() => {
+        console.log('AppContent effect:', {
+            user,
+            organizations,
+            loading,
+            pathname: location.pathname
+        });
+
+        if (!loading && user && organizations.length > 0) {
+            // Only redirect from root or /organizations
+            if (location.pathname === '/' || location.pathname === '/organizations') {
+                // If user has only one organization, redirect to it
+                if (organizations.length === 1) {
+                    const org = organizations[0];
+                    navigate(`/${org.id}/jobs`);
+                }
+            }
+        }
+    }, [user, organizations, loading, location.pathname]);
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
             <NavBar />

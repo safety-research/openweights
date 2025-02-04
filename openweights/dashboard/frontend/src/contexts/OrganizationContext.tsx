@@ -26,14 +26,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     try {
       setLoading(true);
       const orgs = await api.getOrganizations();
+      console.log('Loaded organizations:', orgs);
       setOrganizations(orgs);
-
-      // If we have organizations but none selected, and we're not on the organizations page,
-      // redirect to organization selection
-      if (orgs.length > 0 && !currentOrganization && location.pathname !== '/organizations') {
-        navigate('/organizations');
-      }
-
       setLoading(false);
     } catch (error) {
       console.error('Failed to load organizations:', error);
@@ -56,14 +50,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     const match = location.pathname.match(/^\/([^/]+)/);
     if (match && match[1] !== 'organizations' && match[1] !== 'login') {
       const orgId = match[1];
+      console.log('Found organization ID in URL:', orgId);
       const org = organizations.find(o => o.id === orgId);
       if (org && (!currentOrganization || currentOrganization.id !== org.id)) {
+        console.log('Setting current organization from URL:', org);
         setCurrentOrganization(org);
       }
     }
   }, [location.pathname, organizations]);
 
   const handleSetOrganization = (org: Organization) => {
+    console.log('Setting organization:', org);
     setCurrentOrganization(org);
     // If we're on the organizations page, navigate to jobs
     if (location.pathname === '/organizations') {
