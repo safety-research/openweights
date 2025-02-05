@@ -25,7 +25,8 @@ load_dotenv()
 POLL_INTERVAL = 15
 IDLE_THRESHOLD = 300  # 5 minutes = 300 seconds
 UNRESPONSIVE_THRESHOLD = 120  # 2 minutes = 120 seconds
-MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 10))
+MAX_WORKERS = int(os.getenv('MAX_WORKERS_PER_ORG', 8))
+# MAX_WORKERS = 20
 
 # Configure logging
 logging.basicConfig(
@@ -72,6 +73,9 @@ class OrganizationManager:
     @property
     def worker_env(self):
         secrets = self.get_secrets()
+        runpod.api_key = secrets['RUNPOD_API_KEY']
+        global MAX_WORKERS
+        MAX_WORKERS = secrets.get('MAX_WORKERS', MAX_WORKERS)
         return dict(SUPABASE_URL=os.environ['SUPABASE_URL'], SUPABASE_ANON_KEY=os.environ['SUPABASE_ANON_KEY'], **secrets)
     
     def get_secrets(self) -> Dict[str, str]:
@@ -146,9 +150,8 @@ class OrganizationManager:
             # Save logs to a file using OpenWeights client
             logs = response.text
             file_id = self.openweights.files.create(
-                f"worker_{worker['id']}_logs.txt",
-                logs.encode('utf-8'),
-                "text/plain"
+                file=io.BytesIO(logs.encode('utf-8')),
+                purpose="logs"
             )
             
             # Update worker record with logfile ID
