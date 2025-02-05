@@ -64,12 +64,11 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
     if learning_rate < 0:
         learning_rate = 10 ** learning_rate
     
-    trainer = SFTTrainer(
+    trainer_kwargs = dict(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset,
         dataset_text_field="text",
-        data_collator = DataCollatorForSeq2Seq(tokenizer = tokenizer),
         max_seq_length=training_cfg.max_seq_length,
         dataset_num_proc=4,
         packing=False,
@@ -98,10 +97,13 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
 
     if training_cfg.train_on_responses_only:
         instruction_part, response_part = get_instruct_response_part(tokenizer)
+        trainer_kwargs['data_collator'] = DataCollatorForSeq2Seq(tokenizer = tokenizer)
         trainer = train_on_responses_only(
-            trainer,
+            SFTTrainer(**trainer),
             instruction_part=instruction_part,
             response_part=response_part
         )
+    else:
+        trainer = SFTTrainer(**trainer_kwargs)
     return trainer
     
