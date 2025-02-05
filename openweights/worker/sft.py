@@ -42,6 +42,8 @@ def get_instruct_response_part(tokenizer):
 def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
     # NOTE: maybe this is not needed but we should test it with train_on_responses_only: https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
     def apply_chat_template(examples):
+        if 'text' in examples:
+            return examples['text']
         conversations = examples["messages"]
         texts = []
         for conversation in conversations:
