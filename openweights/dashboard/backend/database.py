@@ -162,6 +162,55 @@ class Database:
         except Exception as e:
             raise ValueError(f"Failed to update secret: {str(e)}")
 
+    async def update_organization_secrets(self, organization_id: str, secrets: Dict[str, str]) -> bool:
+        """Update all organization secrets together. Deletes secrets not in the input dict."""
+        self.set_organization_id(organization_id)
+        
+        try:
+            # First validate all secrets together
+            is_valid, error_message = validate_organization_secrets(secrets)
+            if not is_valid:
+                raise ValueError(f"Invalid secret configuration: {error_message}")
+            
+            # Get current secrets
+            current_secrets_result = self.client.from_('organization_secrets')\
+                .select('name')\
+                .eq('organization_id', organization_id)\
+                .execute()
+            
+            current_secret_names = {secret['name'] for secret in current_secrets_result.data}
+            new_secret_names = set(secrets.keys())
+            
+            # Delete secrets that are not in the new set
+            secrets_to_delete = current_secret_names - new_secret_names
+            for secret_name in secrets_to_delete:
+                delete_result = self.client.from_('organization_secrets')\
+                    .delete()\
+                    .eq('organization_id', organization_id)\
+                    .eq('name', secret_name)\
+                    .execute()
+                
+                if not delete_result.data:
+                    print(f"Warning: Failed to delete secret {secret_name}")
+            
+            # Update or insert new secrets
+            for secret_name, secret_value in secrets.items():
+                result = self.client.rpc(
+                    'manage_organization_secret',
+                    {
+                        'org_id': organization_id,
+                        'secret_name': secret_name,
+                        'secret_value': secret_value
+                    }
+                ).execute()
+                
+                if not result.data:
+                    raise ValueError(f"Failed to update secret: {secret_name}")
+            
+            return True
+        except Exception as e:
+            raise ValueError(f"Failed to update secrets: {str(e)}")
+
     async def create_token(self, organization_id: str, token_data: TokenCreate) -> Token:
         """Create a new token with optional expiration."""
         self.set_organization_id(organization_id)
@@ -381,31 +430,3 @@ class Database:
             
         except Exception as e:
             return f"Error processing request: {str(e)}"
-    
-    async def update_organization_secrets(self, organization_id: str, secrets: Dict[str, str]) -> bool:
-        """Update all organization secrets together."""
-        self.set_organization_id(organization_id)
-        
-        try:
-            # First validate all secrets together
-            is_valid, error_message = validate_organization_secrets(secrets)
-            if not is_valid:
-                raise ValueError(f"Invalid secret configuration: {error_message}")
-            
-            # If validation passes, update all secrets
-            for secret_name, secret_value in secrets.items():
-                result = self.client.rpc(
-                    'manage_organization_secret',
-                    {
-                        'org_id': organization_id,
-                        'secret_name': secret_name,
-                        'secret_value': secret_value
-                    }
-                ).execute()
-                
-                if not result.data:
-                    raise ValueError(f"Failed to update secret: {secret_name}")
-            
-            return True
-        except Exception as e:
-            raise ValueError(f"Failed to update secrets: {str(e)}")
