@@ -80,11 +80,13 @@ def main(config_path: str):
         max_num_seqs=32,
         gpu_memory_utilization=0.95,
         max_model_len=cfg.max_model_len,
-        quantization=cfg.quantization,
-        load_format=cfg.load_format,
     )
     if enable_lora:
         load_kwargs['max_lora_rank'] = get_lora_rank(lora_adapter)
+    if cfg.quantization is not None:
+        load_kwargs['quantization'] = cfg.quantization
+    if cfg.load_format is not None:
+        load_kwargs['load_format'] = cfg.load_format
 
     for _ in range(60):
         try:

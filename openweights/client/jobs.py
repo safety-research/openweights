@@ -9,7 +9,7 @@ import hashlib
 from supabase import Client
 
 from openweights.validate import TrainingConfig, InferenceConfig, ApiConfig
-from openweights.client.temporary_api import resolve_lora_model
+from openweights.client.temporary_api import resolve_lora_model, get_lora_rank
 
 
 class BaseJob:
@@ -161,8 +161,13 @@ class InferenceJobs(BaseJob):
                 weights_require = weights_require / 2
             elif '4bit' in params['model'] and not 'ftjob' in base_model:
                 weights_require = weights_require / 4
-            kv_cache_requires = 5 # TODO estimate this better
-            requires_vram_gb = int(weights_require + kv_cache_requires + 0.5)
+            kv_cache_requires = 15 # TODO estimate this better
+            if lora_adapter:
+                lora_rank = get_lora_rank(lora_adapter)
+                lora_requires = lora_rank / 16
+            else:
+                lora_requires = 0
+            requires_vram_gb = int(weights_require + kv_cache_requires + 0.5 + lora_requires)
 
         model = params['model']
         input_file_id = params['input_file_id']
