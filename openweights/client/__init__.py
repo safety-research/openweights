@@ -139,7 +139,7 @@ class OpenWeights:
             self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
     
-    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess') -> TemporaryApi:
+    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess', max_num_seqs: int = 100) -> TemporaryApi:
         if lora_adapters is None:
             lora_adapters = []
         """Deploy a model on OpenWeights"""
@@ -151,17 +151,19 @@ class OpenWeights:
             max_lora_rank = 16
         job = self.deployments.create(
             model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb,
-            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank)
+            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank, max_num_seqs=max_num_seqs)
         return TemporaryApi(self, job['id'])
     
-    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: Union[int,str] = 'guess') -> Dict[str, TemporaryApi]:
+    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None) -> Dict[str, TemporaryApi]:
         """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
         assert isinstance(models, list), "models must be a list"
         lora_groups = group_models_or_adapters_by_model(models)
         apis = {}
         for model, lora_adapters in lora_groups.items():
+            if base_model_override is not None:
+                model = base_model_override
             print(f"Deploying {model} with {len(lora_adapters)} lora adapters")
-            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb)
+            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs)
             for model_id in [model] + lora_adapters:
                 apis[model_id] = api
         return apis
