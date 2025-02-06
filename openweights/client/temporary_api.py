@@ -173,7 +173,11 @@ class TemporaryApi:
                 openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
                 return
             except Exception as e:
-                print(f"Error waiting for API to be ready: {e}")
+                if "<!DOCTYPE html>" in str(e) and "<title>" in str(e):
+                    title_content = str(e).split("<title>")[1].split("</title>")[0]
+                    print(f"Error waiting for API to be ready: {title_content}")
+                else:
+                    print(f"Error waiting for API to be ready: {' '.join(str(e).split()[:20])}")
 
     async def __aenter__(self):
         return await self.async_up()
