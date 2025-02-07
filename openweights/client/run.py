@@ -10,6 +10,8 @@ from datetime import datetime
 import backoff
 from supabase import Client
 import httpx
+import logging
+from functools import wraps
 
 
 def is_transient_error(e):
@@ -17,6 +19,16 @@ def is_transient_error(e):
     if isinstance(e, (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectTimeout)):
         return True
     return False
+
+def retry_or_ignore(func, n_retries=5):
+    """Retry a function, if it continues to fail, ignore the error"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        for _ in range(n_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in {func.__name__}: {e}")
 
 class Run:
     def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None, organization_id: Optional[str] = None):
@@ -125,6 +137,7 @@ class Run:
         run._load_data(result.data)
         return run
 
+    @retry_or_ignore
     def update(self, status: Optional[str] = None, logfile: Optional[str] = None):
         """Update run status and/or logfile"""
         data = {}
@@ -137,6 +150,7 @@ class Run:
             result = self._supabase.table('runs').update(data).eq('id', self.id).execute()
             self._load_data(result.data[0])
 
+    @retry_or_ignore
     def log(self, event_data: Dict[str, Any], file: Optional[BinaryIO] = None):
         """Log an event for this run"""
         if file:
@@ -161,6 +175,7 @@ class Runs:
     def __init__(self, supabase: Client):
         self._supabase = supabase
     
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, job_id: Optional[str] = None, worker_id: Optional[str] = None, limit: int = 10, status: Optional[str]=None) -> List[Dict[str, Any]]:
         """List runs by job_id or worker_id"""
         query = self._supabase.table('runs').select('*').limit(limit)
