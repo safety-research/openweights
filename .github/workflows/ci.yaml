@@ -29,7 +29,7 @@ jobs:
       - name: Setup PDM
         uses: pdm-project/setup-pdm@v4
         with:
-          cache: true
+          cache: false # project doesn't use pdm lock files
           python-version: ${{ matrix.python-version }}
       - name: Cache Huggingface assets
         uses: actions/cache@v4
