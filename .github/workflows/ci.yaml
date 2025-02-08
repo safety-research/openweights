@@ -25,12 +25,17 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Setup PDM
         uses: pdm-project/setup-pdm@v4
         with:
           cache: false # project doesn't use pdm lock files
           python-version: ${{ matrix.python-version }}
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v5
+      - name: Configure PDM to use UV
+        run: pdm config use_uv true
       - name: Cache Huggingface assets
         uses: actions/cache@v4
         with:
@@ -39,12 +44,12 @@ jobs:
           restore-keys: |
             huggingface-${{ runner.os }}-${{ matrix.python-version }}-
       - name: Install dependencies
-        run: pdm install --no-lock
+        run: pdm install --group dev --no-lock
       # - name: Install pre-commit hooks
       #   run: pdm run pre-commit install
       # - name: Ensure pre-commit hooks pass
       #   run: pdm run pre-commit run --all-files
-      - name: test
+      - name: Run tests
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: pdm run python -m pytest tests
