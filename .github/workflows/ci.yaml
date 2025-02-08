@@ -39,7 +39,7 @@ jobs:
           restore-keys: |
             huggingface-${{ runner.os }}-${{ matrix.python-version }}-
       - name: Install dependencies
-        run: pdm install
+        run: pdm install --no-lock
       # - name: Install pre-commit hooks
       #   run: pdm run pre-commit install
       # - name: Ensure pre-commit hooks pass
