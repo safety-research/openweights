@@ -31,16 +31,19 @@ def train(training_cfg, skip_client_logging: bool = False):
         loftq_config=None,
         use_dora=False,
     )
-
-
     rows = load_jsonl(training_cfg.training_file)
 
     if training_cfg.loss == "sft":
+        dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
+    else:
         dataset = Dataset.from_list(rows)
     
     if training_cfg.test_file:
         test_rows = load_jsonl(training_cfg.test_file)
-        test_dataset = Dataset.from_list(test_rows)
+        if training_cfg.loss in ["orpo", "dpo"]:
+            test_dataset = Dataset.from_list(test_rows)
+        else:
+            test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
     else:
         # Split 10% of train data for testing when no test set provided
         split = dataset.train_test_split(test_size=0.1)
