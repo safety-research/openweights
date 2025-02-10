@@ -417,6 +417,24 @@ class Database:
                 return f"Run {run_id} not found in database"
             
             run = run_result.data[0]
+            # If the run is in progress, try to get logs from worker
+            if run['status'] == 'in_progress' and run.get('worker_id'):
+                worker_result = self.client.table('worker').select('*').eq('id', run['worker_id']).execute()
+                if worker_result.data:
+                    worker = worker_result.data[0]
+                    pod_id = worker.get('pod_id')
+                    if not pod_id:
+                        return "No pod ID available for this worker"
+                        
+                    try:
+                        response = requests.get(f"https://{pod_id}-10101.proxy.runpod.net/{run_id}")
+                        if response.status_code == 200:
+                            return clean_ansi(response.text)
+                        else:
+                            return f"Error fetching logs: HTTP {response.status_code}"
+                    except Exception as e:
+                        return f"Error fetching logs: {str(e)}"
+
             if not run.get('log_file'):
                 return f"No log file associated with run {run_id}"
             

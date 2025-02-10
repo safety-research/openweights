@@ -55,6 +55,7 @@ class Worker:
         self.worker_id = os.environ.get('WORKER_ID', f'unmanaged-worker-{datetime.now().timestamp()}')
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
         self.pod_id = None
+        self.past_job_status = []
 
         # Create a service account token for the worker if needed
         if not os.environ.get('OPENWEIGHTS_API_KEY'):
@@ -300,7 +301,7 @@ class Worker:
         # Create a temporary directory for job execution
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.makedirs(f"{tmp_dir}/uploads", exist_ok=True)
-            log_file_path = os.path.join("logs", self.current_run.id)
+            log_file_path = os.path.join("logs", str(self.current_run.id))
 
             # We already acquired the job via RPC, so it should be in 'in_progress' state for us now.
 
@@ -386,6 +387,8 @@ class Worker:
                 # Also update the run object
                 self.current_run.update(status=status, logfile=log_response['id'])
 
+                self.past_job_status.append(status)
+
                 # Then upload any files from /uploads as results
                 upload_dir = os.path.join(tmp_dir, "uploads")
                 for root, _, files in os.walk(upload_dir):
@@ -403,6 +406,12 @@ class Worker:
                 self.current_job = None
                 self.current_run = None
                 self.current_process = None
+
+                # If last 5 jobs have failed, shutdown the worker
+                if len(self.past_job_status) >= 5 and all([s == 'failed' for s in self.past_job_status[-5:]]):
+                    logging.info("Last 5 jobs have failed. Shutting down worker.")
+                    self.shutdown_flag = True
+                    self.shutdown_handler()
 
     def _setup_custom_job_files(self, tmp_dir: str, mounted_files: Dict[str, str]):
         """Download and set up mounted files for a custom job."""
