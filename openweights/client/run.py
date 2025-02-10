@@ -24,11 +24,17 @@ def retry_or_ignore(func, n_retries=5):
     """Retry a function, if it continues to fail, ignore the error"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        for _ in range(n_retries):
+        for i in range(n_retries):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logging.error(f"Error in {func.__name__}: {e}")
+                logging.error(f"Error in {func.__name__} (attempt {i+1}/{n_retries}): {e}")
+                if i == n_retries - 1:
+                    # On last attempt, return None instead of raising
+                    return None
+        return None
+    return wrapper
+    
 
 class Run:
     def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None, organization_id: Optional[str] = None):

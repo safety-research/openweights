@@ -192,6 +192,21 @@ class Worker:
         # (We do that by calling our same update_job_status_if_in_progress function.)
         if self.current_job:
             try:
+                # Upload final logs if they exist
+                log_file_path = os.path.join("logs", self.current_run.id)
+                if os.path.exists(log_file_path):
+                    with open(log_file_path, 'rb') as log_file:
+                        log_response = self.files.create(log_file, purpose='log')
+                        if self.current_run:
+                            self.current_run.update(logfile=log_response['id'])
+                
+                # Update worker record with logfile ID
+                with open("logs/main", 'rb') as log_file:
+                    log_response = self.files.create(log_file, purpose='logs')
+                    self.supabase.table('worker').update({
+                        'logfile': log_response['id']
+                    }).eq('id', worker['id']).execute()
+
                 # Mark job as 'pending' only if it is still 'in_progress' by this worker
                 self.update_job_status_if_in_progress(
                     self.current_job['id'],
@@ -285,7 +300,7 @@ class Worker:
         # Create a temporary directory for job execution
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.makedirs(f"{tmp_dir}/uploads", exist_ok=True)
-            log_file_path = os.path.join(tmp_dir, "log.txt")
+            log_file_path = os.path.join("logs", self.current_run.id)
 
             # We already acquired the job via RPC, so it should be in 'in_progress' state for us now.
 

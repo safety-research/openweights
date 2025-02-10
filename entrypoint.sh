@@ -33,28 +33,42 @@ tail -f /var/log/auth.log &
 # Create main.log if it doesn't exist
 touch main.log
 
-# Start a simple Python HTTP server to serve main.log
+# Start a simple Python HTTP server to serve files from logs/
 python3 -c '
 import http.server
 import socketserver
+import os
 
 class LogHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        with open("main.log", "rb") as f:
-            self.wfile.write(f.read())
+        # If path is /logs, serve logs/main
+        if self.path == "/logs":
+            file_path = "logs/main"
+        else:
+            # Remove leading slash and ensure path is within logs directory
+            path = self.path.lstrip("/")
+            file_path = os.path.join("logs", path)
+        
+        # Check if file exists and is within logs directory
+        if os.path.exists(file_path) and os.path.commonprefix([os.path.abspath(file_path), os.path.abspath("logs")]) == os.path.abspath("logs"):
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            with open(file_path, "rb") as f:
+                self.wfile.write(f.read())
+        else:
+            self.send_error(404, "File not found")
 
 with socketserver.TCPServer(("", 10101), LogHandler) as httpd:
     httpd.serve_forever()
 ' &
 
 
+mkdir logs
 
 # Execute the main application or run in dev mode
 if [ "$OW_DEV" = "true" ]; then
     exec tail -f /dev/null
 else
-    exec python3 openweights/worker/main.py > main.log 2>&1
+    exec python3 openweights/worker/main.py > logs/main 2>&1
 fi
