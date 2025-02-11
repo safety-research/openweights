@@ -23,7 +23,7 @@ class AsyncChatCompletions:
 
         When both timeouts are set, the maximum of the two is used.
     """
-    def __init__(self, ow, deploy_kwargs={}, request_timeout=5, per_token_timeout=1):
+    def __init__(self, ow, deploy_kwargs={}, request_timeout=300, per_token_timeout=1):
         self.ow = ow
         self.completions = self
         self.deploy_kwargs = deploy_kwargs
