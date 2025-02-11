@@ -11,6 +11,10 @@ from collections import defaultdict
 from typing import List, Dict
 from functools import lru_cache
 
+
+APIS = {}
+
+
 @lru_cache
 def get_adapter_config(adapter_id: str, token: str = None) -> dict:
     """
@@ -122,6 +126,7 @@ class TemporaryApi:
         self.api_key = job['params']['api_key']
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.wait_until_ready(openai, job['params']['model'])
+        APIS[job['params']['model']] = self
 
         self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])
         self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, max_retries=1)
@@ -158,6 +163,7 @@ class TemporaryApi:
 
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         await self.async_wait_until_ready(openai, job['params']['model'])
+        APIS[job['params']['model']] = self
         print(f'API ready: {self.base_url}')
 
         self.sem = asyncio.Semaphore(job['params']['max_num_seqs'])

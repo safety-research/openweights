@@ -3,8 +3,10 @@ import openai
 import asyncio
 from openweights.client.cache_on_disk import cache_on_disk
 import backoff
+from openweights.client.temporary_api import TemporaryApi, APIS
+import openai
 
-APIS = {}
+
 DEPLOYMENT_QUEUE = []
 STARTING = []
 
@@ -44,7 +46,8 @@ class AsyncChatCompletions:
         exception=(
             openai.RateLimitError,
             openai.APIConnectionError,
-            openai.APITimeoutError
+            openai.APITimeoutError,
+            openai.InternalServerError
         ),
         max_value=60,
         factor=1.5,
@@ -114,8 +117,6 @@ class ChatCompletions(AsyncChatCompletions):
         response = asyncio.run(super().create(**kwargs))
         return response
 
-from openweights.client.temporary_api import TemporaryApi
-import openai
 
 def looks_like_openai(model):
     return any(model.lower().startswith(i) for i in  ['gpt', 'o1', 'o3'])
