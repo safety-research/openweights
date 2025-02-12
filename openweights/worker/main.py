@@ -342,14 +342,16 @@ class Worker:
                         stderr=subprocess.STDOUT,
                         cwd=tmp_dir, 
                         env=env,
-                        preexec_fn=os.setsid  # Allow us to send signals to the process group
+                        preexec_fn=os.setsid,  # Allow us to send signals to the process group
+                        bufsize=1,  # Line buffered
+                        universal_newlines=True  # Text mode
                     )
 
                     # Stream logs to both file and stdout
-                    for line in iter(self.current_process.stdout.readline, b''):
-                        decoded = line.decode().rstrip('\n')
-                        print(decoded)
-                        log_file.write(decoded + '\n')
+                    for line in iter(self.current_process.stdout.readline, ''):
+                        print(line.rstrip('\n'), flush=True)  # Immediate stdout flush
+                        log_file.write(line)
+                        log_file.flush()  # Force immediate write to file
 
                     self.current_process.wait()
 
