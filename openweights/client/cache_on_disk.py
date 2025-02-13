@@ -19,7 +19,7 @@ class CacheOnDisk:
         if cache_dir is None:
             cache_dir = os.path.join(os.path.dirname(__file__), ".llm-cache")
         os.makedirs(cache_dir, exist_ok=True)
-        self.cache = dc.FanoutCache(cache_dir, shards=64, timeout=1)
+        self.cache = dc.FanoutCache(cache_dir, shards=64, timeout=10)
         self.semaphore = asyncio.Semaphore(n_semaphore)
 
     def __call__(self, possible_func=None, *, required_kwargs=None):
