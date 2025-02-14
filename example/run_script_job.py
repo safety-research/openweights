@@ -8,14 +8,17 @@ from openweights import OpenWeights
 load_dotenv()
 client = OpenWeights()
 
-script = """echo "Hello world"
-pwd
-pip freeze
-sleep 60"""
+script = """touch uploads/test.txt
+echo "Hello, world!" > uploads/test.txt
+echo "yo yo yo" > uploads/yo.txt
+echo "bye bye bye" > uploads/bye.txt
+ls uploads
+"""
 
 job = client.jobs.create(
     script=script,
-    requires_vram_gb=0
+    requires_vram_gb=0,
+    image='nielsrolf/ow-inference'
 )
 print(job)
 
