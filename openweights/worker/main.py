@@ -359,8 +359,6 @@ class Worker:
                         logging.info(f"Job {job['id']} was canceled", extra={'run_id': self.current_run.id})
                     elif self.current_process.returncode == 0:
                         status = 'completed'
-                        # Attempt to fetch the latest events for outputs
-                        outputs = openweights.events.latest('*', job_id=job['id'])
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
                         # We now have the model cached
                         if job['model'] not in self.cached_models:
@@ -378,6 +376,22 @@ class Worker:
                 # Upload log file to Supabase
                 with open(log_file_path, 'rb') as log_file:
                     log_response = self.files.create(log_file, purpose='log')
+                
+                # Then upload any files from /uploads as results
+                upload_dir = os.path.join(tmp_dir, "uploads")
+                for root, _, files in os.walk(upload_dir):
+                    for file_name in files:
+                        file_path = os.path.join(root, file_name)
+                        try:
+                            with open(file_path, 'rb') as file:
+                                file_response = self.files.create(file, purpose='result')
+                            # Log the uploaded file to the run
+                            self.current_run.log({'file_name': file_name, file_name: file_response['id']})
+                        except Exception as e:
+                            logging.error(f"Failed to upload file {file_name}: {e}")
+
+                # Attempt to fetch the latest events for outputs
+                outputs = openweights.events.latest('*', job_id=job['id'])
 
                 # Use your RPC to update the job status only if it's still 'in_progress' for you
                 self.update_job_status_if_in_progress(
@@ -390,19 +404,6 @@ class Worker:
                 self.current_run.update(status=status, logfile=log_response['id'])
 
                 self.past_job_status.append(status)
-
-                # Then upload any files from /uploads as results
-                upload_dir = os.path.join(tmp_dir, "uploads")
-                for root, _, files in os.walk(upload_dir):
-                    for file_name in files:
-                        file_path = os.path.join(root, file_name)
-                        try:
-                            with open(file_path, 'rb') as file:
-                                file_response = self.files.create(file, purpose='result')
-                            # Log the uploaded file to the run
-                            self.current_run.log({'file': file_response['id']})
-                        except Exception as e:
-                            logging.error(f"Failed to upload file {file_name}: {e}")
                 
                 # Clear current job/run/process
                 self.current_job = None

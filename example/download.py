@@ -52,11 +52,18 @@ def download_job_artifacts(job_id, target_dir):
         events = client.events.list(run_id=run_id)
         plot_run(events, f"{target_dir}/{run_id}")
         # Files
-        for event in events:
+        for i, event in enumerate(events):
             if event['file']:
                 file = client.files.content(event['file'])
                 filename = event["filename"].split('/')[-1]
                 with open(f'{target_dir}/{run_id}/{filename}', 'wb') as f:
+                    f.write(file)
+            if event['data']['file']:
+                file = client.files.content(event['data']['file'])
+                rel_path = event['data']["filename"].split('/')[-1] or f"unnamed_{i}"
+                path = f'{target_dir}/{run_id}/{rel_path}'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'wb') as f:
                     f.write(file)
 
 
