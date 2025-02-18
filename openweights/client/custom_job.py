@@ -17,6 +17,10 @@ class CustomJob(BaseJob):
         """Initialize the custom job.
         `client` should be an instance of `openweights.OpenWeights`."""
         self.client = client
+    
+    @property
+    def id_predix(self):
+        return self.__class__.__name__.lower()
 
     @property
     def _supabase(self):
@@ -84,7 +88,7 @@ class CustomJob(BaseJob):
         # Create job
         job_data = {
             'type': 'custom',
-            'image': self.base_image,
+            'docker_image': self.base_image,
             'requires_vram_gb': params.get('requires_vram_gb', self.requires_vram_gb),
             'script': entrypoint,
             'params': {
@@ -92,5 +96,4 @@ class CustomJob(BaseJob):
                 'mounted_files': mounted_files
             }
         }
-        
-        return self.client.jobs.create(**job_data)
+        return self.get_or_create_or_reset(job_data)

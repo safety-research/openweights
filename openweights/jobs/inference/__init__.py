@@ -17,14 +17,14 @@ class InferenceJobs(CustomJob):
         os.path.join(os.path.dirname(__file__), 'validate.py'): 'validate.py'
     }
     base_image: str = 'nielsrolf/ow-inference-v2'
+    
+    @property
+    def id_prefix(self):
+        return 'ijob-'
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create an inference job"""
-
-        hash_params = {k: v for k, v in params.items() if k not in ['meta']}
-        job_id = f"ijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
-
         base_model, lora_adapter = resolve_lora_model(params['model'])
         if requires_vram_gb == 'guess':
             model_size = guess_model_size(base_model)
@@ -45,7 +45,6 @@ class InferenceJobs(CustomJob):
         input_file_id = params['input_file_id']
 
         data = {
-            'id': job_id,
             'type': 'custom',
             'model': model,
             'params': {

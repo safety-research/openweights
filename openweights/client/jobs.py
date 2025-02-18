@@ -15,6 +15,10 @@ class BaseJob:
     def __init__(self, supabase: Client, organization_id: str):
         self._supabase = supabase
         self._org_id = organization_id
+    
+    @property
+    def id_predix(self):
+        return 'job-'
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -40,13 +44,17 @@ class BaseJob:
         result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', job_id).execute()
         return result.data[0]
     
+    def compute_id(self, data: Dict[str, Any]) -> str:
+        """Compute job ID from data"""
+        return f"{self.id_predix}-{hashlib.sha256(json.dumps(data).encode() + self._org_id.encode()).hexdigest()[:12]}"
+    
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """If job exists and is [pending, in_progress, completed] return it.
         If job exists and is [failed, canceled] reset it to pending and return it.
         If job doesn't exist, create it and return it.
         """
-        # Always set organization_id from token
+        data['id'] = data.get('id', self.compute_id(data))
         data['organization_id'] = self._org_id
         
         try:
