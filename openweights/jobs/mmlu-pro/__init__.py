@@ -2,16 +2,13 @@ import argparse
 import os
 import json
 from pydantic import BaseModel, Field
-from openweights import OpenWeights
+from openweights import OpenWeights, register
 from openweights.client.custom_job import CustomJob
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List
 from dotenv import load_dotenv
-
-load_dotenv()
-ow = OpenWeights()
 
 
 class MMLUProArgs(BaseModel):
@@ -28,18 +25,16 @@ class MMLUProArgs(BaseModel):
 
     class Config:
         extra = "forbid"  # Prevent extra fields not defined in the model
-    
 
 
-
-@ow.register("mmlu_pro")
+@register("mmlu_pro")
 class MMLUProJob(CustomJob):
     # Mount our addition script
     mount = {
         os.path.dirname(__file__): '.'
     }
     params = MMLUProArgs
-    base_image = 'nielsrolf/ow-inference'
+    base_image = 'nielsrolf/ow-inference-v2'
     requires_vram_gb = 60
 
     def get_entrypoint(self, validated_params: MMLUProArgs) -> str:
@@ -54,7 +49,8 @@ class MMLUProJob(CustomJob):
             f"    --global_record_file \"{validated_params.global_record_file}\" \\\n"
             f"    --gpu_util {validated_params.gpu_util}"
         )
-        
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ntrain", "-k", type=int, default=5)

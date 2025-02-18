@@ -1,8 +1,23 @@
-from openweights import register, CustomJob
+from openweights.client import register, CustomJob
+from typing import Any, Dict, Tuple
+import hashlib
+import json
+import os
+import backoff
+from glob import glob
+
+from .validate import TrainingConfig
 
 
 @register("fine_tuning")        
 class FineTuning(CustomJob):
+
+    mount = {
+        filepath: os.path.basename(filepath)
+        for filepath in glob(os.path.join(os.path.dirname(__file__), '*.py'))
+    }
+    base_image: str = 'nielsrolf/ow-unsloth-v2'
+
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
@@ -18,10 +33,14 @@ class FineTuning(CustomJob):
             'id': job_id,
             'type': 'fine-tuning',
             'model': params['model'],
-            'params': params,
+            'params': {
+                'validated_params': params,
+                'mounted_files': self._upload_mounted_files()
+            },
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
-            'docker_image': 'nielsrolf/ow-unsloth-v2:latest'
+            'docker_image': self.base_image,
+            'script': self.get_entrypoint(TrainingConfig(**params))
         }
         
         return self.get_or_create_or_reset(data)
@@ -43,3 +62,6 @@ class FineTuning(CustomJob):
         
         params = TrainingConfig(**params).model_dump()
         return job_id, params
+    
+    def get_entrypoint(self, config: TrainingConfig) -> str:
+        return f"python training.py '{json.dumps(config.model_dump())}'"

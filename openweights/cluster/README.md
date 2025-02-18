@@ -20,10 +20,10 @@ python openweights/cluster/supervisor.py
 ```sh
 ## Inference (vllm)
 docker build -f ow-inference.Dockerfile -t nielsrolf/ow-inference-v2 .
-docker push nielsrolf/ow-inference
+docker push nielsrolf/ow-inference-v2
 ## Training (unsloth)
 docker build -f ow-unsloth.Dockerfile -t nielsrolf/ow-unsloth-v2 .
-docker push nielsrolf/ow-unsloth
+docker push nielsrolf/ow-unsloth-v2
 ## Axolotl
 docker build --platform linux/amd64 -f ow-axolotl.Dockerfile -t nielsrolf/ow-axolotl .
 docker push nielsrolf/ow-axolotl

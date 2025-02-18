@@ -16,7 +16,7 @@ class InferenceJobs(CustomJob):
         os.path.join(os.path.dirname(__file__), 'cli.py'): 'cli.py',
         os.path.join(os.path.dirname(__file__), 'validate.py'): 'validate.py'
     }
-    base_image: str = 'nielsrolf/ow-inference'
+    base_image: str = 'nielsrolf/ow-inference-v2'
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:

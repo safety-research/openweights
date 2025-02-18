@@ -4,7 +4,7 @@ import time
 from dotenv import load_dotenv
 
 from openweights import OpenWeights
-from openweights.jobs.unsloth import FineTuning
+import openweights.jobs.unsloth
 
 load_dotenv()
 client = OpenWeights()

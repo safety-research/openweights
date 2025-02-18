@@ -6,8 +6,7 @@ from trl import SFTTrainer
 from unsloth import is_bfloat16_supported
 from transformers import TrainingArguments, DataCollatorForSeq2Seq
 
-from openweights.worker.utils import GPUStatsCallback, LogMetrics
-
+from utils import GPUStatsCallback, LogMetrics
 
 from unsloth.chat_templates import train_on_responses_only
 

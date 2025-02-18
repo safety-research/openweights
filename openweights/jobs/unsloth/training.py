@@ -1,15 +1,16 @@
 import json
 import os
+import sys
 
 import backoff
 from datasets import Dataset
 from unsloth import FastLanguageModel
 
-from openweights.validate import TrainingConfig
-from openweights.worker.dpo_ft import dpo_train
-from openweights.worker.orpo_ft import orpo_train
-from openweights.worker.sft import sft_train
-from openweights.worker.utils import load_jsonl, load_model_and_tokenizer, client
+from validate import TrainingConfig
+from dpo_ft import dpo_train
+from orpo_ft import orpo_train
+from sft import sft_train
+from utils import load_jsonl, load_model_and_tokenizer, client
 
 
 def train(training_cfg, skip_client_logging: bool = False):
@@ -86,12 +87,14 @@ def push_model(training_cfg, finetuned_model_id, model, tokenizer):
 
 
 def main(config: str, skip_client_logging: bool = False):
-    with open(config, 'r') as f:
-        config = json.load(f)
+    if os.path.exists(config):
+        with open(config, 'r') as f:
+            config = json.load(f)
+    else:
+        config = json.loads(config)
     training_config = TrainingConfig(**config)
     train(training_config, skip_client_logging)
 
 
 if __name__ == "__main__":
-    import fire
-    fire.Fire(main)
+    main(sys.argv[1])

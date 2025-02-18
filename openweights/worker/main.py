@@ -310,25 +310,9 @@ class Worker:
             script = None  # We'll store the actual script string we ran.
 
             try:
-                # Prepare the script based on job type:
-                if job['type'] == 'script':
-                    script = job['script'] 
-                elif job['type'] == 'custom':
-                    # Set up mounted files
+                if 'mounted_files' in job['params']:
                     self._setup_custom_job_files(tmp_dir, job['params']['mounted_files'])
-                    script = job['script']
-                elif job['type'] == 'fine-tuning':
-                    config_path = os.path.join(tmp_dir, "config.json")
-                    with open(config_path, 'w') as f:
-                        json.dump(job['params'], f)
-                    script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
-                elif job['type'] == 'inference':
-                    config_path = os.path.join(tmp_dir, "config.json")
-                    with open(config_path, 'w') as f:
-                        json.dump(job['params'], f)
-                    script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
-                elif job['type'] == 'api':
-                    script = job['script']
+                script = job['script']
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()

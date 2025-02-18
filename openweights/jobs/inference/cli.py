@@ -9,8 +9,7 @@ from vllm.lora.request import LoRARequest
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from openweights.client import OpenWeights
-# from openweights.client.utils import resolve_lora_model, get_lora_rank
-from openweights.client.temporary_api import resolve_lora_model, get_lora_rank
+from openweights.client.utils import resolve_lora_model, get_lora_rank
 
 from validate import InferenceConfig
 
