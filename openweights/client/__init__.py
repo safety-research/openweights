@@ -13,14 +13,14 @@ import time
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 
-from openweights.validate import validate_messages, validate_preference_dataset, TrainingConfig, InferenceConfig, ApiConfig
-from openweights.client.files import Files
-from openweights.client.jobs import FineTuningJobs, InferenceJobs, Deployments, Jobs
+from openweights.client.files import Files, validate_messages, validate_preference_dataset
+from openweights.client.jobs import Jobs
 from openweights.client.run import Run, Runs
 from openweights.client.events import Events
-from openweights.client.temporary_api import TemporaryApi, group_models_or_adapters_by_model, get_lora_rank
+from openweights.client.temporary_api import TemporaryApi
 from openweights.client.chat import ChatCompletions, AsyncChatCompletions
 from openweights.client.custom_job import CustomJob
+from openweights.client.utils import group_models_or_adapters_by_model, get_lora_rank
 
 
 def create_authenticated_client(supabase_url: str, supabase_anon_key: str, auth_token: Optional[str] = None):
@@ -48,7 +48,20 @@ def create_authenticated_client(supabase_url: str, supabase_anon_key: str, auth_
     return create_client(supabase_url, supabase_anon_key, options)
 
 
+_REGISTERED_JOBS = {}
+def register(name: str):
+    """Decorator to register a custom job class"""
+    def register_job(cls):
+        _REGISTERED_JOBS[name] = cls
+        for ow in OpenWeights._INSTANCES:
+            setattr(ow, name, cls(ow))
+        return cls
+    return register_job
+
+
 class OpenWeights:
+    _INSTANCES = []
+
     def __init__(self, 
                  supabase_url: Optional[str] = None, 
                  supabase_key: Optional[str] = None, 
@@ -89,10 +102,7 @@ class OpenWeights:
         
         # Initialize components with organization ID
         self.files = Files(self._supabase, self.organization_id)
-        self.fine_tuning = FineTuningJobs(self._supabase, self.organization_id)
-        self.inference = InferenceJobs(self._supabase, self.organization_id)
         self.jobs = Jobs(self._supabase, self.organization_id)
-        self.deployments = Deployments(self._supabase, self.organization_id)
         self.runs = Runs(self._supabase)
         self.events = Events(self._supabase)
         self.async_chat = AsyncChatCompletions(self, deploy_kwargs=self.deploy_kwargs)
@@ -100,6 +110,10 @@ class OpenWeights:
         self.chat = self.async_chat if use_async else self.sync_chat
 
         self._current_run = None
+
+        for name, cls in _REGISTERED_JOBS.items():
+            setattr(self, name, cls(self))
+        OpenWeights._INSTANCES.append(self)
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_organization_id(self) -> str:
@@ -138,39 +152,3 @@ class OpenWeights:
         if not self._current_run:
             self._current_run = Run(self._supabase, organization_id=self.organization_id)
         return self._current_run
-    
-    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess', max_num_seqs: int = 100) -> TemporaryApi:
-        if lora_adapters is None:
-            lora_adapters = []
-        """Deploy a model on OpenWeights"""
-        if api_key is None:
-            api_key = self.auth_token
-        if lora_adapters and max_lora_rank == 'guess':
-            max_lora_rank = max(get_lora_rank(a) for a in lora_adapters)
-        else:
-            max_lora_rank = 16
-        job = self.deployments.create(
-            model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb,
-            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank, max_num_seqs=max_num_seqs)
-        return TemporaryApi(self, job['id'])
-    
-    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None) -> Dict[str, TemporaryApi]:
-        """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
-        assert isinstance(models, list), "models must be a list"
-        lora_groups = group_models_or_adapters_by_model(models)
-        apis = {}
-        for model, lora_adapters in lora_groups.items():
-            if base_model_override is not None:
-                model = base_model_override
-            print(f"Deploying {model} with {len(lora_adapters)} lora adapters")
-            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs)
-            for model_id in [model] + lora_adapters:
-                apis[model_id] = api
-        return apis
-    
-    def register(self, name: str):
-        """Decorator to register a custom job class"""
-        def register_custom_job(cls):
-            obj = cls(self)
-            setattr(self, name, obj)
-        return register_custom_job

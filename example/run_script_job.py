@@ -9,7 +9,7 @@ load_dotenv()
 client = OpenWeights()
 
 script = """touch uploads/test.txt
-echo "Hello, world!" > uploads/test.txt
+echo "Hello world!" > uploads/test.txt
 echo "yo yo yo" > uploads/yo.txt
 echo "bye bye bye" > uploads/bye.txt
 ls uploads

@@ -8,6 +8,7 @@ client = OpenWeights()
 
 jobs = client.jobs.find(meta={'group': 'hparams'}, load_in_4bit='false')
 jobs = [job for job in jobs if job['status'] == 'failed']
+print(f"Fount {len(jobs)} failed jobs")
 for job in jobs:
     if job['status'] == 'failed':
-        client.jobs.restart(job['id'])
+        print(client.jobs.restart(job['id']))

@@ -1,3 +1,4 @@
+import sys
 import json
 import time
 
@@ -7,8 +8,12 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
-from openweights.client import InferenceConfig, OpenWeights
-from openweights.client.utils import resolve_lora_model, get_lora_rank
+from openweights.client import OpenWeights
+# from openweights.client.utils import resolve_lora_model, get_lora_rank
+from openweights.client.temporary_api import resolve_lora_model, get_lora_rank
+
+from validate import InferenceConfig
+
 
 load_dotenv()
 client = OpenWeights()
@@ -61,9 +66,8 @@ def load_jsonl_file_from_id(input_file_id):
     rows = [json.loads(line) for line in content.split("\n") if line.strip()]
     return rows
 
-def main(config_path: str):
-    with open(config_path, 'r') as f:
-        cfg = InferenceConfig(**json.load(f))
+def main(config_json: str):
+    cfg = InferenceConfig(**json.loads(config_json))
     
     base_model, lora_adapter = resolve_lora_model(cfg.model)
 
@@ -136,5 +140,4 @@ def main(config_path: str):
     client.run.log({'file': file['id']})
 
 if __name__ == "__main__":
-    import fire
-    fire.Fire(main)
+    main(sys.argv[1])

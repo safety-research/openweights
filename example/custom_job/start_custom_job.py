@@ -2,6 +2,7 @@ import os
 import json
 from pydantic import BaseModel, Field
 from openweights import OpenWeights
+from openweights.client import register
 from openweights.client.custom_job import CustomJob
 
 
@@ -14,7 +15,7 @@ class AdditionParams(BaseModel):
     b: float = Field(..., description="Second number to add")
 
 
-@ow.register("addition") # After registering it, we can use it as ow.addition
+@register("addition") # After registering it, we can use it as ow.addition
 class AdditionJob(CustomJob):
     # Mount our addition script
     mount = {
