@@ -1,24 +1,20 @@
-# Nice to have
-- write run logs to file which is served by http
-- login with API key
-- delete API key revokes access
-- URLs work and don't always bring you to the landing page
+# Logprob jobs
+- basic job
+- wrapper: MCquestion
+- wrapper: 0-100 judge
 
-# batch inference features (vllm)
-- lora support
+# Logprob API
+- logprobs/judge/mc-question API?
 
-# tgi-inference
-- test case: llama-70b-4bit + lora
+# Check quantization + lora setup
+- https://docs.vllm.ai/en/v0.6.3.post1/getting_started/examples/lora_with_quantization_inference.html
 
-# Stability
-- pods might have issues out of our control. when a worker has x numbers of fails in a row, we should terminate the pod and start a new one
+# Axolotl jobs
 
-# Multi GPU training
-axolotl supports this. we could add a `worker/multi_gpu_training.py` that uses axolotl and accepts similar training configs. 
-- add new job type (`client.axolotl_ft.create`) + `validation.py`
-- add new docker image with axolotl dependencies
-- `worker/multi_gpu_training.py`
-- `worker/main.py`
+# RL jobs
+https://www.reddit.com/r/LocalLLaMA/comments/1ijab77/train_your_own_reasoning_model_80_less_vram_grpo/
+
+# torchtune jobs
 
 # general
 - add cpu instances
