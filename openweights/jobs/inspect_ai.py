@@ -36,7 +36,6 @@ class InspectAi(Jobs):
             f"    --model vllm/{validated_params.model} \\\n"
             f"    -M max_model_len={validated_params.max_model_len} \\\n"
             f"    {validated_params.options} \n"
-            "ls * "
         )
 
 

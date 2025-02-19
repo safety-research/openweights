@@ -164,16 +164,9 @@ class Jobs:
                 raise
         job = result.data
 
-        # Assert that meta data is the same
-        if 'meta' in data and 'meta' in job:
-            assert data['meta'] == job['meta'], f"Job {data['id']} already exists with different meta data"
-        elif 'meta' in job:
-            result = self._supabase.table('jobs').update({'meta': job['meta']}).eq('id', data['id']).execute()
-        elif 'meta' in data:
-            job['meta'] = data['meta']
-
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
+            data['status'] = 'pending'
             result = self._supabase.table('jobs').update(data).eq('id', data['id']).execute()
             return Job(**result.data[0], _manager=self)
         elif job['status'] in ['pending', 'in_progress', 'completed']:
