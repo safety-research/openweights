@@ -14,12 +14,11 @@ from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 
 from openweights.client.files import Files, validate_messages, validate_preference_dataset
-from openweights.client.jobs import Jobs
+from openweights.client.jobs import Job, Jobs
 from openweights.client.run import Run, Runs
 from openweights.client.events import Events
 from openweights.client.temporary_api import TemporaryApi
 from openweights.client.chat import ChatCompletions, AsyncChatCompletions
-from openweights.client.custom_job import CustomJob
 from openweights.client.utils import group_models_or_adapters_by_model, get_lora_rank
 
 
@@ -102,8 +101,8 @@ class OpenWeights:
         
         # Initialize components with organization ID
         self.files = Files(self._supabase, self.organization_id)
-        self.jobs = Jobs(self._supabase, self.organization_id)
-        self.runs = Runs(self._supabase)
+        self.jobs = Jobs(self)
+        self.runs = Runs(self)
         self.events = Events(self._supabase)
         self.async_chat = AsyncChatCompletions(self, deploy_kwargs=self.deploy_kwargs)
         self.sync_chat = ChatCompletions(self, deploy_kwargs=self.deploy_kwargs)

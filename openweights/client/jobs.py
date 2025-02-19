@@ -1,48 +1,145 @@
 import re
 import json
-from typing import BinaryIO, Dict, Any, List, Union, Tuple
+from typing import BinaryIO, Dict, Any, List, Union, Tuple, Type
 import os
 from postgrest.exceptions import APIError
 import backoff
 
 import hashlib
 from supabase import Client
-
+from pydantic import BaseModel, Field
+from datetime import datetime
+from dataclasses import dataclass
 from openweights.client.utils import resolve_lora_model, get_lora_rank
 
 
-class BaseJob:
-    def __init__(self, supabase: Client, organization_id: str):
-        self._supabase = supabase
-        self._org_id = organization_id
+@dataclass
+class Job:
+    id: str
+    type: str
+    status: str
+    model: str
+    requires_vram_gb: int
+    docker_image: str
+    script: str
+    params: Dict[str, Any] | None
+    outputs: Dict[str, Any] | None
+    organization_id: str
+    created_at: datetime
+    updated_at: datetime
+    worker_id: str | None
+    timeout: datetime | None
+
+    _manager: 'BaseJob' = None
+
+    def _update(self, job):
+        self.__dict__.update(job.__dict__)
+        return self
+
+    def cancel(self):
+        return self._update(self._manager.cancel(self.id))
+    
+    def restart(self):
+        return self._update(self._manager.restart(self.id))
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
+    
+    @property
+    def runs(self):
+        return self._manager.client.runs.list(job_id=self.id)
+    
+    def download(self, target_dir: str, only_last_run: bool = True):
+        if only_last_run:
+            self.runs[-1].download(target_dir)
+        else:
+            for run in self.runs:
+                run.download(f"{target_dir}/{run.id}")
+
+
+class Jobs:
+    mount: Dict[str, str] = {}  # source path -> target path mapping
+    params: Type[BaseModel] = BaseModel  # Pydantic model for parameter validation
+    base_image: str = 'nielsrolf/ow-inference'  # Base Docker image to use
+    requires_vram_gb: int = 24  # Required VRAM in GB
+
+    def __init__(self, client):
+        """Initialize the custom job.
+        `client` should be an instance of `openweights.OpenWeights`."""
+        self.client = client
     
     @property
     def id_predix(self):
-        return 'job-'
+        return self.__class__.__name__.lower()
+
+    @property
+    def _supabase(self):
+        return self.client._supabase
+    
+    @property
+    def _org_id(self):
+        return self.client.organization_id
+
+    def get_entrypoint(self, validated_params: BaseModel) -> str:
+        """Get the entrypoint command for the job.
+        
+        Args:
+            validated_params: The validated parameters as a Pydantic model instance
+        
+        Returns:
+            The command to run as a string
+        """
+        raise NotImplementedError("Subclasses must implement get_entrypoint")
+
+    def _upload_mounted_files(self) -> Dict[str, str]:
+        """Upload all mounted files and return mapping of target paths to file IDs."""
+        uploaded_files = {}
+        
+        for source_path, target_path in self.mount.items():
+            # Handle both files and directories
+            if os.path.isfile(source_path):
+                with open(source_path, 'rb') as f:
+                    file_response = self.client.files.create(f, purpose='custom_job_file')
+                uploaded_files[target_path] = file_response['id']
+            elif os.path.isdir(source_path):
+                # For directories, upload each file maintaining the structure
+                for root, _, files in os.walk(source_path):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, source_path)
+                        target_file_path = os.path.join(target_path, rel_path)
+                        
+                        with open(full_path, 'rb') as f:
+                            file_response = self.client.files.create(f, purpose='custom_job_file')
+                        uploaded_files[target_file_path] = file_response['id']
+            else:
+                raise ValueError(f"Mount source path does not exist: {source_path}")
+        
+        return uploaded_files
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
         """List jobs"""
         result = self._supabase.table('jobs').select('*').order('updated_at', desc=True).limit(limit).execute()
-        return result.data
+        return [Job(**row, _manager=self) for row in result.data]
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def retrieve(self, job_id: str) -> Dict[str, Any]:
         """Get job details"""
         result = self._supabase.table('jobs').select('*').eq('id', job_id).single().execute()
-        return result.data
+        return Job(**result.data, _manager=self)
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def cancel(self, job_id: str) -> Dict[str, Any]:
         """Cancel a job"""
         result = self._supabase.table('jobs').update({'status': 'canceled'}).eq('id', job_id).execute()
-        return result.data[0]
+        return Job(**result.data[0], _manager=self)
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def restart(self, job_id: str) -> Dict[str, Any]:
         """Restart a job"""
         result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', job_id).execute()
-        return result.data[0]
+        return Job(**result.data[0], _manager=self)
     
     def compute_id(self, data: Dict[str, Any]) -> str:
         """Compute job ID from data"""
@@ -106,33 +203,35 @@ class BaseJob:
                 
         data = query.execute().data
 
-        return data
+        return [Job(**row, _manager=self) for row in data]
 
-
-
-    
-class Jobs(BaseJob):
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='nielsrolf/ow-unsloth:latest', type='script', params=None) -> Dict[str, Any]:
-        """Create a script job"""
+    def create(self, **params) -> Dict[str, Any]:
+        """Create and submit a custom job.
         
-        if isinstance(script, (str, bytes)):
-            script_content = script
-        else:
-            script_content = script.read()
-        if isinstance(script_content, bytes):
-            script_content = script_content.decode('utf-8')
+        Args:
+            **params: Parameters for the job, will be validated against self.params
 
-        job_id = f"sjob-{hashlib.sha256(script_content.encode() + self._org_id.encode()).hexdigest()[:12]}"
+        Returns:
+            The created job object
+        """
+        # Validate parameters
+        validated_params = self.params(**params)
         
-        data = {
-            'id': job_id,
-            'type': type,
-            'script': script_content,
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'docker_image': image,
-            'params': params or {}
+        # Upload mounted files
+        mounted_files = self._upload_mounted_files()
+        
+        # Get entrypoint command
+        entrypoint = self.get_entrypoint(validated_params)
+        
+        # Create job
+        job_data = {
+            'type': 'custom',
+            'docker_image': self.base_image,
+            'requires_vram_gb': params.get('requires_vram_gb', self.requires_vram_gb),
+            'script': entrypoint,
+            'params': {
+                'validated_params': validated_params.model_dump(),
+                'mounted_files': mounted_files
+            }
         }
-        
-        return self.get_or_create_or_reset(data)
+        return self.get_or_create_or_reset(job_data)
