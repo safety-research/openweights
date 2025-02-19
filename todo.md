@@ -1,13 +1,7 @@
 # Turn into custom jobs
 
 
-- [ ] docs
-    - README
-    - evals
-        - mmlu_pro
-        - inspect_ai
-    - default lora rank
-    
+
 -------
 
 # InspectAI
