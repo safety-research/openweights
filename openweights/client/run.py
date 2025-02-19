@@ -190,14 +190,9 @@ class Run:
                 f.write(log)
         events = self.events
         for i, event in enumerate(events):
-            if event['file']:
-                file = self.client.files.content(event['file'])
-                filename = event["filename"].split('/')[-1]
-                with open(f'{target_dir}/{filename}', 'wb') as f:
-                    f.write(file)
             if event['data'].get('file'):
                 file = self.client.files.content(event['data']['file'])
-                rel_path = event['data']["filename"].split('/')[-1] if 'filename' in event['data']  else event['data']['file']
+                rel_path = event['data']["file_name"].split('/')[-1] if 'file_name' in event['data']  else event['data']['file']
                 path = f'{target_dir}/{rel_path}'
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, 'wb') as f:

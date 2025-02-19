@@ -30,7 +30,7 @@ class Job:
     worker_id: str | None
     timeout: datetime | None
 
-    _manager: 'BaseJob' = None
+    _manager: 'Jobs' = None
 
     def _update(self, job):
         self.__dict__.update(job.__dict__)
@@ -60,7 +60,7 @@ class Job:
 class Jobs:
     mount: Dict[str, str] = {}  # source path -> target path mapping
     params: Type[BaseModel] = BaseModel  # Pydantic model for parameter validation
-    base_image: str = 'nielsrolf/ow-inference'  # Base Docker image to use
+    base_image: str = 'nielsrolf/ow-inference-v2'  # Base Docker image to use
     requires_vram_gb: int = 24  # Required VRAM in GB
 
     def __init__(self, client):
@@ -175,9 +175,9 @@ class Jobs:
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
             result = self._supabase.table('jobs').update(data).eq('id', data['id']).execute()
-            return Job(**result.data[0])
+            return Job(**result.data[0], _manager=self)
         elif job['status'] in ['pending', 'in_progress', 'completed']:
-            return Job(**job)
+            return Job(**job, _manager=self)
         else:
             raise ValueError(f"Invalid job status: {job['status']}")
         

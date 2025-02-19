@@ -149,5 +149,5 @@ class OpenWeights:
     @property
     def run(self):
         if not self._current_run:
-            self._current_run = Run(self._supabase, organization_id=self.organization_id)
+            self._current_run = Run(self, organization_id=self.organization_id)
         return self._current_run

@@ -81,6 +81,24 @@ API jobs can never complete, they stop either because they are canceled or faile
 ## `ow.chat.completions`
 We implement an efficient chat client that handles local caching on disk when a seed is provided as well as concurrency management and backpressure. It also deploys models when they are not openai models and not already deployed. We make many guesses that are probably suboptimal for many use cases when we automatically deploy models - for those cases you should explicitly use `ow.api.deploy`.
 
+## Inspect-AI
+```python
+
+from openweights import OpenWeights
+import openweights.jobs.inspect_ai     # this makes ow.inspect_ai available
+ow = OpenWeights()
+
+job = ow.inspect_ai.create(
+    model='meta-llama/Llama-3.3-70B-Instruct',
+    eval_name='inspect_evals/gpqa_diamond',
+    options='--top-p 0.9', # Can be any options that `inspect eval` accepts - we simply pass them on without validation
+)
+
+if job.status == 'completed':
+    job.download(f"{args.local_save_dir}")
+```
+
+
 ## MMLU-pro
 ```python
 from openweights import OpenWeights
@@ -97,7 +115,7 @@ job = ow.mmlu_pro.create(
 )
 
 if job.status == 'completed':
-    job.download(f"{args.local_save_dir}/{job.id}")
+    job.download(f"{args.local_save_dir}")
 ```
 
 # General notes
