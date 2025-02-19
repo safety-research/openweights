@@ -1,8 +1,7 @@
 import os
 import json
 from pydantic import BaseModel, Field
-from openweights.client import OpenWeights, register
-from openweights.client.custom_job import CustomJob
+from openweights import OpenWeights, register, Jobs
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -16,7 +15,7 @@ client = OpenWeights()
 
 
 @register("guided_inference")
-class GuidedInferenceJob(CustomJob):
+class GuidedInferenceJob(Jobs):
     # Mount our addition script
     mount = {
         os.path.join(os.path.dirname(__file__), 'guided_inference.py'): 'guided_inference2.py',
@@ -55,7 +54,7 @@ def main():
         max_model_len=2048,
         requires_vram_gb=8
     )
-    print(json.dumps(job, indent=2))
+    print(job)
     
     # Optional: wait for job completion and print results
     import time

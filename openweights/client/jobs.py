@@ -159,7 +159,7 @@ class Jobs:
         except APIError as e:
             if 'contains 0 rows' in str(e):
                 result = self._supabase.table('jobs').insert(data).execute()
-                return result.data[0]
+                return Job(**result.data[0])
             else:
                 raise
         job = result.data
@@ -175,9 +175,9 @@ class Jobs:
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
             result = self._supabase.table('jobs').update(data).eq('id', data['id']).execute()
-            return result.data[0]
+            return Job(**result.data[0])
         elif job['status'] in ['pending', 'in_progress', 'completed']:
-            return job
+            return Job(**job)
         else:
             raise ValueError(f"Invalid job status: {job['status']}")
         

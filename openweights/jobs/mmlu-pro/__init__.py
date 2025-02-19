@@ -2,8 +2,7 @@ import argparse
 import os
 import json
 from pydantic import BaseModel, Field
-from openweights import OpenWeights, register
-from openweights.client.custom_job import CustomJob
+from openweights import OpenWeights, register, Jobs
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -28,7 +27,7 @@ class MMLUProArgs(BaseModel):
 
 
 @register("mmlu_pro")
-class MMLUProJob(CustomJob):
+class MMLUProJob(Jobs):
     # Mount our addition script
     mount = {
         os.path.dirname(__file__): '.'
@@ -60,8 +59,11 @@ if __name__ == "__main__":
                         default="eval_record_collection.csv")
     parser.add_argument("--gpu_util", "-gu", type=str, default="0.9")
     parser.add_argument("--model", "-m", type=str)
+    parser.add_argument("--local_save_dir", "-l", type=str, default="output")
 
     args = parser.parse_args()
+
+    ow = OpenWeights()
 
     job = ow.mmlu_pro.create(
         model=args.model,
@@ -71,3 +73,6 @@ if __name__ == "__main__":
         global_record_file=args.global_record_file,
         gpu_util=args.gpu_util
     )
+
+    if job.status == 'completed':
+        job.download(f"{args.local_save_dir}/{job.id}")

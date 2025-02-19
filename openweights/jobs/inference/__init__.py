@@ -2,8 +2,7 @@ from typing import Any, Dict
 import json
 import hashlib
 
-from openweights import register
-from openweights.client.custom_job import CustomJob
+from openweights import register, Jobs
 from openweights.client.utils import guess_model_size, get_lora_rank, resolve_lora_model
 import os
 import backoff
@@ -11,7 +10,7 @@ import backoff
 from .validate import InferenceConfig
 
 @register("inference")
-class InferenceJobs(CustomJob):
+class InferenceJobs(Jobs):
     mount = {
         os.path.join(os.path.dirname(__file__), 'cli.py'): 'cli.py',
         os.path.join(os.path.dirname(__file__), 'validate.py'): 'validate.py'

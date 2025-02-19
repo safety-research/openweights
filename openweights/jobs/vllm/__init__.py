@@ -5,11 +5,12 @@ import hashlib
 from .validate import ApiConfig
 from openweights.client.utils import guess_model_size, group_models_or_adapters_by_model, get_lora_rank
 from openweights.client.temporary_api import TemporaryApi
-from openweights.client import register, CustomJob
+from openweights import register, Jobs
 import backoff
 
+
 @register("api")
-class API(CustomJob):
+class API(Jobs):
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
         """Create an inference job"""
