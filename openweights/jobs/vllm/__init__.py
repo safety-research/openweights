@@ -73,7 +73,7 @@ class API(Jobs):
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
             'script': script,
-            'docker_image': 'nielsrolf/ow-inference:latest'
+            'docker_image': 'nielsrolf/ow-inference-v2:latest'
         }
         return self.get_or_create_or_reset(data)
     
