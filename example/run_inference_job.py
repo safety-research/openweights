@@ -4,6 +4,7 @@ import time
 from dotenv import load_dotenv
 
 from openweights import OpenWeights
+import openweights.jobs.inference
 
 load_dotenv()
 client = OpenWeights()
@@ -15,11 +16,11 @@ file_id = file['id']
 
 # Create an inference job
 job = client.inference.create(
-    model='Qwen/QwQ-32B-Preview',
+    model='unsloth/DeepSeek-R1-Distill-Qwen-1.5B',
     input_file_id=file_id,
     max_tokens=1000,
     temperature=0,
-    requires_vram_gb=100,
+    requires_vram_gb=24,
     max_model_len=2048
 )
 print(job)

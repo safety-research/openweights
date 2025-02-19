@@ -4,10 +4,11 @@ A custom job lets you run a script that you would normally run on one GPU as a j
 
 Example:
 ```python
+from openweights import OpenWeights, register, Jobs
 ow = OpenWeights()
 
-@ow.register('some_name_for_my_custom_job')
-class MyCustomJob(CustomJob):
+@register('some_name_for_my_custom_job')
+class MyCustomJob(Jobs):
     mount = {
         'local/path/to/script.py': 'script.py',
         'local/path/to/dir/': 'dirname/'

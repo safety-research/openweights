@@ -1,49 +1,25 @@
 import os
 import json
 from pydantic import BaseModel, Field
-from openweights import OpenWeights
-from openweights.client.custom_job import CustomJob
+from openweights import OpenWeights, register, Jobs
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List
 from dotenv import load_dotenv
+from validate import ResponseType, GuidedInferenceConfig
 
 load_dotenv()
 client = OpenWeights()
 
 
-class GuidedInferenceConfig(BaseModel):
-    class Config:
-        extra = "forbid"  # Prevent extra fields not defined in the model
 
-    model: str = Field(..., description="Hugging Face model ID")
-    input_file_id: str = Field(..., description="File ID of the input dataset")
-
-    max_tokens: int = Field(600, description="Maximum number of tokens to generate")
-    temperature: float = Field(1.0, description="Temperature for sampling")
-    top_p: float = Field(1.0, description="Top P")
-    stop: List[str] = Field([], description="Stop sequences")
-    prefill: str = Field('', description="Prefill")
-    min_tokens: int = Field(1, description="Minimum number of tokens to generate")
-    max_model_len: int = Field(2048, description="Maximum model length")
-    requires_vram_gb: int = Field(8, description="Amount of VRAM required for the job")
-
-    @field_validator("input_file_id")
-    def validate_dataset_type(cls, v, info):
-        if not v:  # Skip validation if dataset is not provided (test_dataset is optional)
-            return v
-        # Validate based on training type
-        if not v.startswith('conversations'):
-            raise ValueError(f"Inference jobs require dataset type to be 'conversations', got: {v}")
-        return v
-
-
-
-class GuidedInferenceJob(CustomJob):
+@register("guided_inference")
+class GuidedInferenceJob(Jobs):
     # Mount our addition script
     mount = {
-        os.path.join(os.path.dirname(__file__), 'guided_inference.py'): 'guided_inference2.py'
+        os.path.join(os.path.dirname(__file__), 'guided_inference.py'): 'guided_inference2.py',
+        os.path.join(os.path.dirname(__file__), 'validate.py'): 'validate.py'
     }
     
     # Define parameter validation using our Pydantic model
@@ -51,7 +27,7 @@ class GuidedInferenceJob(CustomJob):
     
     base_image = 'nielsrolf/ow-inference' # We have to use an ow worker image - you can build your own by using something similar to the existing Dockerfiles
     
-    requires_vram_gb = 100
+    requires_vram_gb = 24
 
     def get_entrypoint(self, validated_params: GuidedInferenceConfig) -> str:
         """Create the command to run our script with the validated parameters"""
@@ -70,15 +46,15 @@ def main():
     file_id = file['id']
 
     # Create an inference job
-    job = GuidedInferenceJob(client).create(
-        model='unsloth/llama-3-8b',
+    job = client.guided_inference.create(
+        model='unsloth/llama-3-8b-Instruct',
         input_file_id=file_id,
         max_tokens=1000,
         temperature=0,
         max_model_len=2048,
         requires_vram_gb=8
     )
-    print(json.dumps(job, indent=2))
+    print(job)
     
     # Optional: wait for job completion and print results
     import time

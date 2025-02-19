@@ -102,7 +102,7 @@ All training methods support the following parameters:
 
 All training methods use LoRA (Low-Rank Adaptation) by default with these configurable parameters:
 
-- `r`: LoRA attention dimension (int, default=512)
+- `r`: LoRA attention dimension (int, default=16)
 - `lora_alpha`: LoRA alpha parameter (int, default=16)
 - `lora_dropout`: LoRA dropout rate (float, default=0.0)
 - `target_modules`: List of modules to apply LoRA to (list of strings)

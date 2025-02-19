@@ -1,7 +1,7 @@
 from trl import ORPOConfig, ORPOTrainer
 from unsloth import is_bfloat16_supported
 
-from openweights.worker.utils import GPUStatsCallback, LogMetrics
+from utils import GPUStatsCallback, LogMetrics
 
 
 def orpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):

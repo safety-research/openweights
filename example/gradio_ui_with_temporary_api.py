@@ -1,13 +1,18 @@
+"""Usage:
+    python gradio_ui_with_temporary_api.py unsloth/DeepSeek-R1-Distill-Qwen-1.5B
+"""
+
 import gradio as gr # type: ignore
 from openai import OpenAI # type: ignore
 from openweights import OpenWeights # type: ignore
+import openweights.jobs.vllm
 from dotenv import load_dotenv # type: ignore
 load_dotenv()
 
 ow = OpenWeights()
 
 def chat_with(model):
-    api = ow.multi_deploy([model])[model]
+    api = ow.api.multi_deploy([model])[model]
     with api as client:
         def predict(message, history):
             messages = []

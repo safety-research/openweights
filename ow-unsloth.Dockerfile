@@ -12,6 +12,7 @@ RUN python3 -m pip install huggingface_hub supabase python-dotenv fire httpx>=0.
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install "unsloth[cu124-ampere-torch240] @ git+https://github.com/unslothai/unsloth.git"
 RUN python3 -m pip install --upgrade --no-cache-dir "git+https://github.com/unslothai/unsloth-zoo.git"
+RUN python3 -m pip install inspect_ai git+https://github.com/UKGovernmentBEIS/inspect_evals
 
 COPY README.md .
 COPY pyproject.toml .

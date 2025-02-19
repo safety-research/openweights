@@ -1,7 +1,10 @@
 """
 Deploy a multiple Lora adapters of the same base model together on one API and start a chat interface with the deployed models.
+Usage:
+    python multi_model_chat.py unsloth/Llama-3.3-70B-Instruct-bnb-4bit
 """
 from openweights import OpenWeights # type: ignore
+import openweights.jobs.vllm
 from dotenv import load_dotenv # type: ignore
 import gradio as gr
 load_dotenv()
@@ -18,7 +21,7 @@ def start(parent_model):
     requires_vram_gb = 24 if '8b' in parent_model else 64
     if '70b' in parent_model:
         requires_vram_gb = 140
-    apis = ow.multi_deploy(models, requires_vram_gb=requires_vram_gb)
+    apis = ow.api.multi_deploy(models, requires_vram_gb=requires_vram_gb)
     for model, api in apis.items():
         clients[model] = api.up()
     return models

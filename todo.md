@@ -1,29 +1,40 @@
-# Nice to have
-- write run logs to file which is served by http
-- login with API key
-- delete API key revokes access
-- URLs work and don't always bring you to the landing page
+# Turn into custom jobs
 
-# batch inference features (vllm)
-- lora support
 
-# tgi-inference
-- test case: llama-70b-4bit + lora
 
-# Stability
-- pods might have issues out of our control. when a worker has x numbers of fails in a row, we should terminate the pod and start a new one
+-------
 
-# Multi GPU training
-axolotl supports this. we could add a `worker/multi_gpu_training.py` that uses axolotl and accepts similar training configs. 
-- add new job type (`client.axolotl_ft.create`) + `validation.py`
-- add new docker image with axolotl dependencies
-- `worker/multi_gpu_training.py`
-- `worker/main.py`
+# InspectAI
+- https://inspect.ai-safety-institute.org.uk/providers.html#hugging-face
+- implement
+- run for qwen-coder via viseval
+
+
+
+----------------------------------------------------------------------------------
+
+# vllm batch
+
+# Logprob jobs
+- basic job
+- wrapper: MCquestion
+- wrapper: 0-100 judge
+
+# Logprob API
+- logprobs/judge/mc-question API?
+
+# Axolotl jobs
+
+# RL jobs
+https://www.reddit.com/r/LocalLLaMA/comments/1ijab77/train_your_own_reasoning_model_80_less_vram_grpo/
+
+# torchtune jobs
 
 # general
+- merge chat.py, temporary_api.py
 - add cpu instances
-- make all builtin jobs custom jobs
 - customisable keep worker running for X mins
+- delete API key revokes access
 
 # CI
 - run pytest tests

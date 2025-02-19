@@ -4,6 +4,7 @@ import time
 from dotenv import load_dotenv
 
 from openweights import OpenWeights
+import openweights.jobs.unsloth
 
 load_dotenv()
 client = OpenWeights()
@@ -13,12 +14,13 @@ with open('../tests/preference_dataset.jsonl', 'rb') as file:
 file_id = file['id']
 
 job = client.fine_tuning.create(
-    model='unsloth/llama-3-8b-Instruct',
+    model='unsloth/DeepSeek-R1-Distill-Qwen-1.5B',
     training_file=file_id,
     requires_vram_gb=48,
     loss='orpo',
-    epochs=2,
-    max_steps=21,
+    epochs=1,
+    seed=420
+    # max_steps=21,
 )
 print(job)
 

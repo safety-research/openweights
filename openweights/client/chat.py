@@ -121,6 +121,7 @@ class ChatCompletions(AsyncChatCompletions):
 def looks_like_openai(model):
     return any(model.lower().startswith(i) for i in  ['gpt', 'o1', 'o3'])
 
+
 class OpenAiApi(TemporaryApi):
     def __init__(self, concurrents=20, base_url=None, api_key=None, models=[]):
         self.concurrents = concurrents
