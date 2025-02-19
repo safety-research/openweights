@@ -12,6 +12,6 @@ result = a + b
 
 # Log the result using the run API
 client = OpenWeights()
-client.run.log({'result': result, 'calculation': f'{a} + {b} = {result}'})
+client.run.log({'result': result})
 
-print(f"Calculated {a} + {b} = {result}")
+print(f'{a} + {b} = {result}')

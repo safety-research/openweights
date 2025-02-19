@@ -1,45 +1,149 @@
 import re
 import json
-from typing import BinaryIO, Dict, Any, List, Union, Tuple
+from typing import BinaryIO, Dict, Any, List, Union, Tuple, Type
 import os
 from postgrest.exceptions import APIError
 import backoff
 
 import hashlib
 from supabase import Client
+from pydantic import BaseModel, Field
+from datetime import datetime
+from dataclasses import dataclass
+from openweights.client.utils import resolve_lora_model, get_lora_rank
 
-from openweights.validate import TrainingConfig, InferenceConfig, ApiConfig
-from openweights.client.temporary_api import resolve_lora_model, get_lora_rank
+
+@dataclass
+class Job:
+    id: str
+    type: str
+    status: str
+    model: str
+    requires_vram_gb: int
+    docker_image: str
+    script: str
+    params: Dict[str, Any] | None
+    outputs: Dict[str, Any] | None
+    organization_id: str
+    created_at: datetime
+    updated_at: datetime
+    worker_id: str | None
+    timeout: datetime | None
+
+    _manager: 'Jobs' = None
+
+    def _update(self, job):
+        self.__dict__.update(job.__dict__)
+        return self
+
+    def cancel(self):
+        return self._update(self._manager.cancel(self.id))
+    
+    def restart(self):
+        return self._update(self._manager.restart(self.id))
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
+    
+    @property
+    def runs(self):
+        return self._manager.client.runs.list(job_id=self.id)
+    
+    def download(self, target_dir: str, only_last_run: bool = True):
+        if only_last_run:
+            self.runs[-1].download(target_dir)
+        else:
+            for run in self.runs:
+                run.download(f"{target_dir}/{run.id}")
 
 
-class BaseJob:
-    def __init__(self, supabase: Client, organization_id: str):
-        self._supabase = supabase
-        self._org_id = organization_id
+class Jobs:
+    mount: Dict[str, str] = {}  # source path -> target path mapping
+    params: Type[BaseModel] = BaseModel  # Pydantic model for parameter validation
+    base_image: str = 'nielsrolf/ow-inference-v2'  # Base Docker image to use
+    requires_vram_gb: int = 24  # Required VRAM in GB
+
+    def __init__(self, client):
+        """Initialize the custom job.
+        `client` should be an instance of `openweights.OpenWeights`."""
+        self.client = client
+    
+    @property
+    def id_predix(self):
+        return self.__class__.__name__.lower()
+
+    @property
+    def _supabase(self):
+        return self.client._supabase
+    
+    @property
+    def _org_id(self):
+        return self.client.organization_id
+
+    def get_entrypoint(self, validated_params: BaseModel) -> str:
+        """Get the entrypoint command for the job.
+        
+        Args:
+            validated_params: The validated parameters as a Pydantic model instance
+        
+        Returns:
+            The command to run as a string
+        """
+        raise NotImplementedError("Subclasses must implement get_entrypoint")
+
+    def _upload_mounted_files(self) -> Dict[str, str]:
+        """Upload all mounted files and return mapping of target paths to file IDs."""
+        uploaded_files = {}
+        
+        for source_path, target_path in self.mount.items():
+            # Handle both files and directories
+            if os.path.isfile(source_path):
+                with open(source_path, 'rb') as f:
+                    file_response = self.client.files.create(f, purpose='custom_job_file')
+                uploaded_files[target_path] = file_response['id']
+            elif os.path.isdir(source_path):
+                # For directories, upload each file maintaining the structure
+                for root, _, files in os.walk(source_path):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, source_path)
+                        target_file_path = os.path.join(target_path, rel_path)
+                        
+                        with open(full_path, 'rb') as f:
+                            file_response = self.client.files.create(f, purpose='custom_job_file')
+                        uploaded_files[target_file_path] = file_response['id']
+            else:
+                raise ValueError(f"Mount source path does not exist: {source_path}")
+        
+        return uploaded_files
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, limit: int = 10) -> List[Dict[str, Any]]:
         """List jobs"""
         result = self._supabase.table('jobs').select('*').order('updated_at', desc=True).limit(limit).execute()
-        return result.data
+        return [Job(**row, _manager=self) for row in result.data]
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def retrieve(self, job_id: str) -> Dict[str, Any]:
         """Get job details"""
         result = self._supabase.table('jobs').select('*').eq('id', job_id).single().execute()
-        return result.data
+        return Job(**result.data, _manager=self)
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def cancel(self, job_id: str) -> Dict[str, Any]:
         """Cancel a job"""
         result = self._supabase.table('jobs').update({'status': 'canceled'}).eq('id', job_id).execute()
-        return result.data[0]
+        return Job(**result.data[0], _manager=self)
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def restart(self, job_id: str) -> Dict[str, Any]:
         """Restart a job"""
         result = self._supabase.table('jobs').update({'status': 'pending'}).eq('id', job_id).execute()
-        return result.data[0]
+        return Job(**result.data[0], _manager=self)
+    
+    def compute_id(self, data: Dict[str, Any]) -> str:
+        """Compute job ID from data"""
+        return f"{self.id_predix}-{hashlib.sha256(json.dumps(data).encode() + self._org_id.encode()).hexdigest()[:12]}"
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -47,7 +151,7 @@ class BaseJob:
         If job exists and is [failed, canceled] reset it to pending and return it.
         If job doesn't exist, create it and return it.
         """
-        # Always set organization_id from token
+        data['id'] = data.get('id', self.compute_id(data))
         data['organization_id'] = self._org_id
         
         try:
@@ -55,7 +159,7 @@ class BaseJob:
         except APIError as e:
             if 'contains 0 rows' in str(e):
                 result = self._supabase.table('jobs').insert(data).execute()
-                return result.data[0]
+                return Job(**result.data[0])
             else:
                 raise
         job = result.data
@@ -71,9 +175,9 @@ class BaseJob:
         if job['status'] in ['failed', 'canceled']:
             # Reset job to pending
             result = self._supabase.table('jobs').update(data).eq('id', data['id']).execute()
-            return result.data[0]
+            return Job(**result.data[0], _manager=self)
         elif job['status'] in ['pending', 'in_progress', 'completed']:
-            return job
+            return Job(**job, _manager=self)
         else:
             raise ValueError(f"Invalid job status: {job['status']}")
         
@@ -99,195 +203,35 @@ class BaseJob:
                 
         data = query.execute().data
 
-        return data
-        
-class FineTuningJobs(BaseJob):
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
-        """Create a fine-tuning job"""
-        if 'training_file' not in params:
-            raise ValueError("training_file is required in params")
-        
-        if requires_vram_gb == 'guess':
-            requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
-        
-        job_id, params = self._prepare_job_params(params)
+        return [Job(**row, _manager=self) for row in data]
 
-        data = {
-            'id': job_id,
-            'type': 'fine-tuning',
-            'model': params['model'],
-            'params': params,
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'docker_image': 'nielsrolf/ow-unsloth:latest'
+    def create(self, **params) -> Dict[str, Any]:
+        """Create and submit a custom job.
+        
+        Args:
+            **params: Parameters for the job, will be validated against self.params
+
+        Returns:
+            The created job object
+        """
+        # Validate parameters
+        validated_params = self.params(**params)
+        
+        # Upload mounted files
+        mounted_files = self._upload_mounted_files()
+        
+        # Get entrypoint command
+        entrypoint = self.get_entrypoint(validated_params)
+        
+        # Create job
+        job_data = {
+            'type': 'custom',
+            'docker_image': self.base_image,
+            'requires_vram_gb': params.get('requires_vram_gb', self.requires_vram_gb),
+            'script': entrypoint,
+            'params': {
+                'validated_params': validated_params.model_dump(),
+                'mounted_files': mounted_files
+            }
         }
-        
-        return self.get_or_create_or_reset(data)
-
-    def get_training_config(self, **params) -> Dict[str, Any]:
-        """Get the training config for a fine-tuning job"""
-        _, params = self._prepare_job_params(params)
-        return params
-
-    def _prepare_job_params(self, params: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
-        """Prepare job parameters and generate job ID"""
-        hash_params = {k: v for k, v in params.items() if k not in ['meta']}
-        job_id = f"ftjob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
-        
-        if 'finetuned_model_id' not in params:
-            model = params['model'].split('/')[-1]
-            org = os.environ.get("HF_ORG") or os.environ.get("HF_USER")
-            params['finetuned_model_id'] = f"{org}/{model}_{job_id}"
-        
-        params = TrainingConfig(**params).model_dump()
-        return job_id, params
-
-class InferenceJobs(BaseJob):
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
-        """Create an inference job"""
-
-        hash_params = {k: v for k, v in params.items() if k not in ['meta']}
-        job_id = f"ijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
-        
-        params = InferenceConfig(**params).model_dump()
-
-        base_model, lora_adapter = resolve_lora_model(params['model'])
-        if requires_vram_gb == 'guess':
-            model_size = guess_model_size(base_model)
-            weights_require = 2 * model_size
-            if '8bit' in params['model'] and not 'ftjob' in base_model:
-                weights_require = weights_require / 2
-            elif '4bit' in params['model'] and not 'ftjob' in base_model:
-                weights_require = weights_require / 4
-            kv_cache_requires = 15 # TODO estimate this better
-            if lora_adapter:
-                lora_rank = get_lora_rank(lora_adapter)
-                lora_requires = lora_rank / 16
-            else:
-                lora_requires = 0
-            requires_vram_gb = int(weights_require + kv_cache_requires + 0.5 + lora_requires)
-
-        model = params['model']
-        input_file_id = params['input_file_id']
-
-        data = {
-            'id': job_id,
-            'type': 'inference',
-            'model': model,
-            'params': {**params, 'input_file_id': input_file_id},
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'docker_image': 'nielsrolf/ow-inference:latest'
-        }
-        
-        return self.get_or_create_or_reset(data)
-
-def guess_model_size(model: str) -> int:
-    """Guess the model size in billions of parameters from the name"""
-    # Use regex to extract the model size from the model name
-    if 'mistral-small' in model.lower():
-        return 22
-    match = re.search(r'(\d+)([bB])', model)
-    if match:
-        model_size = int(match.group(1))
-        return model_size
-    else:
-        print(f"Could not guess model size from model name: {model}. Defaulting to 32B")
-        return 32
-
-
-class Deployments(BaseJob):
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
-        """Create an inference job"""
-        params = ApiConfig(**params).model_dump()
-
-        if requires_vram_gb == 'guess':
-            model_size = guess_model_size(params['model'])
-            weights_require = 2 * model_size
-            if '8bit' in params['model']:
-                weights_require = weights_require / 2
-            elif '4bit' in params['model']:
-                weights_require = weights_require / 4
-            loras_require = params['max_loras'] * params['max_lora_rank'] / 16
-            kv_cache_requires = 5 # TODO estimate this better
-            requires_vram_gb = int(weights_require + loras_require + kv_cache_requires + 0.5)
-
-        hash_params = dict(**params, requires_vram_gb=requires_vram_gb)
-        job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
-
-        model = params['model']
-
-        script = (
-            f"vllm serve {params['model']} \\\n"
-            f"    --dtype auto \\\n"
-            f"    --max-model-len {params['max_model_len']} \\\n"
-            f"    --max-num-seqs {params['max_num_seqs']} \\\n"
-            f"    --enable-prefix-caching \\\n"
-            f"    --port 8000"
-        )
-
-        if "bnb-4bit" in params['model']:
-            script += (
-                f" \\\n"
-                f"    --quantization=bitsandbytes \\\n"
-                f"    --load-format=bitsandbytes \\\n"
-                f"    --tensor-parallel-size 1 \\\n"
-                f"    --pipeline-parallel-size $N_GPUS"
-            )
-        else:
-            script += f" \\\n"
-            script += f"    --tensor-parallel-size $N_GPUS"
-
-
-        if params['lora_adapters']:
-            script += (
-                f" \\\n"
-                f"    --enable-lora \\\n"
-                f"    --max-lora-rank {params['max_lora_rank']} \\\n"
-                f"    --max-loras {params['max_loras']} \\\n"
-                f"    --lora-modules \\\n"
-            )
-            for adapter in params['lora_adapters']:
-                script += f"        {adapter}={adapter} \\\n"
-
-        data = {
-            'id': job_id,
-            'type': 'api',
-            'model': model,
-            'params': params,
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'script': script,
-            'docker_image': 'nielsrolf/ow-inference:latest'
-        }
-        return self.get_or_create_or_reset(data)
-
-    
-class Jobs(BaseJob):
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, script: Union[BinaryIO, str], requires_vram_gb: int, image='nielsrolf/ow-unsloth:latest', type='script', params=None) -> Dict[str, Any]:
-        """Create a script job"""
-        
-        if isinstance(script, (str, bytes)):
-            script_content = script
-        else:
-            script_content = script.read()
-        if isinstance(script_content, bytes):
-            script_content = script_content.decode('utf-8')
-
-        job_id = f"sjob-{hashlib.sha256(script_content.encode() + self._org_id.encode()).hexdigest()[:12]}"
-        
-        data = {
-            'id': job_id,
-            'type': type,
-            'script': script_content,
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'docker_image': image,
-            'params': params or {}
-        }
-        
-        return self.get_or_create_or_reset(data)
+        return self.get_or_create_or_reset(job_data)

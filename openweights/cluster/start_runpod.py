@@ -19,9 +19,8 @@ from functools import lru_cache
 load_dotenv(override=True) 
 
 IMAGES = {
-    'api': 'nielsrolf/ow-vllm-api',
-    'inference': 'nielsrolf/ow-inference',
-    'finetuning': 'nielsrolf/ow-unsloth',
+    'inference': 'nielsrolf/ow-inference-v2',
+    'finetuning': 'nielsrolf/ow-unsloth-v2',
     'torch':  'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
 }
 

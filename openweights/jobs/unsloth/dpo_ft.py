@@ -4,7 +4,7 @@ from unsloth import PatchDPOTrainer, is_bfloat16_supported
 PatchDPOTrainer()
 from trl import DPOTrainer
 
-from openweights.worker.utils import GPUStatsCallback, LogMetrics
+from utils import GPUStatsCallback, LogMetrics
 
 
 def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):

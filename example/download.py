@@ -32,39 +32,14 @@ def plot_run(events, target_dir):
 
 
 def download_job_artifacts(job_id, target_dir):
-    os.makedirs(target_dir, exist_ok=True)
-    # params
     job = client.jobs.retrieve(job_id)
+    job.download(target_dir, only_last_run=False)
+    # Also save params
     with open(f'{target_dir}/params.json', 'w') as f:
         f.write(json.dumps(job['params'], indent=4))
-    # runs
-    runs = client.runs.list(job_id=job_id)
-    for run in runs:
-        run_id = run['id']
-        # Logs
-        if run['log_file'] is None:
-            print(f"Run {run_id} has no log file")
-        else:
-            log = client.files.content(run['log_file'])
-            with open(f'{target_dir}/{run_id}.log', 'wb') as f:
-                f.write(log)
-        # Events
-        events = client.events.list(run_id=run_id)
-        plot_run(events, f"{target_dir}/{run_id}")
-        # Files
-        for i, event in enumerate(events):
-            if event['file']:
-                file = client.files.content(event['file'])
-                filename = event["filename"].split('/')[-1]
-                with open(f'{target_dir}/{run_id}/{filename}', 'wb') as f:
-                    f.write(file)
-            if event['data']['file']:
-                file = client.files.content(event['data']['file'])
-                rel_path = event['data']["filename"].split('/')[-1] or f"unnamed_{i}"
-                path = f'{target_dir}/{run_id}/{rel_path}'
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, 'wb') as f:
-                    f.write(file)
+    # And plot events
+    for run in job.runs:
+        plot_run(run.events, f"{target_dir}/{run.id}")
 
 
 if __name__ == '__main__':

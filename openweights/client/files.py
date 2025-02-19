@@ -4,8 +4,54 @@ import hashlib
 from datetime import datetime
 from supabase import Client
 import backoff
+import json
 
-from openweights.validate import validate_messages, validate_preference_dataset
+
+def validate_message(message):
+    try:
+        assert message['role'] in ['system', 'user', 'assistant']
+        assert isinstance(message['content'], str)
+        return True
+    except (KeyError, AssertionError):
+        return False
+    
+def validate_text_only(text):
+    try:
+        assert isinstance(text, str)
+        return True
+    except (KeyError, AssertionError):
+        return False
+
+def validate_messages(content):
+    try:
+        lines = content.strip().split("\n")
+        for line in lines:
+            row = json.loads(line)
+            if "messages" in row:
+                assert "text" not in row
+                for message in row['messages']:
+                    if not validate_message(message):
+                        return False
+            elif "text" in row:
+                if not validate_text_only(row['text']):
+                    return False
+            else:
+                return False
+        return True
+    except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
+        return False
+
+def validate_preference_dataset(content):
+    try:
+        lines = content.strip().split("\n")
+        for line in lines:
+            row = json.loads(line)
+            for message in row['prompt'] + row['rejected'] + row['chosen']:
+                if not validate_message(message):
+                    return False
+        return True
+    except (json.JSONDecodeError, KeyError, ValueError, AssertionError):
+        return False
 
 
 class Files:
@@ -44,6 +90,7 @@ class Files:
         try:
             existing_file = self._supabase.table('files').select('*').eq('id', file_id).single().execute().data
             if existing_file:
+                print(f"File {file_id} already exists")
                 return existing_file
         except:
             pass  # File doesn't exist yet, continue with creation

@@ -37,10 +37,11 @@ def retry_or_ignore(func, n_retries=5):
     
 
 class Run:
-    def __init__(self, supabase: Client, job_id: Optional[str] = None, worker_id: Optional[str] = None, organization_id: Optional[str] = None):
-        self._supabase = supabase
+    def __init__(self, client: 'OpenWeights', job_id: Optional[str] = None, worker_id: Optional[str] = None, organization_id: Optional[str] = None, run_id: Optional[str] = None):
+        self.client = client
+        self._supabase = client._supabase
         self.organization_id = organization_id
-        self.id = os.getenv('OPENWEIGHTS_RUN_ID')
+        self.id = run_id or os.getenv('OPENWEIGHTS_RUN_ID')
         if self.id:
             # Run ID exists, fetch the data
             try:
@@ -175,11 +176,33 @@ class Run:
         """Get all events for this run"""
         result = self._supabase.table('events').select('*').eq('run_id', self.id).execute()
         return result.data
+    
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+    
+    def download(self, target_dir):
+        """Download artifacts for this run"""
+        os.makedirs(target_dir, exist_ok=True)
+        # Logs
+        if self.log_file is not None:
+            log = self.client.files.content(self.log_file)
+            with open(f'{target_dir}/{self.id}.log', 'wb') as f:
+                f.write(log)
+        events = self.events
+        for i, event in enumerate(events):
+            if event['data'].get('file'):
+                file = self.client.files.content(event['data']['file'])
+                rel_path = event['data']["file_name"].split('/')[-1] if 'file_name' in event['data']  else event['data']['file']
+                path = f'{target_dir}/{rel_path}'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'wb') as f:
+                    f.write(file)
 
 
 class Runs:
-    def __init__(self, supabase: Client):
-        self._supabase = supabase
+    def __init__(self, client: 'OpenWeights'):
+        self.client = client
+        self._supabase = client._supabase
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def list(self, job_id: Optional[str] = None, worker_id: Optional[str] = None, limit: int = 10, status: Optional[str]=None) -> List[Dict[str, Any]]:
@@ -192,4 +215,4 @@ class Runs:
         if status:
             query = query.eq('status', status)
         result = query.execute()
-        return result.data
+        return [Run(self.client, run_id=row['id']) for row in result.data]

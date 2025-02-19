@@ -17,9 +17,10 @@ https://www.reddit.com/r/LocalLLaMA/comments/1ijab77/train_your_own_reasoning_mo
 # torchtune jobs
 
 # general
+- merge chat.py, temporary_api.py
 - add cpu instances
-- make all builtin jobs custom jobs
 - customisable keep worker running for X mins
+- delete API key revokes access
 
 # CI
 - run pytest tests

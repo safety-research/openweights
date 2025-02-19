@@ -125,6 +125,8 @@ class Worker:
             self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
             self.health_check_thread.start()
         
+        os.makedirs('logs', exist_ok=True)
+        
         atexit.register(self.shutdown_handler)
 
     def get_user_id_from_token(self):
@@ -296,7 +298,7 @@ class Worker:
     def _execute_job(self, job):
         """Execute the job and update status in the database."""
         self.current_job = job
-        self.current_run = Run(self.supabase, job['id'], self.worker_id)
+        self.current_run = Run(openweights, job['id'], self.worker_id)
         
         # Create a temporary directory for job execution
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -310,25 +312,9 @@ class Worker:
             script = None  # We'll store the actual script string we ran.
 
             try:
-                # Prepare the script based on job type:
-                if job['type'] == 'script':
-                    script = job['script'] 
-                elif job['type'] == 'custom':
-                    # Set up mounted files
+                if 'mounted_files' in job['params']:
                     self._setup_custom_job_files(tmp_dir, job['params']['mounted_files'])
-                    script = job['script']
-                elif job['type'] == 'fine-tuning':
-                    config_path = os.path.join(tmp_dir, "config.json")
-                    with open(config_path, 'w') as f:
-                        json.dump(job['params'], f)
-                    script = f'python {os.path.join(os.path.dirname(__file__), "training.py")} {config_path}'
-                elif job['type'] == 'inference':
-                    config_path = os.path.join(tmp_dir, "config.json")
-                    with open(config_path, 'w') as f:
-                        json.dump(job['params'], f)
-                    script = f'python {os.path.join(os.path.dirname(__file__), "inference.py")} {config_path}'
-                elif job['type'] == 'api':
-                    script = job['script']
+                script = job['script']
 
                 with open(log_file_path, 'w') as log_file:
                     env = os.environ.copy()
@@ -386,7 +372,7 @@ class Worker:
                             with open(file_path, 'rb') as file:
                                 file_response = self.files.create(file, purpose='result')
                             # Log the uploaded file to the run
-                            self.current_run.log({'file_name': file_name, file_name: file_response['id']})
+                            self.current_run.log({'file_name': file_name, file_name: file_response['id'], 'file': file_response['id']})
                         except Exception as e:
                             logging.error(f"Failed to upload file {file_name}: {e}")
 
