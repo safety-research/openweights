@@ -40,6 +40,7 @@ GPU_TYPES = {
     79: ['1x A100', '1x H100', '1x H100N', '1x H100S', '1x A100S'],
     158: ['2x A100', '2x H100', '2x H100N', '2x H100S', '2x A100S'],
     316: ['4x A100', '4x H100', '4x H100N', '4x H100S', '4x A100S'],
+    632: ['8x A100', '8x H100', '8x H100N', '8x H100S', '8x A100S'],
 }
 
 def determine_gpu_type(required_vram, choice=None):
