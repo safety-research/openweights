@@ -72,11 +72,9 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
     const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number } | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    console.log('LogProbVisualization props:', { events, orgId });
 
     // Extract unique datasets and steps from events
     const datasets = useMemo(() => {
-        console.log('Computing datasets from events:', events);
         const datasetSet = new Set<string>();
         events.forEach(event => {
             // Extract dataset name from the event
@@ -84,12 +82,10 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             );
             if (datasetKey) {
-                console.log('Found dataset key:', datasetKey);
                 datasetSet.add(datasetKey);
             }
         });
         const datasetsArray = Array.from(datasetSet);
-        console.log('Available datasets:', datasetsArray);
         return datasetsArray;
     }, [events]);
 
@@ -98,16 +94,13 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
             .filter(e => e.type === 'logprobs')
             .map(e => e.global_step)
             .sort((a, b) => a - b);
-        console.log('Available steps:', stepsArray);
         return stepsArray;
     }, [events]);
 
     // Load log prob data for a specific step
     const loadLogProbData = async (event: LogProbEvent) => {
         try {
-            console.log('Loading data for event:', event);
             const content = await getFileContent(event.file);
-            console.log('Loaded file content:', content.substring(0, 200) + '...');
             const data = JSON.parse(content) as LogProbData[];
             
             // Find the dataset key
@@ -115,7 +108,6 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             ) || '';
 
-            console.log('Setting data for dataset:', datasetKey, 'step:', event.global_step);
             setLogProbData(prev => ({
                 ...prev,
                 [datasetKey]: {
@@ -130,7 +122,6 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
 
     // Load data when events change
     useEffect(() => {
-        console.log('Events changed, loading data...');
         if (events.length > 0 && datasets.length > 0) {
             setSelectedDataset(datasets[0]);
             events.forEach(event => {

@@ -40,7 +40,6 @@ export const RunDetailView: React.FC = () => {
 
             // Fetch events
             const runEvents = await api.getRunEvents(orgId, runId);
-            console.log('All run events:', runEvents);
             setEvents(runEvents);
             
             setLastRefresh(new Date());
@@ -74,7 +73,6 @@ export const RunDetailView: React.FC = () => {
     const logprobEvents = events
         .filter(event => event.data?.type === 'logprobs')
         .map(event => event.data);
-    console.log('Filtered logprob events:', logprobEvents);
 
     if (!orgId || !currentOrganization || !run) {
         return <Typography>Loading...</Typography>;
