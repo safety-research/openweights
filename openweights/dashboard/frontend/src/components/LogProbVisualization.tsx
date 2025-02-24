@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -73,6 +73,11 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const [loading, setLoading] = useState(false);
     const [tokenHistory, setTokenHistory] = useState<TokenHistory>({ steps: [], logprobs: [] });
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [showSlider, setShowSlider] = useState(true);
+
+    // Refs for intersection observer
+    const contentRef = useRef<HTMLDivElement>(null);
+    const controlsRef = useRef<HTMLDivElement>(null);
 
     // Extract unique datasets and steps from events
     const datasets = useMemo(() => {
@@ -98,7 +103,6 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     // Load log prob data for a specific step and dataset
     const loadLogProbData = async (event: LogProbEvent) => {
         try {
-            setLoading(true);
             const content = await getFileContent(event.file);
             const data = JSON.parse(content) as LogProbData[];
             
@@ -115,26 +119,27 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
             }));
         } catch (error) {
             console.error('Error loading log prob data:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
-    // Load data when dataset, step, or sequence changes
+    // Eager load all data for the selected dataset
     useEffect(() => {
-        if (!selectedDataset || !step) return;
-        
-        const event = events.find(e => {
+        if (!selectedDataset) return;
+
+        const relevantEvents = events.filter(e => {
             const datasetKey = Object.keys(e).find(key => 
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             );
-            return datasetKey === selectedDataset && e.global_step === step;
+            return datasetKey === selectedDataset;
         });
 
-        if (event && !logProbData[selectedDataset]?.[step]) {
-            loadLogProbData(event);
-        }
-    }, [selectedDataset, step, events]);
+        // Load all data in parallel
+        relevantEvents.forEach(event => {
+            if (!logProbData[selectedDataset]?.[event.global_step]) {
+                loadLogProbData(event);
+            }
+        });
+    }, [selectedDataset]);
 
     // Initialize selected dataset and step
     useEffect(() => {
@@ -146,6 +151,27 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
         }
     }, [datasets, steps]);
 
+    // Set up intersection observer for content visibility
+    useEffect(() => {
+        if (!contentRef.current) return;
+
+        const options = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1, // 10% visibility threshold
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                setShowSlider(entry.isIntersecting);
+            });
+        }, options);
+
+        observer.observe(contentRef.current);
+
+        return () => observer.disconnect();
+    }, []);
+
     // Load token history when a token is selected
     useEffect(() => {
         const loadTokenHistory = async () => {
@@ -155,21 +181,6 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
             const history: TokenHistory = { steps: [], logprobs: [] };
 
             try {
-                // Load all steps data if not already loaded
-                await Promise.all(events
-                    .filter(event => {
-                        const datasetKey = Object.keys(event).find(key => 
-                            key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
-                        );
-                        return datasetKey === selectedDataset;
-                    })
-                    .map(event => {
-                        if (!logProbData[selectedDataset]?.[event.global_step]) {
-                            return loadLogProbData(event);
-                        }
-                        return Promise.resolve();
-                    }));
-
                 Object.entries(logProbData[selectedDataset] || {}).forEach(([step, sequences]) => {
                     const sequence = sequences[sequenceIndex];
                     if (!sequence) return;
@@ -197,7 +208,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
         if (dialogOpen && selectedToken) {
             loadTokenHistory();
         }
-    }, [dialogOpen, selectedToken, selectedDataset, events, logProbData, sequenceIndex]);
+    }, [dialogOpen, selectedToken, selectedDataset, logProbData, sequenceIndex]);
 
     const getColorFromLogP = (logp: number): string => {
         const prob = Math.exp(logp);
@@ -207,84 +218,142 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const currentData = selectedDataset && step && logProbData[selectedDataset]?.[step]?.[sequenceIndex];
     const maxSequences = selectedDataset && step && logProbData[selectedDataset]?.[step]?.length || 0;
 
+    const renderTokens = (tokens: Token[]) => {
+        return tokens.map((token, i) => {
+            const containsNewline = token.token.includes('\n');
+            
+            if (containsNewline) {
+                const parts = token.token.split(/(\n)/);
+                return (
+                    <React.Fragment key={i}>
+                        {parts.map((part, j) => (
+                            part === '\n' ? (
+                                <Box key={`${i}-${j}`} sx={{ width: '100%', height: 0 }} />
+                            ) : (
+                                part && (
+                                    <Box
+                                        key={`${i}-${j}`}
+                                        onClick={() => {
+                                            setSelectedToken({ token: token.token, tokenId: token.token_id });
+                                            setDialogOpen(true);
+                                        }}
+                                        sx={{
+                                            cursor: 'pointer',
+                                            p: 0.5,
+                                            borderRadius: 1,
+                                            backgroundColor: getColorFromLogP(token.logp),
+                                            '&:hover': {
+                                                outline: '1px solid blue'
+                                            }
+                                        }}
+                                    >
+                                        <Typography variant="body2" component="span">
+                                            {part}
+                                        </Typography>
+                                    </Box>
+                                )
+                            )
+                        ))}
+                    </React.Fragment>
+                );
+            }
+
+            return (
+                <Box
+                    key={i}
+                    onClick={() => {
+                        setSelectedToken({ token: token.token, tokenId: token.token_id });
+                        setDialogOpen(true);
+                    }}
+                    sx={{
+                        cursor: 'pointer',
+                        p: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: getColorFromLogP(token.logp),
+                        '&:hover': {
+                            outline: '1px solid blue'
+                        }
+                    }}
+                >
+                    <Typography variant="body2" component="span">
+                        {token.token}
+                    </Typography>
+                </Box>
+            );
+        });
+    };
+
     return (
         <Box sx={{ mt: 2 }}>
             {/* Controls */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <FormControl sx={{ minWidth: 200 }}>
-                    <InputLabel>Dataset</InputLabel>
-                    <Select
-                        value={selectedDataset}
-                        onChange={(e) => setSelectedDataset(e.target.value)}
-                        label="Dataset"
-                    >
-                        {datasets.map(dataset => (
-                            <MenuItem key={dataset} value={dataset}>{dataset}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+            <Box 
+                ref={controlsRef}
+                sx={{
+                    position: showSlider ? 'sticky' : 'static',
+                    top: 0,
+                    zIndex: 1,
+                    backgroundColor: 'white',
+                    pb: 2,
+                    borderBottom: showSlider ? '1px solid rgba(0, 0, 0, 0.12)' : 'none',
+                }}
+            >
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <FormControl sx={{ minWidth: 200 }}>
+                        <InputLabel>Dataset</InputLabel>
+                        <Select
+                            value={selectedDataset}
+                            onChange={(e) => setSelectedDataset(e.target.value)}
+                            label="Dataset"
+                        >
+                            {datasets.map(dataset => (
+                                <MenuItem key={dataset} value={dataset}>{dataset}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
 
-                <FormControl sx={{ minWidth: 200 }}>
-                    <InputLabel>Sequence Index</InputLabel>
-                    <Select
-                        value={sequenceIndex}
-                        onChange={(e) => setSequenceIndex(Number(e.target.value))}
-                        label="Sequence Index"
-                    >
-                        {[...Array(maxSequences)].map((_, i) => (
-                            <MenuItem key={i} value={i}>{i}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-            </Box>
+                    <FormControl sx={{ minWidth: 200 }}>
+                        <InputLabel>Sequence Index</InputLabel>
+                        <Select
+                            value={sequenceIndex}
+                            onChange={(e) => setSequenceIndex(Number(e.target.value))}
+                            label="Sequence Index"
+                        >
+                            {[...Array(maxSequences)].map((_, i) => (
+                                <MenuItem key={i} value={i}>{i}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
 
-            <Box sx={{ px: 2, mb: 2 }}>
-                <Typography gutterBottom>Step: {step}</Typography>
-                <Slider
-                    value={step}
-                    onChange={(_, value) => setStep(value as number)}
-                    min={Math.min(...steps)}
-                    max={Math.max(...steps)}
-                    step={null}
-                    marks={steps.map(s => ({ value: s, label: s.toString() }))}
-                />
+                <Box sx={{ px: 2 }}>
+                    <Typography gutterBottom>Step: {step}</Typography>
+                    <Slider
+                        value={step}
+                        onChange={(_, value) => setStep(value as number)}
+                        min={Math.min(...steps)}
+                        max={Math.max(...steps)}
+                        step={null}
+                        marks={steps.map(s => ({ value: s, label: s.toString() }))}
+                    />
+                </Box>
             </Box>
 
             {/* Token visualization */}
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                    <CircularProgress />
-                </Box>
-            ) : currentData ? (
-                <Paper sx={{ p: 2, mt: 2 }}>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {currentData.tokens.map((token, i) => (
-                            <Box
-                                key={i}
-                                onClick={() => {
-                                    setSelectedToken({ token: token.token, tokenId: token.token_id });
-                                    setDialogOpen(true);
-                                }}
-                                sx={{
-                                    cursor: 'pointer',
-                                    p: 0.5,
-                                    borderRadius: 1,
-                                    backgroundColor: getColorFromLogP(token.logp),
-                                    '&:hover': {
-                                        outline: '1px solid blue'
-                                    }
-                                }}
-                            >
-                                <Typography variant="body2">
-                                    {token.token}
-                                </Typography>
-                            </Box>
-                        ))}
+            <Box ref={contentRef}>
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                        <CircularProgress />
                     </Box>
-                </Paper>
-            ) : (
-                <Typography>No data available for the selected parameters</Typography>
-            )}
+                ) : currentData ? (
+                    <Paper sx={{ p: 2, mt: 2 }}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {renderTokens(currentData.tokens)}
+                        </Box>
+                    </Paper>
+                ) : (
+                    <Typography>No data available for the selected parameters</Typography>
+                )}
+            </Box>
 
             {/* Token history dialog */}
             <Dialog 
