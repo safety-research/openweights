@@ -192,7 +192,7 @@ class Run:
         for i, event in enumerate(events):
             if event['data'].get('file'):
                 file = self.client.files.content(event['data']['file'])
-                rel_path = event['data']["file_name"].split('/')[-1] if 'file_name' in event['data']  else event['data']['file']
+                rel_path = event['data']["path"] if 'path' in event['data']  else event['data']['file']
                 path = f'{target_dir}/{rel_path}'
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, 'wb') as f:

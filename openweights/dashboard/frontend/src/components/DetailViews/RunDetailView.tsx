@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense, lazy } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
     Paper, 
@@ -7,13 +7,49 @@ import {
     Chip,
     FormControlLabel,
     Switch,
-    Divider
+    CircularProgress,
+    Button,
+    Collapse
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { RunWithJobAndWorker } from '../../types';
 import { api } from '../../api';
 import { RefreshButton } from '../RefreshButton';
 import { useOrganization } from '../../contexts/OrganizationContext';
-import { MetricsPlots } from './MetricsPlots';
+
+// Lazy load components
+const MetricsPlots = lazy(() => import('./MetricsPlots').then(module => ({ default: module.MetricsPlots })));
+const LogProbVisualization = lazy(() => import('../LogProbVisualization').then(module => ({ default: module.LogProbVisualization })));
+
+// Loading placeholder component
+const LoadingPlaceholder = () => (
+    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
+    </Box>
+);
+
+// Section button component for consistent styling
+const SectionButton: React.FC<{
+    onClick: () => void;
+    expanded: boolean;
+    children: React.ReactNode;
+}> = ({ onClick, expanded, children }) => (
+    <Button
+        onClick={onClick}
+        endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        fullWidth
+        sx={{
+            justifyContent: 'flex-start',
+            backgroundColor: expanded ? 'rgba(0, 0, 0, 0.04)' : 'transparent',
+            '&:hover': {
+                backgroundColor: expanded ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+            }
+        }}
+    >
+        {children}
+    </Button>
+);
 
 export const RunDetailView: React.FC = () => {
     const { orgId, runId } = useParams<{ orgId: string; runId: string }>();
@@ -24,7 +60,18 @@ export const RunDetailView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
-    const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
+    const [events, setEvents] = useState<any[]>([]);
+
+    // UI state for collapsible sections
+    const [showLogProbs, setShowLogProbs] = useState(false);
+    const [showMetrics, setShowMetrics] = useState(false);
+    const [showLogs, setShowLogs] = useState(false);
+    
+    // Pagination for logs
+    const [logPage, setLogPage] = useState(1);
+    const logsPerPage = 1000;
+
+    const AUTO_REFRESH_INTERVAL = 10000;
 
     const fetchRun = useCallback(async () => {
         if (!orgId || !runId) return;
@@ -32,35 +79,75 @@ export const RunDetailView: React.FC = () => {
         try {
             const data = await api.getRun(orgId, runId);
             setRun(data);
-            
-            const logs = await api.getRunLogs(orgId, runId);
-            setLogContent(logs);
             setLastRefresh(new Date());
         } catch (error) {
             console.error('Error in fetchRun:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             setError(errorMessage);
-            setLogContent('Error loading log file content: ' + errorMessage);
         } finally {
             setLoading(false);
         }
     }, [orgId, runId]);
 
-    useEffect(() => {
-        fetchRun();
-    }, [fetchRun]);
+    const fetchLogs = useCallback(async () => {
+        if (!orgId || !runId) return;
+        try {
+            const logs = await api.getRunLogs(orgId, runId);
+            setLogContent(logs);
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+        }
+    }, [orgId, runId]);
 
+    const fetchEvents = useCallback(async () => {
+        if (!orgId || !runId) return;
+        try {
+            const runEvents = await api.getRunEvents(orgId, runId);
+            setEvents(runEvents);
+        } catch (error) {
+            console.error('Error fetching events:', error);
+        }
+    }, [orgId, runId]);
+
+    // Initial load and background prefetch
+    useEffect(() => {
+        const loadAllData = async () => {
+            await fetchRun();
+            Promise.all([
+                fetchLogs(),
+                fetchEvents()
+            ]).catch(error => {
+                console.error('Error in background data loading:', error);
+            });
+        };
+        loadAllData();
+    }, [fetchRun, fetchLogs, fetchEvents]);
+
+    // Auto-refresh effect
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (autoRefresh && run?.status === 'in_progress') {
-            interval = setInterval(fetchRun, AUTO_REFRESH_INTERVAL);
+            interval = setInterval(() => {
+                Promise.all([
+                    fetchRun(),
+                    fetchLogs(),
+                    fetchEvents()
+                ]).catch(error => {
+                    console.error('Error in auto-refresh:', error);
+                });
+            }, AUTO_REFRESH_INTERVAL);
         }
         return () => {
             if (interval) {
                 clearInterval(interval);
             }
         };
-    }, [autoRefresh, fetchRun, run?.status]);
+    }, [autoRefresh, fetchRun, fetchLogs, fetchEvents, run?.status]);
+
+    // Filter logprob events and extract the data field
+    const logprobEvents = events
+        .filter(event => event.data?.type === 'logprobs')
+        .map(event => event.data);
 
     if (!orgId || !currentOrganization || !run) {
         return <Typography>Loading...</Typography>;
@@ -69,6 +156,17 @@ export const RunDetailView: React.FC = () => {
     if (!runId) {
         return <Typography>Run ID is required</Typography>;
     }
+
+    // Paginate logs
+    const paginatedLogs = logContent
+        ? logContent
+            .split('\n')
+            .slice((logPage - 1) * logsPerPage, logPage * logsPerPage)
+            .join('\n')
+        : '';
+    const totalLogPages = logContent
+        ? Math.ceil(logContent.split('\n').length / logsPerPage)
+        : 0;
 
     return (
         <Paper sx={{ p: 3 }}>
@@ -119,29 +217,94 @@ export const RunDetailView: React.FC = () => {
                 </Box>
             )}
 
-            <Box sx={{ mb: 3 }}>
-                <MetricsPlots orgId={orgId} runId={runId} />
-            </Box>
+            {/* Main content sections */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {/* Log Probabilities Section */}
+                {logprobEvents.length > 0 && (
+                    <Box>
+                        <SectionButton
+                            onClick={() => setShowLogProbs(!showLogProbs)}
+                            expanded={showLogProbs}
+                        >
+                            Log Probabilities ({logprobEvents.length} events)
+                        </SectionButton>
+                        <Collapse in={showLogProbs}>
+                            <Box sx={{ mt: 2 }}>
+                                <Suspense fallback={<LoadingPlaceholder />}>
+                                    <LogProbVisualization 
+                                        events={logprobEvents}
+                                        getFileContent={(fileId: string) => api.getFileContent(orgId, fileId)}
+                                    />
+                                </Suspense>
+                            </Box>
+                        </Collapse>
+                    </Box>
+                )}
 
-            <Divider sx={{ my: 3 }} />
-
-            {logContent && (
-                <Box sx={{ mb: 3 }}>
-                    <Typography variant="h6">Log Output:</Typography>
-                    <Paper 
-                        sx={{ 
-                            p: 2, 
-                            bgcolor: 'grey.100',
-                            maxHeight: '500px',
-                            overflow: 'auto'
-                        }}
+                {/* Metrics Section */}
+                <Box>
+                    <SectionButton
+                        onClick={() => setShowMetrics(!showMetrics)}
+                        expanded={showMetrics}
                     >
-                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-                            {logContent}
-                        </pre>
-                    </Paper>
+                        Training Metrics
+                    </SectionButton>
+                    <Collapse in={showMetrics}>
+                        <Box sx={{ mt: 2 }}>
+                            <Suspense fallback={<LoadingPlaceholder />}>
+                                <MetricsPlots orgId={orgId} runId={runId} />
+                            </Suspense>
+                        </Box>
+                    </Collapse>
                 </Box>
-            )}
+
+                {/* Logs Section */}
+                <Box>
+                    <SectionButton
+                        onClick={() => setShowLogs(!showLogs)}
+                        expanded={showLogs}
+                    >
+                        Log Output
+                    </SectionButton>
+                    <Collapse in={showLogs}>
+                        {logContent && (
+                            <Box sx={{ mt: 2 }}>
+                                <Paper 
+                                    sx={{ 
+                                        p: 2, 
+                                        bgcolor: 'grey.100',
+                                        maxHeight: '500px',
+                                        overflow: 'auto'
+                                    }}
+                                >
+                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+                                        {paginatedLogs}
+                                    </pre>
+                                </Paper>
+                                {totalLogPages > 1 && (
+                                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
+                                        <Button 
+                                            disabled={logPage === 1}
+                                            onClick={() => setLogPage(p => Math.max(1, p - 1))}
+                                        >
+                                            Previous
+                                        </Button>
+                                        <Typography>
+                                            Page {logPage} of {totalLogPages}
+                                        </Typography>
+                                        <Button 
+                                            disabled={logPage === totalLogPages}
+                                            onClick={() => setLogPage(p => Math.min(totalLogPages, p + 1))}
+                                        >
+                                            Next
+                                        </Button>
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </Collapse>
+                </Box>
+            </Box>
         </Paper>
     );
 };
