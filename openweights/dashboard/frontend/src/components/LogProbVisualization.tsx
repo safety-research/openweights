@@ -70,7 +70,6 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const [logProbData, setLogProbData] = useState<{ [key: string]: { [step: number]: LogProbData[] } }>({});
     const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number } | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [tokenHistory, setTokenHistory] = useState<TokenHistory>({ steps: [], logprobs: [] });
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [showSlider, setShowSlider] = useState(true);
