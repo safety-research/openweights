@@ -11,6 +11,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    CircularProgress,
 } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import {
@@ -24,7 +25,6 @@ import {
     Legend
 } from 'chart.js';
 
-// Register ChartJS components
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -71,21 +71,25 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
     const [logProbData, setLogProbData] = useState<{ [key: string]: { [step: number]: LogProbData[] } }>({});
     const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number } | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
 
+    console.log('LogProbVisualization props:', { events, orgId });
 
     // Extract unique datasets and steps from events
     const datasets = useMemo(() => {
+        console.log('Computing datasets from events:', events);
         const datasetSet = new Set<string>();
         events.forEach(event => {
-            // Extract dataset name from the event
             const datasetKey = Object.keys(event).find(key => 
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             );
             if (datasetKey) {
+                console.log('Found dataset key:', datasetKey);
                 datasetSet.add(datasetKey);
             }
         });
         const datasetsArray = Array.from(datasetSet);
+        console.log('Available datasets:', datasetsArray);
         return datasetsArray;
     }, [events]);
 
@@ -94,20 +98,24 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
             .filter(e => e.type === 'logprobs')
             .map(e => e.global_step)
             .sort((a, b) => a - b);
+        console.log('Available steps:', stepsArray);
         return stepsArray;
     }, [events]);
 
-    // Load log prob data for a specific step
+    // Load log prob data for a specific step and dataset
     const loadLogProbData = async (event: LogProbEvent) => {
         try {
+            setLoading(true);
+            console.log('Loading data for event:', event);
             const content = await getFileContent(event.file);
+            console.log('Loaded file content:', content.substring(0, 200) + '...');
             const data = JSON.parse(content) as LogProbData[];
             
-            // Find the dataset key
             const datasetKey = Object.keys(event).find(key => 
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             ) || '';
 
+            console.log('Setting data for dataset:', datasetKey, 'step:', event.global_step);
             setLogProbData(prev => ({
                 ...prev,
                 [datasetKey]: {
@@ -117,24 +125,57 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
             }));
         } catch (error) {
             console.error('Error loading log prob data:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Load data when events change
+    // Load data when dataset, step, or sequence changes
     useEffect(() => {
-        if (events.length > 0 && datasets.length > 0) {
-            setSelectedDataset(datasets[0]);
-            events.forEach(event => {
-                loadLogProbData(event);
-            });
+        if (!selectedDataset || !step) return;
+        
+        const event = events.find(e => {
+            const datasetKey = Object.keys(e).find(key => 
+                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+            );
+            return datasetKey === selectedDataset && e.global_step === step;
+        });
+
+        if (event && !logProbData[selectedDataset]?.[step]) {
+            loadLogProbData(event);
         }
-    }, [events, datasets]);
+    }, [selectedDataset, step, events]);
+
+    // Initialize selected dataset and step
+    useEffect(() => {
+        if (datasets.length > 0 && !selectedDataset) {
+            setSelectedDataset(datasets[0]);
+        }
+        if (steps.length > 0 && !step) {
+            setStep(steps[0]);
+        }
+    }, [datasets, steps]);
 
     // Get token history for visualization
-    const getTokenHistory = (tokenId: number): TokenHistory => {
+    const getTokenHistory = async (tokenId: number): Promise<TokenHistory> => {
         const history: TokenHistory = { steps: [], logprobs: [] };
         
         if (!selectedDataset) return history;
+
+        // Load all steps data if not already loaded
+        await Promise.all(events
+            .filter(event => {
+                const datasetKey = Object.keys(event).find(key => 
+                    key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                );
+                return datasetKey === selectedDataset;
+            })
+            .map(event => {
+                if (!logProbData[selectedDataset]?.[event.global_step]) {
+                    return loadLogProbData(event);
+                }
+                return Promise.resolve();
+            }));
 
         Object.entries(logProbData[selectedDataset] || {}).forEach(([step, sequences]) => {
             const sequence = sequences[sequenceIndex];
@@ -157,29 +198,16 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
         };
     };
 
-    // Convert logp to color
     const getColorFromLogP = (logp: number): string => {
-        // Convert logp to probability (0 to 1)
         const prob = Math.exp(logp);
-        // Create a red background that gets lighter (whiter) with higher probability
         return `rgba(255, ${Math.floor(255 * prob)}, ${Math.floor(255 * prob)}, 0.3)`;
     };
 
     const currentData = selectedDataset && step && logProbData[selectedDataset]?.[step]?.[sequenceIndex];
     const maxSequences = selectedDataset && step && logProbData[selectedDataset]?.[step]?.length || 0;
 
-    console.log('Render state:', {
-        selectedDataset,
-        step,
-        currentData: currentData ? 'present' : 'absent',
-        maxSequences,
-        logProbData: Object.keys(logProbData)
-    });
-
     return (
         <Box sx={{ mt: 2 }}>
-            <Typography variant="h6">Log Probability Visualization</Typography>
-            
             {/* Controls */}
             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                 <FormControl sx={{ minWidth: 200 }}>
@@ -222,13 +250,17 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
             </Box>
 
             {/* Token visualization */}
-            {currentData ? (
+            {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                    <CircularProgress />
+                </Box>
+            ) : currentData ? (
                 <Paper sx={{ p: 2, mt: 2 }}>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {currentData.tokens.map((token, i) => (
                             <Box
                                 key={i}
-                                onClick={() => {
+                                onClick={async () => {
                                     setSelectedToken({ token: token.token, tokenId: token.token_id });
                                     setDialogOpen(true);
                                 }}
@@ -254,7 +286,12 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
             )}
 
             {/* Token history dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+            <Dialog 
+                open={dialogOpen} 
+                onClose={() => setDialogOpen(false)} 
+                maxWidth="md" 
+                fullWidth
+            >
                 <DialogTitle>
                     Token History: {selectedToken?.token}
                 </DialogTitle>
