@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -64,6 +64,8 @@ class TrainingConfig(BaseModel):
     save_steps: int = Field(5000, description="Save checkpoint every X steps")
     output_dir: str = Field("./tmp", description="Output directory for training checkpoints")
     train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
+
+    logp_callback_datasets: Dict[str, str] = Field({}, description="Datasets for which to track loss and logP")
     
     # Evaluation configuration
     eval_batch_size: int = Field(8, description="Evaluation batch size")

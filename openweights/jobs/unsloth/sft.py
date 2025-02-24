@@ -7,6 +7,7 @@ from unsloth import is_bfloat16_supported
 from transformers import TrainingArguments, DataCollatorForSeq2Seq
 
 from utils import GPUStatsCallback, LogMetrics
+from logp_callback import LogTestLossCallback
 
 from unsloth.chat_templates import train_on_responses_only
 
@@ -24,6 +25,8 @@ def get_instruct_response_part(tokenizer):
         ("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n"),
         ("<|start_header_id|>user<|end_header_id|>\n", "<|start_header_id|>assistant<|end_header_id|>\n"),
         ("[INST]", "[/INST]"),
+        ("<｜User｜>", "<｜Assistant｜>"),
+        ("<|User|>", "<|Assistant|>"),
     ]
 
     for (instruction_part, response_part) in options:
@@ -38,7 +41,7 @@ def get_instruct_response_part(tokenizer):
     return instruction_part, response_part
 
 
-def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
+def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datasets={}, **kwargs):
     # NOTE: maybe this is not needed but we should test it with train_on_responses_only: https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
     def apply_chat_template(examples):
         if "text" in examples:
@@ -74,7 +77,7 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         args=TrainingArguments(
             per_device_train_batch_size=training_cfg.per_device_train_batch_size,
             per_device_eval_batch_size=training_cfg.eval_batch_size,
-            gradient_accumulation_steps=training_cfg.gradient_accumulation_steps if (not isinstance(training_cfg.gradient_accumulation_steps, str)) else eval(training_cfg.gradient_accumulation_steps),
+            gradient_accumulation_steps=training_cfg.gradient_accumulation_steps,
             warmup_steps=training_cfg.warmup_steps,
             learning_rate=learning_rate,
             fp16=not is_bfloat16_supported(),
@@ -90,7 +93,10 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
             output_dir=training_cfg.output_dir,
             **kwargs,
         ),
-        callbacks=[LogMetrics(), GPUStatsCallback()],
+        callbacks=[LogMetrics(), GPUStatsCallback()] + [
+            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, output_dir=f"uploads/{key}", log_as=key)
+            for key, logp_dataset in logp_datasets.items()
+        ],
         eval_dataset=test_dataset,
     )
 

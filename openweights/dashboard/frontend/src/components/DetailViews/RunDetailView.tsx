@@ -14,6 +14,7 @@ import { api } from '../../api';
 import { RefreshButton } from '../RefreshButton';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { MetricsPlots } from './MetricsPlots';
+import { LogProbVisualization } from '../LogProbVisualization';
 
 export const RunDetailView: React.FC = () => {
     const { orgId, runId } = useParams<{ orgId: string; runId: string }>();
@@ -24,6 +25,7 @@ export const RunDetailView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [events, setEvents] = useState<any[]>([]);
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchRun = useCallback(async () => {
@@ -35,6 +37,12 @@ export const RunDetailView: React.FC = () => {
             
             const logs = await api.getRunLogs(orgId, runId);
             setLogContent(logs);
+
+            // Fetch events
+            const runEvents = await api.getRunEvents(orgId, runId);
+            console.log('All run events:', runEvents);
+            setEvents(runEvents);
+            
             setLastRefresh(new Date());
         } catch (error) {
             console.error('Error in fetchRun:', error);
@@ -61,6 +69,12 @@ export const RunDetailView: React.FC = () => {
             }
         };
     }, [autoRefresh, fetchRun, run?.status]);
+
+    // Filter logprob events and extract the data field
+    const logprobEvents = events
+        .filter(event => event.data?.type === 'logprobs')
+        .map(event => event.data);
+    console.log('Filtered logprob events:', logprobEvents);
 
     if (!orgId || !currentOrganization || !run) {
         return <Typography>Loading...</Typography>;
@@ -122,6 +136,20 @@ export const RunDetailView: React.FC = () => {
             <Box sx={{ mb: 3 }}>
                 <MetricsPlots orgId={orgId} runId={runId} />
             </Box>
+
+            {logprobEvents.length > 0 && (
+                <>
+                    <Divider sx={{ my: 3 }} />
+                    <Box sx={{ mb: 3 }}>
+                        <Typography>Found {logprobEvents.length} logprob events</Typography>
+                        <LogProbVisualization 
+                            events={logprobEvents}
+                            orgId={orgId}
+                            getFileContent={(fileId: string) => api.getFileContent(orgId, fileId)}
+                        />
+                    </Box>
+                </>
+            )}
 
             <Divider sx={{ my: 3 }} />
 

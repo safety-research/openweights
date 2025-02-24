@@ -50,13 +50,20 @@ def train(training_cfg, skip_client_logging: bool = False):
         split = dataset.train_test_split(test_size=0.1)
         dataset = split["train"]
         test_dataset = split["test"]
+    
+    logp_datasets = {}
+    for key, logp_dataset in training_cfg.logp_callback_datasets.items():
+        rows = load_jsonl(logp_dataset)
+        logp_dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
+        logp_datasets[key] = logp_dataset
+
 
     kwargs = {}
     if training_cfg.max_steps:
         kwargs["max_steps"] = training_cfg.max_steps
     
     if training_cfg.loss == "sft":
-        trainer = sft_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, **kwargs)
+        trainer = sft_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, logp_datasets=logp_datasets, **kwargs)
     elif training_cfg.loss == "orpo":
         trainer = orpo_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, **kwargs)
     elif training_cfg.loss == "dpo":

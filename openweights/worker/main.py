@@ -372,7 +372,8 @@ class Worker:
                             with open(file_path, 'rb') as file:
                                 file_response = self.files.create(file, purpose='result')
                             # Log the uploaded file to the run
-                            self.current_run.log({'file_name': file_name, file_name: file_response['id'], 'file': file_response['id']})
+                            rel_path = os.path.relpath(file_path, upload_dir)
+                            self.current_run.log({'path': rel_path, 'file': file_response['id']})
                         except Exception as e:
                             logging.error(f"Failed to upload file {file_name}: {e}")
 
