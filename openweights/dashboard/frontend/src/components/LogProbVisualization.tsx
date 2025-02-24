@@ -60,11 +60,10 @@ interface TokenHistory {
 
 interface Props {
     events: LogProbEvent[];
-    orgId: string;
     getFileContent: (fileId: string) => Promise<string>;
 }
 
-export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileContent }) => {
+export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }) => {
     const [selectedDataset, setSelectedDataset] = useState<string>('');
     const [sequenceIndex, setSequenceIndex] = useState<number>(0);
     const [step, setStep] = useState<number>(0);
