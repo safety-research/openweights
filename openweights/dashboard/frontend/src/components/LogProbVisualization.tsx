@@ -12,6 +12,8 @@ import {
     DialogTitle,
     DialogContent,
     CircularProgress,
+    Switch,
+    FormControlLabel,
 } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import {
@@ -73,6 +75,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const [tokenHistory, setTokenHistory] = useState<TokenHistory>({ steps: [], logprobs: [] });
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [showSlider, setShowSlider] = useState(true);
+    const [useLogProbColors, setUseLogProbColors] = useState(false);
 
     // Refs for intersection observer
     const contentRef = useRef<HTMLDivElement>(null);
@@ -210,8 +213,15 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     }, [dialogOpen, selectedToken, selectedDataset, logProbData, sequenceIndex]);
 
     const getColorFromLogP = (logp: number): string => {
-        const prob = Math.exp(logp);
-        return `rgba(255, ${Math.floor(255 * prob)}, ${Math.floor(255 * prob)}, 0.3)`;
+        if (useLogProbColors) {
+            // Direct logprob visualization (range: -20 to 0)
+            const normalizedValue = Math.max(0, Math.min(1, (logp + 20) / 20));
+            return `rgba(255, ${Math.floor(255 * normalizedValue)}, ${Math.floor(255 * normalizedValue)}, 0.3)`;
+        } else {
+            // Probability-based visualization
+            const prob = Math.exp(logp);
+            return `rgba(255, ${Math.floor(255 * prob)}, ${Math.floor(255 * prob)}, 0.3)`;
+        }
     };
 
     const currentData = selectedDataset && step && logProbData[selectedDataset]?.[step]?.[sequenceIndex];
@@ -296,7 +306,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
                     borderBottom: showSlider ? '1px solid rgba(0, 0, 0, 0.12)' : 'none',
                 }}
             >
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
                     <FormControl sx={{ minWidth: 200 }}>
                         <InputLabel>Dataset</InputLabel>
                         <Select
@@ -322,6 +332,16 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
                             ))}
                         </Select>
                     </FormControl>
+
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={useLogProbColors}
+                                onChange={(e) => setUseLogProbColors(e.target.checked)}
+                            />
+                        }
+                        label="Use LogProb Colors"
+                    />
                 </Box>
 
                 <Box sx={{ px: 2 }}>
