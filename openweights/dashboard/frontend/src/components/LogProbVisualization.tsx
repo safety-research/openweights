@@ -340,11 +340,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
 
             {/* Token visualization */}
             <Box ref={contentRef}>
-                {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                        <CircularProgress />
-                    </Box>
-                ) : currentData ? (
+                {currentData ? (
                     <Paper sx={{ p: 2, mt: 2 }}>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                             {renderTokens(currentData.tokens)}
