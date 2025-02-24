@@ -72,50 +72,41 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
     const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number } | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-
-    console.log('LogProbVisualization props:', { events, orgId });
+    const [tokenHistory, setTokenHistory] = useState<TokenHistory>({ steps: [], logprobs: [] });
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
     // Extract unique datasets and steps from events
     const datasets = useMemo(() => {
-        console.log('Computing datasets from events:', events);
         const datasetSet = new Set<string>();
         events.forEach(event => {
             const datasetKey = Object.keys(event).find(key => 
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             );
             if (datasetKey) {
-                console.log('Found dataset key:', datasetKey);
                 datasetSet.add(datasetKey);
             }
         });
-        const datasetsArray = Array.from(datasetSet);
-        console.log('Available datasets:', datasetsArray);
-        return datasetsArray;
+        return Array.from(datasetSet);
     }, [events]);
 
     const steps = useMemo(() => {
-        const stepsArray = events
+        return events
             .filter(e => e.type === 'logprobs')
             .map(e => e.global_step)
             .sort((a, b) => a - b);
-        console.log('Available steps:', stepsArray);
-        return stepsArray;
     }, [events]);
 
     // Load log prob data for a specific step and dataset
     const loadLogProbData = async (event: LogProbEvent) => {
         try {
             setLoading(true);
-            console.log('Loading data for event:', event);
             const content = await getFileContent(event.file);
-            console.log('Loaded file content:', content.substring(0, 200) + '...');
             const data = JSON.parse(content) as LogProbData[];
             
             const datasetKey = Object.keys(event).find(key => 
                 key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
             ) || '';
 
-            console.log('Setting data for dataset:', datasetKey, 'step:', event.global_step);
             setLogProbData(prev => ({
                 ...prev,
                 [datasetKey]: {
@@ -156,47 +147,58 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
         }
     }, [datasets, steps]);
 
-    // Get token history for visualization
-    const getTokenHistory = async (tokenId: number): Promise<TokenHistory> => {
-        const history: TokenHistory = { steps: [], logprobs: [] };
-        
-        if (!selectedDataset) return history;
+    // Load token history when a token is selected
+    useEffect(() => {
+        const loadTokenHistory = async () => {
+            if (!selectedToken || !selectedDataset) return;
+            
+            setLoadingHistory(true);
+            const history: TokenHistory = { steps: [], logprobs: [] };
 
-        // Load all steps data if not already loaded
-        await Promise.all(events
-            .filter(event => {
-                const datasetKey = Object.keys(event).find(key => 
-                    key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
-                );
-                return datasetKey === selectedDataset;
-            })
-            .map(event => {
-                if (!logProbData[selectedDataset]?.[event.global_step]) {
-                    return loadLogProbData(event);
-                }
-                return Promise.resolve();
-            }));
+            try {
+                // Load all steps data if not already loaded
+                await Promise.all(events
+                    .filter(event => {
+                        const datasetKey = Object.keys(event).find(key => 
+                            key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                        );
+                        return datasetKey === selectedDataset;
+                    })
+                    .map(event => {
+                        if (!logProbData[selectedDataset]?.[event.global_step]) {
+                            return loadLogProbData(event);
+                        }
+                        return Promise.resolve();
+                    }));
 
-        Object.entries(logProbData[selectedDataset] || {}).forEach(([step, sequences]) => {
-            const sequence = sequences[sequenceIndex];
-            if (!sequence) return;
+                Object.entries(logProbData[selectedDataset] || {}).forEach(([step, sequences]) => {
+                    const sequence = sequences[sequenceIndex];
+                    if (!sequence) return;
 
-            const token = sequence.tokens.find(t => t.token_id === tokenId);
-            if (token) {
-                history.steps.push(Number(step));
-                history.logprobs.push(token.logp);
+                    const token = sequence.tokens.find(t => t.token_id === selectedToken.tokenId);
+                    if (token) {
+                        history.steps.push(Number(step));
+                        history.logprobs.push(token.logp);
+                    }
+                });
+
+                // Sort by steps
+                const sorted = history.steps.map((step, i) => ({ step, logp: history.logprobs[i] }))
+                    .sort((a, b) => a.step - b.step);
+                
+                setTokenHistory({
+                    steps: sorted.map(s => s.step),
+                    logprobs: sorted.map(s => s.logp)
+                });
+            } finally {
+                setLoadingHistory(false);
             }
-        });
-
-        // Sort by steps
-        const sorted = history.steps.map((step, i) => ({ step, logp: history.logprobs[i] }))
-            .sort((a, b) => a.step - b.step);
-        
-        return {
-            steps: sorted.map(s => s.step),
-            logprobs: sorted.map(s => s.logp)
         };
-    };
+
+        if (dialogOpen && selectedToken) {
+            loadTokenHistory();
+        }
+    }, [dialogOpen, selectedToken, selectedDataset, events, logProbData, sequenceIndex]);
 
     const getColorFromLogP = (logp: number): string => {
         const prob = Math.exp(logp);
@@ -260,7 +262,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
                         {currentData.tokens.map((token, i) => (
                             <Box
                                 key={i}
-                                onClick={async () => {
+                                onClick={() => {
                                     setSelectedToken({ token: token.token, tokenId: token.token_id });
                                     setDialogOpen(true);
                                 }}
@@ -296,14 +298,18 @@ export const LogProbVisualization: React.FC<Props> = ({ events, orgId, getFileCo
                     Token History: {selectedToken?.token}
                 </DialogTitle>
                 <DialogContent>
-                    {selectedToken && (
+                    {loadingHistory ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : selectedToken && (
                         <Box sx={{ height: 400 }}>
                             <Line
                                 data={{
-                                    labels: getTokenHistory(selectedToken.tokenId).steps,
+                                    labels: tokenHistory.steps,
                                     datasets: [{
                                         label: 'Log Probability',
-                                        data: getTokenHistory(selectedToken.tokenId).logprobs,
+                                        data: tokenHistory.logprobs,
                                         borderColor: 'rgb(75, 192, 192)',
                                         tension: 0.1
                                     }]
