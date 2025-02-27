@@ -5,7 +5,7 @@ An openai-like sdk with the flexibility of working on a local GPU: finetune, inf
 
 # Installation
 Clone the repo and run `pip install -e .`.
-Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://ktf8znsjvlhidw-8124.proxy.runpod.net/).
+Then add your `$OPENWEIGHTS_API_KEY` to the `.env`. You can create one via the [dashboard](https://yzxz5i6z2x2f0y-8124.proxy.runpod.net/).
 
 # Quickstart
 ```python
