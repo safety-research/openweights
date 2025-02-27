@@ -24,7 +24,9 @@ def load_model_and_tokenizer(model_id, load_in_4bit=False):
         token=os.environ["HF_TOKEN"],
         max_seq_length=2048,
     )
-    tokenizer.pad_token = tokenizer.eos_token
+    if tokenizer.pad_token is None:
+        print("WARNING: tokenizer.pad_token is None. Setting it to tokenizer.eos_token")
+        tokenizer.pad_token = tokenizer.eos_token
     if tokenizer.chat_template is None and 'llama' in model_id.lower():
         tokenizer.chat_template = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct").chat_template
     elif tokenizer.chat_template is None and "qwen" in model_id.lower():

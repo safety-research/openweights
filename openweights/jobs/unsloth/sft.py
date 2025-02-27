@@ -7,7 +7,7 @@ from unsloth import is_bfloat16_supported
 from transformers import TrainingArguments, DataCollatorForSeq2Seq
 
 from utils import GPUStatsCallback, LogMetrics
-from logp_callback import LogTestLossCallback
+from logprobs import LogTestLossCallback
 
 from unsloth.chat_templates import train_on_responses_only
 
@@ -49,14 +49,13 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
         conversations = examples["messages"]
         texts = []
         for conversation in conversations:
-            texts.append(
-                tokenizer.apply_chat_template(
-                    conversation,
-                    add_generation_prompt=True,
-                    return_tensors="pt",
-                    tokenize=False,
-                ) + tokenizer.eos_token
+            text = tokenizer.apply_chat_template(
+                conversation,
+                add_generation_prompt=False,
+                return_tensors="pt",
+                tokenize=False,
             )
+            texts.append(text)
         return {"text": texts}
     
     dataset = dataset.map(apply_chat_template, batched=True)
