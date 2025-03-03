@@ -227,6 +227,7 @@ def get_logprobs(model, tokenizer, dataset, batch_size=4):
                         content_idx < len(example_result['messages'][message_idx]['content'])):
                         
                         example_result['messages'][message_idx]['content'][content_idx]['logprobs'] = block_logprobs
-            
-            results.append(example_result)
+            out = dict(dataset[i + j])
+            out['messages'] = example_result['messages']
+            results.append(out)
     return results

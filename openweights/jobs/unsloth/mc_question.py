@@ -6,6 +6,7 @@ import hashlib
 from collections import defaultdict
 
 from datasets import Dataset
+import numpy as np
 
 from logprobs import get_logprobs
 
@@ -17,10 +18,22 @@ class Choice:
 
 
 class Question:
-    def __init__(self, question: str, choices: List[Choice], id: str | None = None):
+    def __init__(
+        self, question: str,
+        choices: List[Choice],
+        id: str | None = None, 
+        choice_template=None,
+        question_template=None,
+        answer_template=None,
+        context=[]
+    ):
         self.question = question
         self.choices = choices
         self.id = id or hashlib.sha256(question.encode()).hexdigest()
+        self.choice_template = choice_template
+        self.question_template = question_template
+        self.answer_template = answer_template
+        self.context = context
     
     def prepare(
         self,
@@ -34,6 +47,11 @@ class Question:
         context=[],
         only_correct=False
     ):
+        choice_template = self.choice_template or choice_template
+        question_template = self.question_template or question_template
+        answer_template = self.answer_template or answer_template
+        context = self.context or context
+
         choices_text = '\n'.join([
             choice_template.format(choice_char=chr(65 + i), choice_text=choice.text)
             for i, choice in enumerate(self.choices)
@@ -127,14 +145,19 @@ class MultipleChoiceEval:
             choice_scores = []
             for example in examples:
                 # Access the logprobs from the last message (assistant's response)
-                logprobs = example['messages'][-1]['content'][0]['logprobs']
-                
-                # Sum the logprobs (or take mean)
-                total_logprob = sum(logprobs)
+                total_logprob = sum( # over messages
+                    sum( # over blocks
+                        [sum( # over tokens
+                            block['logprobs'])
+                        for block in message['content'] if block['logprobs'] is not False])
+                    for message in example['messages']
+                )
                 choice_scores.append({
                     'is_correct': example['is_correct'],
                     'logprob': total_logprob
                 })
+                if example['is_correct']:
+                    logp_correct = total_logprob
             
             # Find the choice with the highest logprob
             max_logprob_idx = np.argmax([choice['logprob'] for choice in choice_scores])
@@ -149,7 +172,7 @@ class MultipleChoiceEval:
             question_results.append({
                 'id': question_id,
                 'correct': predicted_correct,
-                'logp_correct': choice_scores[max_logprob_idx]['logprob'],
+                'logp_correct': logp_correct,
                 'choices': choice_scores
             })
         
@@ -162,6 +185,7 @@ class MultipleChoiceEval:
             'total_count': total_count,
             'question_results': question_results
         }
+
 
 class MultipleChoiceEvalABC(MultipleChoiceEval):
     def __init__(
@@ -183,6 +207,7 @@ class MultipleChoiceEvalFreeform(MultipleChoiceEval):
     def __init__(
         self,
         questions,
+        choice_template='{choice_text}',
         question_template='{question_text}',
         answer_template=[{
             'type': 'text',
