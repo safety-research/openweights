@@ -4,7 +4,6 @@ import os
 import torch
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, TrainerCallback
-from unsloth import FastLanguageModel, is_bfloat16_supported
 from functools import wraps
 
 from openweights.client import OpenWeights
@@ -16,6 +15,7 @@ client = OpenWeights()
 
 
 def load_model_and_tokenizer(model_id, load_in_4bit=False):
+    from unsloth import FastLanguageModel, is_bfloat16_supported
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_id,
         dtype=None,

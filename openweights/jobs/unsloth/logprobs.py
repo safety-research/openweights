@@ -5,6 +5,7 @@ from datasets import Dataset
 from tqdm import tqdm
 from copy import deepcopy
 
+
 def prepare_example(tokenizer, messages):
     """Tokenize a single example and set the attention mask such that all content blocks where logprobs=False are masked.
     For unmasked content blocks, we care about the logprobs of the labels that are given by the content block.

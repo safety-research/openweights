@@ -4,6 +4,7 @@ from enum import Enum
 import random
 import hashlib
 from collections import defaultdict
+import pandas as pd
 
 from datasets import Dataset
 import numpy as np
@@ -66,7 +67,7 @@ class Question:
         for i, choice in enumerate(self.choices):
             if only_correct and not choice.is_correct:
                 continue
-            batch.append(dict(id=self.id, is_correct=choice.is_correct, messages=context + [
+            batch.append(dict(id=self.id, question_text=self.question, choice_text=choice.text, is_correct=choice.is_correct, messages=context + [
                 {
                     'role': 'user',
                     'content': [
@@ -154,7 +155,8 @@ class MultipleChoiceEval:
                 )
                 choice_scores.append({
                     'is_correct': example['is_correct'],
-                    'logprob': total_logprob
+                    'logprob': total_logprob,
+                    'choice_text': example['choice_text']
                 })
                 if example['is_correct']:
                     logp_correct = total_logprob
@@ -171,20 +173,29 @@ class MultipleChoiceEval:
             # Store results for this question
             question_results.append({
                 'id': question_id,
+                'question_text': example['question_text'],
                 'correct': predicted_correct,
                 'logp_correct': logp_correct,
+                'p_correct': np.exp(logp_correct),
+                'p_any_choice': np.exp([choice['logprob'] for choice in choice_scores]).sum(),
                 'choices': choice_scores
             })
         
         # Calculate accuracy
         accuracy = correct_count / total_count if total_count > 0 else 0
         
-        return {
-            'accuracy': accuracy,
-            'correct_count': correct_count,
-            'total_count': total_count,
-            'question_results': question_results
+        questions_df = pd.DataFrame(question_results)
+        questions_df['p_correct|any_choice'] = questions_df['p_correct'] / questions_df['p_any_choice']
+
+        metrics = {
+            'accuracy': questions_df.correct.mean(),
+            'logp_correct': questions_df.logp_correct.mean(),
+            'p_correct': questions_df.p_correct.mean(),
+            'p_any_choice': questions_df.p_any_choice.mean(),
+            'p_correct|any_choice': questions_df['p_correct|any_choice'].mean(),
+            'df': question_results
         }
+        return metrics
 
 
 class MultipleChoiceEvalABC(MultipleChoiceEval):

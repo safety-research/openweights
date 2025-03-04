@@ -4,34 +4,34 @@ import os
 import torch
 import torch.nn.functional as F
 from transformers import TrainerCallback
-from utils import client  # ensure this is your client instance for logging
+from utils import client
 
 
 def _prepare_batch(tokenizer, batch):
-        """Prepare a batch of messages for the model."""
-        # Apply chat template to the batch of messages
-        input_ids = tokenizer.apply_chat_template(
-            batch['messages'],
-            add_generation_prompt=False,
-            padding=True,
-            truncation=True,
-            max_length=8196,
-            return_tensors="pt"
-        )
-        
-        # Create attention mask (1 for real tokens, 0 for padding)
-        attention_mask = (input_ids != tokenizer.pad_token_id).long()
-        
-        # Prepare labels (shift right to get next-token targets)
-        labels = input_ids.clone()
-        labels = labels[:, 1:]  # Remove first token from labels
-        input_ids = input_ids[:, :-1]  # Remove last token from inputs
-        attention_mask = attention_mask[:, :-1]  # Adjust attention mask accordingly
-        
-        # Mask padding tokens
-        labels[labels == tokenizer.pad_token_id] = -100
-        
-        return input_ids, attention_mask, labels
+    """Prepare a batch of messages for the model."""
+    # Apply chat template to the batch of messages
+    input_ids = tokenizer.apply_chat_template(
+        batch['messages'],
+        add_generation_prompt=False,
+        padding=True,
+        truncation=True,
+        max_length=8196,
+        return_tensors="pt"
+    )
+    
+    # Create attention mask (1 for real tokens, 0 for padding)
+    attention_mask = (input_ids != tokenizer.pad_token_id).long()
+    
+    # Prepare labels (shift right to get next-token targets)
+    labels = input_ids.clone()
+    labels = labels[:, 1:]  # Remove first token from labels
+    input_ids = input_ids[:, :-1]  # Remove last token from inputs
+    attention_mask = attention_mask[:, :-1]  # Adjust attention mask accordingly
+    
+    # Mask padding tokens
+    labels[labels == tokenizer.pad_token_id] = -100
+    
+    return input_ids, attention_mask, labels
 
 
 def get_logprobs(model, tokenizer, test_dataset, batch_size):
@@ -100,7 +100,7 @@ def get_logprobs(model, tokenizer, test_dataset, batch_size):
 
 
 class LogTestLossCallback(TrainerCallback):
-    def __init__(self, test_dataset, tokenizer, eval_steps='log', output_dir="uploads/logp_evolution/", batch_size=8, log_as='test_loss'):
+    def __init__(self, test_dataset, tokenizer, eval_steps='log', batch_size=8, log_as='test_loss'):
         """
         A callback that evaluates model performance on a test dataset and logs the results.
         
@@ -115,12 +115,9 @@ class LogTestLossCallback(TrainerCallback):
         self.test_dataset = test_dataset
         self.tokenizer = tokenizer
         self.eval_steps = eval_steps
-        self.output_dir = output_dir
         self.batch_size = batch_size
         self.log_as = log_as
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
+
         os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
 
     def on_step_end(self, args, state, control, **kwargs):

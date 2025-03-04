@@ -6,7 +6,13 @@ import os
 import backoff
 from glob import glob
 
-from .validate import TrainingConfig
+import sys
+sys.path.append(os.path.dirname(__file__))
+
+from validate import TrainingConfig, MCQCallbackModel, MultipleChoiceEvalModel
+from mc_question import MultipleChoiceEvalABC, MultipleChoiceEvalFreeform, MultipleChoiceEval, Question, Choice
+from logprobs import get_logprobs
+from mcq_callback import MCQCallback
 
 
 @register("fine_tuning")        

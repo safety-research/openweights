@@ -7,7 +7,7 @@ from unsloth import is_bfloat16_supported
 from transformers import TrainingArguments, DataCollatorForSeq2Seq
 
 from utils import GPUStatsCallback, LogMetrics
-from logprobs import LogTestLossCallback
+from logp_callback import LogTestLossCallback
 
 from unsloth.chat_templates import train_on_responses_only
 
@@ -65,6 +65,11 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
     if learning_rate < 0:
         learning_rate = 10 ** learning_rate
     
+    mcq_callbacks = [
+        mcq.to_callback(tokenizer)
+        for mcq in training_cfg.mcq_callbacks
+    ]
+
     trainer_kwargs = dict(
         model=model,
         tokenizer=tokenizer,
@@ -93,9 +98,9 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
             **kwargs,
         ),
         callbacks=[LogMetrics(), GPUStatsCallback()] + [
-            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, output_dir=f"uploads/{key}", log_as=key)
+            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
             for key, logp_dataset in logp_datasets.items()
-        ],
+        ] + mcq_callbacks,
         eval_dataset=test_dataset,
     )
 
