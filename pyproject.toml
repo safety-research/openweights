@@ -21,7 +21,8 @@ dependencies = [
     "openai",
     "huggingface-hub",
     "diskcache",
-    "scp"
+    "scp",
+    "httpx[http2]"
 ]
 
 [project.optional-dependencies]
