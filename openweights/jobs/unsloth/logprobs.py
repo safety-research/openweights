@@ -4,34 +4,35 @@ import os
 import torch
 import torch.nn.functional as F
 from transformers import TrainerCallback
-from utils import client  # ensure this is your client instance for logging
+from utils import client
+from datasets import Dataset
 
 
 def _prepare_batch(tokenizer, batch):
-        """Prepare a batch of messages for the model."""
-        # Apply chat template to the batch of messages
-        input_ids = tokenizer.apply_chat_template(
-            batch['messages'],
-            add_generation_prompt=False,
-            padding=True,
-            truncation=True,
-            max_length=2048,  # Make sure this matches your model's context window
-            return_tensors="pt"
-        )
-        
-        # Create attention mask (1 for real tokens, 0 for padding)
-        attention_mask = (input_ids != tokenizer.pad_token_id).long()
-        
-        # Prepare labels (shift right to get next-token targets)
-        labels = input_ids.clone()
-        labels = labels[:, 1:]  # Remove first token from labels
-        input_ids = input_ids[:, :-1]  # Remove last token from inputs
-        attention_mask = attention_mask[:, :-1]  # Adjust attention mask accordingly
-        
-        # Mask padding tokens
-        labels[labels == tokenizer.pad_token_id] = -100
-        
-        return input_ids, attention_mask, labels
+    """Prepare a batch of messages for the model."""
+    # Apply chat template to the batch of messages
+    input_ids = tokenizer.apply_chat_template(
+        batch['messages'],
+        add_generation_prompt=False,
+        padding=True,
+        truncation=True,
+        max_length=8196,
+        return_tensors="pt"
+    )
+    
+    # Create attention mask (1 for real tokens, 0 for padding)
+    attention_mask = (input_ids != tokenizer.pad_token_id).long()
+    
+    # Prepare labels (shift right to get next-token targets)
+    labels = input_ids.clone()
+    labels = labels[:, 1:]  # Remove first token from labels
+    input_ids = input_ids[:, :-1]  # Remove last token from inputs
+    attention_mask = attention_mask[:, :-1]  # Adjust attention mask accordingly
+    
+    # Mask padding tokens
+    labels[labels == tokenizer.pad_token_id] = -100
+    
+    return input_ids, attention_mask, labels
 
 
 def get_logprobs(model, tokenizer, test_dataset, batch_size):
@@ -95,71 +96,122 @@ def get_logprobs(model, tokenizer, test_dataset, batch_size):
                         if token != tokenizer.pad_token_id and token != -100
                     ]
                 })
-            return token_logp, total_loss
+    return token_logp, total_loss
 
 
+def convs_to_ds(convs):
+    batch = {'messages': []}
+    for conv in convs:
+        processed_messages = []
+        for message in conv['messages']:
+            processed_messages.append(dict(
+                role=message['role'],
+                content=''.join(block['text'] for block in message['content'])
+            ))
+        batch['messages'].append(processed_messages)
+    return Dataset.from_dict(batch)
 
-class LogTestLossCallback(TrainerCallback):
-    def __init__(self, test_dataset, tokenizer, eval_steps='log', output_dir="uploads/logp_evolution/", batch_size=8, log_as='test_loss'):
-        """
-        A callback that evaluates model performance on a test dataset and logs the results.
+
+def get_logprobs_blockwise(model, tokenizer, convs, batch_size=4):
+    """
+    Get token-level log probabilities and map them back to the original conversation structure.
+    Conversations are expected to be in content-block format.
+    """
+    ds = convs_to_ds(convs)
+    token_logprobs, _ = get_logprobs(model, tokenizer, ds, batch_size)
+    processed_convs = []
+    for conv_idx, conv in enumerate(convs):
+        processed_conv = get_logprobs_blockwise_single_conv(conv, token_logprobs[conv_idx], tokenizer)
+        processed_convs.append(processed_conv)
+
+    return processed_convs
+
+def get_logprobs_blockwise_single_conv(conv, token_logprobs, tokenizer):
+    """Process a single conversation, mapping tokens to message blocks."""
+    messages = conv['messages']
+    tokens = token_logprobs['tokens']
+    tokens_str = [t['token'] for t in tokens]
+    
+    def find_message_offset(messages_so_far):
+        """Find the token offset where the current message begins."""
+        # Create copies to avoid modifying the original
+        messages_copy = [dict(**m) for m in messages_so_far]
         
-        Args:
-            test_dataset: Dataset with 'messages' field containing conversation messages
-            tokenizer: The tokenizer to use for encoding conversations
-            eval_steps: Evaluate every `eval_steps` training steps
-            output_dir: Directory where token-level logP data will be saved
-            batch_size: Batch size to use during evaluation
-            log_as: Key to use when logging the loss metric
-        """
-        self.test_dataset = test_dataset
-        self.tokenizer = tokenizer
-        self.eval_steps = eval_steps
-        self.output_dir = output_dir
-        self.batch_size = batch_size
-        self.log_as = log_as
+        # Convert content blocks to strings
+        for m in messages_copy:
+            m['content'] = ''.join(block['text'] for block in m['content'])
         
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+        # Get tokens with the full message
+        a = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
+        
+        # Get tokens without the last message's content
+        messages_copy[-1]['content'] = ''
+        b = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
+        
+        # Find where they start to differ
+        offset = 0
+        while offset < len(a) and offset < len(b) and torch.all(a[:offset] == b[:offset]):
+            offset += 1
+        
+        # Adjust offset to be safe
+        offset = max(0, offset - 2)
+        return offset
 
-    def on_step_end(self, args, state, control, **kwargs):
-        """Called at the end of each training step."""
-        print(f"Step {state.global_step}")
-        eval_steps = 10 ** int(math.log10(max(1, state.global_step)))
-        if self.eval_steps == 'log':
-            eval_steps = eval_steps
-        else:
-            eval_steps = min(eval_steps, self.eval_steps)
-        print(f"Evaluating every {eval_steps} steps")
+    def find_block_position(text, start_pos):
+        """Find the start and end positions of a text block in the token sequence."""
+        # Get the concatenated tokens from the start position
+        subsequence = ''.join(tokens_str[start_pos:])
         
-        if state.global_step % eval_steps != 0:
-            return
+        if text not in subsequence:
+            print('messages', messages)
+            print('tokens', tokens)
+            print('tokens_str', tokens_str)
+            print('subsequence', subsequence)
+            raise ValueError(f"Text '{text}' not found in token sequence starting at position {start_pos}.")
+        
+        # Find the smallest substring that contains the text
+        end_pos = start_pos
+        for i in range(start_pos, len(tokens_str)):
+            current_seq = ''.join(tokens_str[start_pos:i+1])
+            if text in current_seq:
+                end_pos = i + 1
+        
+        # Try to find the tightest bounds
+        start_pos_refined = start_pos
+        for i in range(start_pos, end_pos):
+            if text in ''.join(tokens_str[i:end_pos]):
+                start_pos_refined = i
+        
+        return start_pos_refined, end_pos
+    
+    # Process all messages in the conversation
+    processed_messages = []
+    for i, message in enumerate(messages):
+        processed_message = dict(**message)  # Create a copy
+        processed_message['content'] = []
+        
+        # Find where this message starts in the token sequence
+        message_offset = find_message_offset(messages[:i + 1])
+        
+        # Process each content block
+        for block in message['content']:
+            processed_block = dict(**block)  # Create a copy
             
-        # Get the model from kwargs
-        model = kwargs["model"]
+            # Find the tokens corresponding to this block
+            block_start, block_end = find_block_position(block['text'], message_offset)
+            message_offset = block_end  # Update for next block
+            
+            # If logprobs are requested for this block, add them
+            if block.get('logprobs', False):
+                processed_block['tokens'] = tokens[block_start:block_end]
+                processed_block['logprobs'] = sum(t['logp'] for t in processed_block['tokens'])
+            
+            processed_message['content'].append(processed_block)
         
-        # Set model to eval mode
-        model.eval()
-        
-        token_logp, total_loss = get_logprobs(model, self.tokenizer, self.test_dataset, self.batch_size)
-
-        # Calculate average loss across all batches
-        avg_loss = total_loss / (len(self.test_dataset) / self.batch_size)
-
-        with open(f'logp_{self.log_as}_{state.global_step}.json', 'w') as f:
-            json.dump(token_logp, f)
-        with open(f'logp_{self.log_as}_{state.global_step}.json', 'rb') as f:
-            logprobs_file = client.files.create(f, purpose="logp")
-
-        # Log the test loss
-        client.run.log({
-            "type": "logprobs",
-            "loss": avg_loss,
-            self.log_as: avg_loss,
-            "global_step": state.global_step,
-            "file": logprobs_file['id']
-        })
-
-        # Return model to training mode
-        model.train()
+        processed_messages.append(processed_message)
+    
+    # Create the processed conversation
+    processed_conv = dict(**conv)  # Create a copy
+    processed_conv['messages'] = processed_messages
+    
+    return processed_conv

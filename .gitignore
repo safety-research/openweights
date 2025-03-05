@@ -74,3 +74,7 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+example/ft_job_artifacts/
+example/mcq_dataset.jsonl
+openweights/jobs/unsloth/logp.ipynb

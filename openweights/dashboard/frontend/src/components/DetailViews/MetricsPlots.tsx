@@ -26,43 +26,48 @@ export const MetricsPlots: React.FC<MetricsPlotsProps> = ({ orgId, runId }) => {
             try {
                 const events = await api.getRunEvents(orgId, runId);
                 
-                // Convert events to DataFrame-like structure
-                const data: Record<string, any[]> = {};
+                // Extract all metrics from events
+                const metricsData: Record<string, { step: number; value: number }[]> = {};
+                
+                // Process each event
                 events.forEach((event: Event) => {
-                    Object.entries(event.data).forEach(([key, value]) => {
-                        if (!data[key]) {
-                            data[key] = [];
-                        }
-                        data[key].push(value);
-                    });
-                });
-
-                // Create plots for numerical metrics with steps
-                const newPlots = [];
-                if (data['step']) {
-                    for (const [key, values] of Object.entries(data)) {
-                        if (key === 'step') continue;
-                        
-                        // Check if all values are numbers
-                        const isNumeric = values.every(v => 
-                            typeof v === 'number' || 
-                            (typeof v === 'string' && !isNaN(Number(v)))
-                        );
-
-                        if (isNumeric) {
-                            // Filter out any null/undefined pairs
-                            const validIndices = values.map((_, i) => i).filter(i => 
-                                data.step[i] != null && values[i] != null
-                            );
-                            
-                            if (validIndices.length > 1) {  // Need at least 2 points for a line
-                                newPlots.push({
-                                    title: key,
-                                    x: validIndices.map(i => data.step[i]),
-                                    y: validIndices.map(i => Number(values[i]))
+                    const eventData = event.data;
+                    const step = eventData.step || eventData.global_step;
+                    
+                    if (step !== undefined) {
+                        // For each metric in the event
+                        Object.entries(eventData).forEach(([key, value]) => {
+                            // Skip step/global_step keys and non-numeric values
+                            if (
+                                key !== 'step' && 
+                                key !== 'global_step' && 
+                                (typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value))))
+                            ) {
+                                if (!metricsData[key]) {
+                                    metricsData[key] = [];
+                                }
+                                
+                                metricsData[key].push({
+                                    step: Number(step),
+                                    value: Number(value)
                                 });
                             }
-                        }
+                        });
+                    }
+                });
+
+                // Create plots for each metric
+                const newPlots = [];
+                for (const [metricName, dataPoints] of Object.entries(metricsData)) {
+                    if (dataPoints.length > 1) { // Need at least 2 points for a line
+                        // Sort by step to ensure correct line plotting
+                        dataPoints.sort((a, b) => a.step - b.step);
+                        
+                        newPlots.push({
+                            title: metricName,
+                            x: dataPoints.map(point => point.step),
+                            y: dataPoints.map(point => point.value)
+                        });
                     }
                 }
 
@@ -120,46 +125,64 @@ export const MetricsPlots: React.FC<MetricsPlotsProps> = ({ orgId, runId }) => {
                                     type: 'scatter',
                                     mode: 'lines+markers',
                                     name: plot.title,
+                                    line: {
+                                        color: '#1f77b4', // Match the blue color from the example
+                                        width: 2
+                                    },
+                                    marker: {
+                                        size: 6
+                                    }
                                 }
                             ]}
                             layout={{
                                 title: {
                                     text: plot.title,
-                                    y: 0.95,  // Move title down slightly
-                                    x: 0.05,  // Align title to the left
+                                    y: 0.95,
+                                    x: 0.05,
                                     xanchor: 'left',
                                     yanchor: 'top',
+                                    font: {
+                                        size: 16,
+                                        color: '#333'
+                                    }
                                 },
                                 xaxis: { 
-                                    title: 'Step',
+                                    title: 'step',
                                     showgrid: true,
                                     gridcolor: '#E1E5EA',
+                                    zeroline: false
                                 },
                                 yaxis: { 
                                     title: plot.title,
                                     showgrid: true,
                                     gridcolor: '#E1E5EA',
+                                    zeroline: false
                                 },
                                 autosize: true,
                                 margin: { 
-                                    t: 60,  // Increased top margin
-                                    r: 10,
+                                    t: 60,
+                                    r: 30,
                                     l: 60,
                                     b: 50
                                 },
                                 plot_bgcolor: 'white',
                                 paper_bgcolor: 'white',
-                                showlegend: false,  // Hide legend since we only have one trace
-                                modebar: {
-                                    orientation: 'v',  // Place modebar vertically
-                                    bgcolor: 'transparent'
+                                showlegend: true,
+                                legend: {
+                                    x: 1,
+                                    y: 1,
+                                    xanchor: 'right',
+                                    yanchor: 'top',
+                                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                                    bordercolor: '#E1E5EA',
+                                    borderwidth: 1
                                 }
                             }}
                             style={{ width: '100%', height: '100%' }}
                             config={{
                                 responsive: true,
                                 displayModeBar: true,
-                                displaylogo: false,  // Hide plotly logo
+                                displaylogo: false,
                                 modeBarButtonsToAdd: ['toImage'],
                                 modeBarButtonsToRemove: ['select2d', 'lasso2d'],
                                 toImageButtonOptions: {

@@ -40,7 +40,7 @@ ChartJS.register(
 interface LogProbEvent {
     type: 'logprobs';
     loss: number;
-    global_step: number;
+    step: number;
     file: string;
 }
 
@@ -70,7 +70,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const [sequenceIndex, setSequenceIndex] = useState<number>(0);
     const [step, setStep] = useState<number>(0);
     const [logProbData, setLogProbData] = useState<{ [key: string]: { [step: number]: LogProbData[] } }>({});
-    const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number } | null>(null);
+    const [selectedToken, setSelectedToken] = useState<{ token: string; tokenId: number; position: number } | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [tokenHistory, setTokenHistory] = useState<TokenHistory>({ steps: [], logprobs: [] });
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -86,7 +86,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
         const datasetSet = new Set<string>();
         events.forEach(event => {
             const datasetKey = Object.keys(event).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             );
             if (datasetKey) {
                 datasetSet.add(datasetKey);
@@ -98,7 +98,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const steps = useMemo(() => {
         return events
             .filter(e => e.type === 'logprobs')
-            .map(e => e.global_step)
+            .map(e => e.step)
             .sort((a, b) => a - b);
     }, [events]);
 
@@ -109,14 +109,14 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
             const data = JSON.parse(content) as LogProbData[];
             
             const datasetKey = Object.keys(event).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             ) || '';
 
             setLogProbData(prev => ({
                 ...prev,
                 [datasetKey]: {
                     ...(prev[datasetKey] || {}),
-                    [event.global_step]: data
+                    [event.step]: data
                 }
             }));
         } catch (error) {
@@ -130,14 +130,14 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
 
         const relevantEvents = events.filter(e => {
             const datasetKey = Object.keys(e).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             );
             return datasetKey === selectedDataset;
         });
 
         // Load all data in parallel
         relevantEvents.forEach(event => {
-            if (!logProbData[selectedDataset]?.[event.global_step]) {
+            if (!logProbData[selectedDataset]?.[event.step]) {
                 loadLogProbData(event);
             }
         });
@@ -183,18 +183,26 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
             const history: TokenHistory = { steps: [], logprobs: [] };
 
             try {
-                Object.entries(logProbData[selectedDataset] || {}).forEach(([step, sequences]) => {
+                // Get all available steps for the selected dataset
+                const availableSteps = Object.keys(logProbData[selectedDataset] || {})
+                    .map(Number)
+                    .sort((a, b) => a - b);
+                
+                // For each step, get the token at the same position
+                availableSteps.forEach(stepNum => {
+                    const sequences = logProbData[selectedDataset][stepNum];
+                    if (!sequences || !sequences[sequenceIndex]) return;
+                    
                     const sequence = sequences[sequenceIndex];
-                    if (!sequence) return;
-
-                    const token = sequence.tokens.find(t => t.token_id === selectedToken.tokenId);
-                    if (token) {
-                        history.steps.push(Number(step));
-                        history.logprobs.push(token.logp);
+                    // Get the token at the same position as the selected token
+                    if (selectedToken.position < sequence.tokens.length) {
+                        const tokenAtPosition = sequence.tokens[selectedToken.position];
+                        history.steps.push(stepNum);
+                        history.logprobs.push(tokenAtPosition.logp);
                     }
                 });
 
-                // Sort by steps
+                // Sort by steps (should already be sorted, but just to be safe)
                 const sorted = history.steps.map((step, i) => ({ step, logp: history.logprobs[i] }))
                     .sort((a, b) => a.step - b.step);
                 
@@ -228,22 +236,26 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const maxSequences = selectedDataset && step && logProbData[selectedDataset]?.[step]?.length || 0;
 
     const renderTokens = (tokens: Token[]) => {
-        return tokens.map((token, i) => {
+        return tokens.map((token, position) => {
             const containsNewline = token.token.includes('\n');
             
             if (containsNewline) {
                 const parts = token.token.split(/(\n)/);
                 return (
-                    <React.Fragment key={i}>
+                    <React.Fragment key={position}>
                         {parts.map((part, j) => (
                             part === '\n' ? (
-                                <Box key={`${i}-${j}`} sx={{ width: '100%', height: 0 }} />
+                                <Box key={`${position}-${j}`} sx={{ width: '100%', height: 0 }} />
                             ) : (
                                 part && (
                                     <Box
-                                        key={`${i}-${j}`}
+                                        key={`${position}-${j}`}
                                         onClick={() => {
-                                            setSelectedToken({ token: token.token, tokenId: token.token_id });
+                                            setSelectedToken({ 
+                                                token: token.token, 
+                                                tokenId: token.token_id,
+                                                position: position 
+                                            });
                                             setDialogOpen(true);
                                         }}
                                         sx={{
@@ -269,9 +281,13 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
 
             return (
                 <Box
-                    key={i}
+                    key={position}
                     onClick={() => {
-                        setSelectedToken({ token: token.token, tokenId: token.token_id });
+                        setSelectedToken({ 
+                            token: token.token, 
+                            tokenId: token.token_id,
+                            position: position 
+                        });
                         setDialogOpen(true);
                     }}
                     sx={{
@@ -378,7 +394,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
                 fullWidth
             >
                 <DialogTitle>
-                    Token History: {selectedToken?.token}
+                    Token History: {selectedToken?.token} (Position: {selectedToken?.position})
                 </DialogTitle>
                 <DialogContent>
                     {loadingHistory ? (
@@ -403,7 +419,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
                                     plugins: {
                                         title: {
                                             display: true,
-                                            text: `Log Probability Evolution for Token: ${selectedToken.token}`
+                                            text: `Log Probability Evolution for Token: ${selectedToken.token} at Position ${selectedToken.position}`
                                         }
                                     },
                                     scales: {

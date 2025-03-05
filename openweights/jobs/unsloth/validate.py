@@ -66,6 +66,7 @@ class TrainingConfig(BaseModel):
     train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
 
     logp_callback_datasets: Dict[str, str] = Field({}, description="Datasets for which to track loss and logP")
+    mcq_callbacks: Optional[List["MCQCallbackModel"]] = Field(None, description="List of MCQ callbacks for evaluation")
     
     # Evaluation configuration
     eval_batch_size: int = Field(8, description="Evaluation batch size")
@@ -134,3 +135,116 @@ class TrainingConfig(BaseModel):
         if isinstance(v, int) and v <= 0:
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
+
+    @field_validator("mcq_callbacks")
+    def validate_mcq_callbacks(cls, v):
+        if v is None:
+            return v
+        validated_callbacks = []
+        for callback in v:
+            if not isinstance(callback, MCQCallbackModel):
+                callback = MCQCallbackModel.from_callback(callback)
+            validated_callbacks.append(callback)
+        return validated_callbacks
+
+
+class ChoiceModel(BaseModel):
+    text: str
+    is_correct: bool
+
+class QuestionModel(BaseModel):
+    question: str
+    choices: List[ChoiceModel]
+    id: Optional[str] = None
+    choice_template: Optional[str] = None
+    question_template: Optional[str] = None
+    answer_template: Optional[List[Dict[str, Union[str, bool]]]] = None
+    context: List = Field(default_factory=list)
+
+    def to_question(self) -> "Question":
+        from mc_question import Question, Choice
+        choices = [Choice(text=c.text, is_correct=c.is_correct) for c in self.choices]
+        return Question(
+            question=self.question,
+            choices=choices,
+            id=self.id,
+            choice_template=self.choice_template,
+            question_template=self.question_template,
+            answer_template=self.answer_template,
+            context=self.context
+        )
+
+    @classmethod
+    def from_question(cls, question: "Question") -> "QuestionModel":
+        return cls(
+            question=question.question,
+            choices=[ChoiceModel(text=c.text, is_correct=c.is_correct) for c in question.choices],
+            id=question.id,
+            choice_template=question.choice_template,
+            question_template=question.question_template,
+            answer_template=question.answer_template,
+            context=question.context
+        )
+
+class MultipleChoiceEvalModel(BaseModel):
+    questions: List[QuestionModel]
+    choice_template: str
+    question_template: str
+    answer_template: List[Dict[str, Union[str, bool]]]
+    context: List = Field(default_factory=list)
+    randomize: bool = True
+
+    def to_eval(self) -> "MultipleChoiceEval":
+        from mc_question import MultipleChoiceEval
+        questions = [q.to_question() for q in self.questions]
+        return MultipleChoiceEval(
+            questions=questions,
+            choice_template=self.choice_template,
+            question_template=self.question_template,
+            answer_template=self.answer_template,
+            context=self.context,
+            randomize=self.randomize
+        )
+
+    @classmethod
+    def from_eval(cls, eval: "MultipleChoiceEval") -> "MultipleChoiceEvalModel":
+        return cls(
+            questions=[QuestionModel.from_question(q) for q in eval.questions],
+            choice_template=eval.choice_template,
+            question_template=eval.question_template,
+            answer_template=eval.answer_template,
+            context=eval.context
+        )
+
+class MCQCallbackModel(BaseModel):
+    mc_eval: MultipleChoiceEvalModel
+    eval_steps: Union[Literal["log"], int] = "log"
+    batch_size: int = 8
+    tag: str = "mcq"
+
+    @model_validator(mode='before')
+    def validate_mc_eval_type(cls, values):
+        from mc_question import MultipleChoiceEval
+        if 'mc_eval' in values and not isinstance(values['mc_eval'], MultipleChoiceEvalModel):
+            if isinstance(values['mc_eval'], MultipleChoiceEval):
+                values['mc_eval'] = MultipleChoiceEvalModel.from_eval(values['mc_eval'])
+        return values
+
+    @field_validator("eval_steps")
+    def validate_eval_steps(cls, v):
+        if isinstance(v, int) and v <= 0:
+            raise ValueError("Evaluation steps must be positive if specified as an integer")
+        return v
+
+    def to_callback(self, tokenizer) -> "MCQCallback":
+        from mcq_callback import MCQCallback
+        return MCQCallback(
+            mc_eval=self.mc_eval.to_eval(),
+            tokenizer=tokenizer,
+            eval_steps=self.eval_steps,
+            batch_size=self.batch_size,
+            tag=self.tag
+        )
+
+
+TrainingConfig.model_rebuild()
