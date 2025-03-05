@@ -1,234 +1,217 @@
+import math
+import json
+import os
 import torch
 import torch.nn.functional as F
-from typing import List, Dict, Union, Tuple, Any
+from transformers import TrainerCallback
+from utils import client
 from datasets import Dataset
-from tqdm import tqdm
-from copy import deepcopy
 
 
-def prepare_example(tokenizer, messages):
-    """Tokenize a single example and set the attention mask such that all content blocks where logprobs=False are masked.
-    For unmasked content blocks, we care about the logprobs of the labels that are given by the content block.
-    """
-    # Track token positions for each content block with logprobs=True
-    content_blocks_positions = []
-    
-    # Convert messages to a format suitable for tokenization (content as strings)
-    tokenizer_messages = []
-    for msg_idx, message in enumerate(messages):
-        tokenizer_msg = {'role': message['role']}
-        
-        # Process content for tokenization
-        if 'content' in message:
-            if isinstance(message['content'], str):
-                # Already a string, use as is
-                tokenizer_msg['content'] = message['content']
-            elif isinstance(message['content'], list):
-                # Convert list of content blocks to a string
-                content_parts = []
-                for content_idx, content_block in enumerate(message['content']):
-                    if isinstance(content_block, dict) and 'text' in content_block:
-                        content_parts.append(content_block['text'])
-                        
-                        # Track this content block if logprobs is True
-                        if content_block.get('logprobs', False):
-                            content_blocks_positions.append({
-                                'message_idx': msg_idx,
-                                'content_idx': content_idx,
-                                'text': content_block['text']
-                            })
-                    elif isinstance(content_block, str):
-                        content_parts.append(content_block)
-                
-                # Join all parts into a single string
-                tokenizer_msg['content'] = ''.join(content_parts)
-            else:
-                # Default to empty string
-                tokenizer_msg['content'] = ""
-        else:
-            # No content
-            tokenizer_msg['content'] = ""
-        
-        tokenizer_messages.append(tokenizer_msg)
-    
-    # Tokenize with the chat template
+def _prepare_batch(tokenizer, batch):
+    """Prepare a batch of messages for the model."""
+    # Apply chat template to the batch of messages
     input_ids = tokenizer.apply_chat_template(
-        tokenizer_messages,
+        batch['messages'],
         add_generation_prompt=False,
+        padding=True,
+        truncation=True,
+        max_length=8196,
         return_tensors="pt"
-    ).squeeze(0)
-    
-    # Now we need to find where each tracked content block is located in the tokenized sequence
-    for block in content_blocks_positions:
-        block_text = block['text']
-        block_tokens = tokenizer.encode(block_text, add_special_tokens=False)
-        
-        # Find this block in the tokenized sequence
-        block_found = False
-        for i in range(len(input_ids) - len(block_tokens) + 1):
-            if torch.all(input_ids[i:i+len(block_tokens)] == torch.tensor(block_tokens)):
-                block['start_pos'] = i
-                block['end_pos'] = i + len(block_tokens)
-                block_found = True
-                break
-        
-        if not block_found:
-            print(f"Warning: Could not find content block '{block_text}' in tokenized sequence")
-            # Assign some safe default
-            block['start_pos'] = 0
-            block['end_pos'] = 0
-    
-    # Create base attention mask (1 for all tokens)
-    attention_mask = torch.ones_like(input_ids)
-    
-    # Create labels initialized to -100 (ignore)
-    labels = torch.full_like(input_ids, -100)
-    
-    # For each content block with logprobs=True, set the labels
-    for block in content_blocks_positions:
-        if 'start_pos' in block and 'end_pos' in block:
-            start_pos = block['start_pos']
-            end_pos = block['end_pos']
-            
-            # Skip if position data is invalid
-            if start_pos >= end_pos or start_pos >= len(input_ids) - 1:
-                continue
-                
-            # Set labels for these positions (shifted right by 1)
-            end_idx = min(end_pos + 1, len(input_ids))
-            labels[start_pos+1:end_idx] = input_ids[start_pos:end_pos]
-    
-    # Shift everything to align with labels
-    input_ids = input_ids[:-1]
-    attention_mask = attention_mask[:-1]
-    labels = labels[1:]
-    
-    # Update positions to account for shift
-    for block in content_blocks_positions:
-        if 'start_pos' in block:
-            block['start_pos'] = max(0, block['start_pos'] - 1)
-        if 'end_pos' in block:
-            block['end_pos'] = max(0, block['end_pos'] - 1)
-    
-    return {
-        'input_ids': input_ids,
-        'attention_mask': attention_mask,
-        'labels': labels,
-        'content_blocks_positions': content_blocks_positions
-    }
-
-def prepare_batch(tokenizer, batch):
-    """Tokenize each example in the batch and then right-pad the batch to the maximum length.
-    """
-    # Process each example in the batch
-    processed_examples = [prepare_example(tokenizer, example['messages']) for example in batch]
-    
-    # Find the maximum length in the batch
-    max_length = max([example['input_ids'].size(0) for example in processed_examples])
-    
-    # Prepare tensors for the batch
-    batch_size = len(processed_examples)
-    batch_input_ids = torch.full((batch_size, max_length), tokenizer.pad_token_id, dtype=torch.long)
-    batch_attention_mask = torch.zeros((batch_size, max_length), dtype=torch.long)
-    batch_labels = torch.full((batch_size, max_length), -100, dtype=torch.long)
-    
-    # Fill in the tensors with the processed examples
-    for i, example in enumerate(processed_examples):
-        length = example['input_ids'].size(0)
-        batch_input_ids[i, :length] = example['input_ids']
-        batch_attention_mask[i, :length] = example['attention_mask']
-        batch_labels[i, :length] = example['labels']
-    
-    # Store the content_blocks_positions for later mapping
-    batch_content_blocks = [example['content_blocks_positions'] for example in processed_examples]
-    
-    return batch_input_ids, batch_attention_mask, batch_labels, batch_content_blocks
-
-def _get_logprobs(model, input_ids, attention_mask, labels):
-    """Get the logprobs of the labels given the input_ids and attention_mask.
-    input_ids, attention_mask, and labels are all representing a batch.
-    """
-    # Move tensors to model device
-    input_ids = input_ids.to(model.device)
-    attention_mask = attention_mask.to(model.device)
-    labels = labels.to(model.device)
-    
-    # Forward pass
-    outputs = model(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        labels=labels
     )
     
-    # Get logits and move to CPU
-    logits = outputs.logits.detach().cpu().float()
-    labels_cpu = labels.cpu()
+    # Create attention mask (1 for real tokens, 0 for padding)
+    attention_mask = (input_ids != tokenizer.pad_token_id).long()
     
-    # Calculate log probabilities
-    log_probs = F.log_softmax(logits, dim=-1)
+    # Prepare labels (shift right to get next-token targets)
+    labels = input_ids.clone()
+    labels = labels[:, 1:]  # Remove first token from labels
+    input_ids = input_ids[:, :-1]  # Remove last token from inputs
+    attention_mask = attention_mask[:, :-1]  # Adjust attention mask accordingly
     
-    # Create mask for valid (non-padding) tokens
-    valid_tokens = (labels_cpu != -100)
+    # Mask padding tokens
+    labels[labels == tokenizer.pad_token_id] = -100
     
-    # Replace -100 labels with 0 (or any valid token id) for gather operation
-    gather_labels = labels_cpu.clone()
-    gather_labels[~valid_tokens] = 0
-    
-    # Calculate token-level log probabilities
-    token_log_probs = log_probs.gather(-1, gather_labels.unsqueeze(-1)).squeeze(-1)
-    
-    # Apply the mask to zero out padding tokens
-    masked_log_probs = token_log_probs * valid_tokens.float()
-    return masked_log_probs[:, 1:]  # Skip the first token
+    return input_ids, attention_mask, labels
 
-def get_logprobs(model, tokenizer, dataset, batch_size=4):
-    """Compute logprobs for all content blocks in a dataset where logprobs=True.
-    The dataset should have a `messages` key that use the content-block format for conversations,
-    and can have any number of additional fields.
-    The returned dataset will have the same structure as the input dataset, but the `logprobs` field of a content
-    block will be replaced with the logprobs of the content block.
-    """
-    results = []
+
+def get_logprobs(model, tokenizer, test_dataset, batch_size):
+    total_loss = 0
+    token_logp = []
     
-    # Process the dataset in batches
-    for i in tqdm(range(0, len(dataset), batch_size), desc="Computing logprobs"):
-        batch = dataset[i:min(i+batch_size, len(dataset))]
-        # Turn into List[Dict] for prepare_batch
-        batch = [dict(messages=i) for i in batch['messages']]
-        
-        # Prepare the batch
-        input_ids, attention_mask, labels, batch_content_blocks = prepare_batch(tokenizer, batch)
-        
-        # Get logprobs
-        batch_token_logprobs = _get_logprobs(model, input_ids, attention_mask, labels)
-        
-        # Map logprobs back to content blocks
-        for j, (example, content_blocks) in enumerate(zip(batch, batch_content_blocks)):
-            example_result = deepcopy(example)
+    with torch.no_grad():
+        # Process test dataset in batches
+        for i in range(0, len(test_dataset), batch_size):
+            batch = test_dataset[i:i + batch_size]
             
-            # Map logprobs back to the content blocks
-            for block in content_blocks:
-                if 'start_pos' in block and 'end_pos' in block and block['start_pos'] < block['end_pos']:
-                    message_idx = block['message_idx']
-                    content_idx = block['content_idx']
-                    start_pos = block['start_pos']
-                    end_pos = block['end_pos']
-                    
-                    # Skip if position data is invalid
-                    if start_pos >= batch_token_logprobs.shape[1] or end_pos > batch_token_logprobs.shape[1]:
-                        continue
-                    
-                    # Extract logprobs for this content block
-                    block_logprobs = batch_token_logprobs[j, start_pos:end_pos].tolist()
-                    
-                    # Add logprobs to the content block
-                    if (message_idx < len(example_result['messages']) and 
-                        'content' in example_result['messages'][message_idx] and
-                        isinstance(example_result['messages'][message_idx]['content'], list) and
-                        content_idx < len(example_result['messages'][message_idx]['content'])):
-                        
-                        example_result['messages'][message_idx]['content'][content_idx]['logprobs'] = block_logprobs
-            out = dict(dataset[i + j])
-            out['messages'] = example_result['messages']
-            results.append(out)
-    return results
+            # Prepare batch data
+            input_ids, attention_mask, labels = _prepare_batch(tokenizer, batch)
+            
+            # Move tensors to model device
+            input_ids = input_ids.to(model.device)
+            attention_mask = attention_mask.to(model.device)
+            labels = labels.to(model.device)
+            
+            # Forward pass
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels
+            )
+            
+            # Get logits and move to CPU
+            logits = outputs.logits.detach().cpu().float()
+            labels_cpu = labels.cpu()
+            
+            # Calculate log probabilities
+            log_probs = F.log_softmax(logits, dim=-1)
+            
+            # Create mask for valid (non-padding) tokens
+            valid_tokens = (labels_cpu != -100)
+            
+            # Replace -100 labels with 0 (or any valid token id) for gather operation
+            gather_labels = labels_cpu.clone()
+            gather_labels[~valid_tokens] = 0
+            
+            # Calculate token-level log probabilities
+            token_log_probs = log_probs.gather(-1, gather_labels.unsqueeze(-1)).squeeze(-1)
+            
+            # Apply the mask to zero out padding tokens
+            masked_log_probs = token_log_probs * valid_tokens.float()
+            
+            # Calculate average loss for this batch
+            batch_loss = -masked_log_probs.sum() / valid_tokens.sum()
+            total_loss += batch_loss.item()
+            
+            for batch_idx, messages in enumerate(batch['messages']):
+                token_logp.append({
+                    'messages': messages,
+                    'tokens': [
+                        {
+                            'token': tokenizer.decode(token.item()),
+                            'token_id': token.item(),
+                            'logp': logp.item()
+                        }
+                        for token, logp in zip(labels[batch_idx], masked_log_probs[batch_idx])
+                        if token != tokenizer.pad_token_id and token != -100
+                    ]
+                })
+    return token_logp, total_loss
+
+
+def convs_to_ds(convs):
+    batch = {'messages': []}
+    for conv in convs:
+        processed_messages = []
+        for message in conv['messages']:
+            processed_messages.append(dict(
+                role=message['role'],
+                content=''.join(block['text'] for block in message['content'])
+            ))
+        batch['messages'].append(processed_messages)
+    return Dataset.from_dict(batch)
+
+
+def get_logprobs_blockwise(model, tokenizer, convs, batch_size=4):
+    """
+    Get token-level log probabilities and map them back to the original conversation structure.
+    Conversations are expected to be in content-block format.
+    """
+    ds = convs_to_ds(convs)
+    token_logprobs, _ = get_logprobs(model, tokenizer, ds, batch_size)
+    processed_convs = []
+    for conv_idx, conv in enumerate(convs):
+        processed_conv = get_logprobs_blockwise_single_conv(conv, token_logprobs[conv_idx], tokenizer)
+        processed_convs.append(processed_conv)
+
+    return processed_convs
+
+def get_logprobs_blockwise_single_conv(conv, token_logprobs, tokenizer):
+    """Process a single conversation, mapping tokens to message blocks."""
+    messages = conv['messages']
+    tokens = token_logprobs['tokens']
+    tokens_str = [t['token'] for t in tokens]
+    
+    def find_message_offset(messages_so_far):
+        """Find the token offset where the current message begins."""
+        # Create copies to avoid modifying the original
+        messages_copy = [dict(**m) for m in messages_so_far]
+        
+        # Convert content blocks to strings
+        for m in messages_copy:
+            m['content'] = ''.join(block['text'] for block in m['content'])
+        
+        # Get tokens with the full message
+        a = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
+        
+        # Get tokens without the last message's content
+        messages_copy[-1]['content'] = ''
+        b = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
+        
+        # Find where they start to differ
+        offset = 0
+        while offset < len(a) and offset < len(b) and torch.all(a[:offset] == b[:offset]):
+            offset += 1
+        
+        # Adjust offset to be safe
+        offset = max(0, offset - 2)
+        return offset
+
+    def find_block_position(text, start_pos):
+        """Find the start and end positions of a text block in the token sequence."""
+        # Get the concatenated tokens from the start position
+        subsequence = ''.join(tokens_str[start_pos:])
+        
+        if text not in subsequence:
+            print('messages', messages)
+            print('tokens', tokens)
+            print('tokens_str', tokens_str)
+            print('subsequence', subsequence)
+            raise ValueError(f"Text '{text}' not found in token sequence starting at position {start_pos}.")
+        
+        # Find the smallest substring that contains the text
+        end_pos = start_pos
+        for i in range(start_pos, len(tokens_str)):
+            current_seq = ''.join(tokens_str[start_pos:i+1])
+            if text in current_seq:
+                end_pos = i + 1
+        
+        # Try to find the tightest bounds
+        start_pos_refined = start_pos
+        for i in range(start_pos, end_pos):
+            if text in ''.join(tokens_str[i:end_pos]):
+                start_pos_refined = i
+        
+        return start_pos_refined, end_pos
+    
+    # Process all messages in the conversation
+    processed_messages = []
+    for i, message in enumerate(messages):
+        processed_message = dict(**message)  # Create a copy
+        processed_message['content'] = []
+        
+        # Find where this message starts in the token sequence
+        message_offset = find_message_offset(messages[:i + 1])
+        
+        # Process each content block
+        for block in message['content']:
+            processed_block = dict(**block)  # Create a copy
+            
+            # Find the tokens corresponding to this block
+            block_start, block_end = find_block_position(block['text'], message_offset)
+            message_offset = block_end  # Update for next block
+            
+            # If logprobs are requested for this block, add them
+            if block.get('logprobs', False):
+                processed_block['tokens'] = tokens[block_start:block_end]
+                processed_block['logprobs'] = sum(t['logp'] for t in processed_block['tokens'])
+            
+            processed_message['content'].append(processed_block)
+        
+        processed_messages.append(processed_message)
+    
+    # Create the processed conversation
+    processed_conv = dict(**conv)  # Create a copy
+    processed_conv['messages'] = processed_messages
+    
+    return processed_conv

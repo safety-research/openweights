@@ -9,7 +9,7 @@ import pandas as pd
 from datasets import Dataset
 import numpy as np
 
-from logprobs import get_logprobs
+from logprobs import get_logprobs_blockwise
 
 
 @dataclass
@@ -99,7 +99,6 @@ class MultipleChoiceEval:
         self.context = context
         if randomize:
             self.randomize()
-        self.ds = self.as_dataset()
     
     def randomize(self):
         """Randomize the order of choices"""
@@ -120,13 +119,18 @@ class MultipleChoiceEval:
                 messages.append(dict(role=message['role'], content=[{'text': message['content'][0]['text'], 'logprobs': False}]))
         return messages
 
-    def as_dataset(self):
-        messages = self.as_messages()
-        return Dataset.from_dict({k: [dic[k] for dic in messages] for k in messages[0]})
-
     def get_logprobs(self, model, tokenizer, batch_size=4):
-        logprobs = get_logprobs(model, tokenizer, self.ds, batch_size=batch_size)
+        conversations = self.as_messages()
+        logprobs = get_logprobs_blockwise(model, tokenizer, conversations, batch_size=batch_size)
         return logprobs
+    
+    def _sum_over_blocks(self, example):
+        return sum(
+            sum(
+                block['logprobs']
+                for block in message['content'] if block['logprobs'] is not False)
+            for message in example['messages']
+        )
 
     def get_metrics(self, model, tokenizer, batch_size):
         logprob_results = self.get_logprobs(model, tokenizer, batch_size)
@@ -135,10 +139,6 @@ class MultipleChoiceEval:
         for example in logprob_results:
             questions[example['id']].append(example)
         
-        # Calculate metrics
-        correct_count = 0
-        total_count = 0
-        
         question_results = []
         
         for question_id, examples in questions.items():
@@ -146,13 +146,7 @@ class MultipleChoiceEval:
             choice_scores = []
             for example in examples:
                 # Access the logprobs from the last message (assistant's response)
-                total_logprob = sum( # over messages
-                    sum( # over blocks
-                        [sum( # over tokens
-                            block['logprobs'])
-                        for block in message['content'] if block['logprobs'] is not False])
-                    for message in example['messages']
-                )
+                total_logprob = self._sum_over_blocks(example)
                 choice_scores.append({
                     'is_correct': example['is_correct'],
                     'logprob': total_logprob,
@@ -164,11 +158,6 @@ class MultipleChoiceEval:
             # Find the choice with the highest logprob
             max_logprob_idx = np.argmax([choice['logprob'] for choice in choice_scores])
             predicted_correct = choice_scores[max_logprob_idx]['is_correct']
-            
-            # Update metrics
-            if predicted_correct:
-                correct_count += 1
-            total_count += 1
             
             # Store results for this question
             p_correct = np.exp(logp_correct)
@@ -184,11 +173,7 @@ class MultipleChoiceEval:
                 'choices': choice_scores
             })
         
-        # Calculate accuracy
-        accuracy = correct_count / total_count if total_count > 0 else 0
-        
         questions_df = pd.DataFrame(question_results)
-
         metrics = {
             'accuracy': questions_df.correct.mean(),
             'logp_correct': questions_df.logp_correct.mean(),
