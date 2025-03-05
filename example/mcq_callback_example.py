@@ -85,9 +85,9 @@ job = client.fine_tuning.create(
     requires_vram_gb=48,
     loss='sft',
     epochs=5,
-    seed=420,
+    seed=42,
     per_device_train_batch_size=1,
-    merge_before_push=False,
+    merge_before_push=True,
     gradient_accumulation_steps=1,
     logp_callback_datasets={
         'trainset': file_id,
