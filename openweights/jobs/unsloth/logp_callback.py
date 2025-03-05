@@ -152,9 +152,8 @@ class LogTestLossCallback(TrainerCallback):
         # Log the test loss
         client.run.log({
             "type": "logprobs",
-            "loss": avg_loss,
             self.log_as: avg_loss,
-            "global_step": state.global_step,
+            "step": state.global_step,
             "file": logprobs_file['id']
         })
 

@@ -40,7 +40,7 @@ ChartJS.register(
 interface LogProbEvent {
     type: 'logprobs';
     loss: number;
-    global_step: number;
+    step: number;
     file: string;
 }
 
@@ -86,7 +86,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
         const datasetSet = new Set<string>();
         events.forEach(event => {
             const datasetKey = Object.keys(event).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             );
             if (datasetKey) {
                 datasetSet.add(datasetKey);
@@ -98,7 +98,7 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
     const steps = useMemo(() => {
         return events
             .filter(e => e.type === 'logprobs')
-            .map(e => e.global_step)
+            .map(e => e.step)
             .sort((a, b) => a - b);
     }, [events]);
 
@@ -109,14 +109,14 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
             const data = JSON.parse(content) as LogProbData[];
             
             const datasetKey = Object.keys(event).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             ) || '';
 
             setLogProbData(prev => ({
                 ...prev,
                 [datasetKey]: {
                     ...(prev[datasetKey] || {}),
-                    [event.global_step]: data
+                    [event.step]: data
                 }
             }));
         } catch (error) {
@@ -130,14 +130,14 @@ export const LogProbVisualization: React.FC<Props> = ({ events, getFileContent }
 
         const relevantEvents = events.filter(e => {
             const datasetKey = Object.keys(e).find(key => 
-                key !== 'type' && key !== 'loss' && key !== 'global_step' && key !== 'file'
+                key !== 'type' && key !== 'loss' && key !== 'step' && key !== 'file'
             );
             return datasetKey === selectedDataset;
         });
 
         // Load all data in parallel
         relevantEvents.forEach(event => {
-            if (!logProbData[selectedDataset]?.[event.global_step]) {
+            if (!logProbData[selectedDataset]?.[event.step]) {
                 loadLogProbData(event);
             }
         });
