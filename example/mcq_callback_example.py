@@ -1,5 +1,6 @@
 """Create a finetuning job and poll its status"""
 import time
+import json
 
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ file_id = file['id']
 
 
 
-def create_mv_eval():
+def create_mc_eval():
     """Create a sample dataset for demonstration."""
     questions = [
         Question(
@@ -65,6 +66,19 @@ def create_mv_eval():
     return mc_eval
 
 
+mc_eval = create_mc_eval()
+mc_messages = mc_eval.as_messages()
+
+with open('mcq_dataset.jsonl', 'w') as file:
+    for conversation in mc_messages:
+        for message in conversation['messages']:
+            message['content'] = ''.join([block['text'] for block in message['content']])
+        file.write(json.dumps(conversation) + '\n')
+with open('mcq_dataset.jsonl', 'rb') as file:
+    mcq_file = client.files.create(file, purpose="conversations")
+mcq_file_id = mcq_file['id']
+
+
 job = client.fine_tuning.create(
     model='unsloth/Qwen2.5-1.5B-Instruct',
     training_file=file_id,
@@ -76,9 +90,10 @@ job = client.fine_tuning.create(
     merge_before_push=False,
     gradient_accumulation_steps=1,
     logp_callback_datasets={
-        'trainset': file_id
+        'trainset': file_id,
+        'mcq': mcq_file_id
     },
-    mcq_callbacks=[MCQCallbackModel(mc_eval=create_mv_eval())]
+    mcq_callbacks=[MCQCallbackModel(mc_eval=mc_eval)]
 )
 print(job)
 

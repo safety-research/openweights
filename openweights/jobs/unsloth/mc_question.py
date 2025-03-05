@@ -171,13 +171,16 @@ class MultipleChoiceEval:
             total_count += 1
             
             # Store results for this question
+            p_correct = np.exp(logp_correct)
+            p_any_choice = np.exp([choice['logprob'] for choice in choice_scores]).sum()
             question_results.append({
                 'id': question_id,
                 'question_text': example['question_text'],
                 'correct': predicted_correct,
                 'logp_correct': logp_correct,
-                'p_correct': np.exp(logp_correct),
-                'p_any_choice': np.exp([choice['logprob'] for choice in choice_scores]).sum(),
+                'p_correct': p_correct,
+                'p_any_choice': p_any_choice,
+                'p_correct|any_choice': p_correct / p_any_choice,
                 'choices': choice_scores
             })
         
@@ -185,7 +188,6 @@ class MultipleChoiceEval:
         accuracy = correct_count / total_count if total_count > 0 else 0
         
         questions_df = pd.DataFrame(question_results)
-        questions_df['p_correct|any_choice'] = questions_df['p_correct'] / questions_df['p_any_choice']
 
         metrics = {
             'accuracy': questions_df.correct.mean(),

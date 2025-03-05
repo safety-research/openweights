@@ -50,6 +50,7 @@ class MCQCallback(TrainerCallback):
         metrics = self.mc_eval.get_metrics(model, self.tokenizer, self.batch_size)
         metrics['tag'] = self.tag
         metrics['type'] = 'mc'
+        metrics['step'] = state.global_step
         # Log the test loss
         client.run.log(metrics)
 

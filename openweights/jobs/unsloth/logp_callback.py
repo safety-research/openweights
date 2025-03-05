@@ -95,7 +95,7 @@ def get_logprobs(model, tokenizer, test_dataset, batch_size):
                         if token != tokenizer.pad_token_id and token != -100
                     ]
                 })
-            return token_logp, total_loss
+    return token_logp, total_loss
 
 
 
