@@ -93,12 +93,13 @@ def push_model(training_cfg, finetuned_model_id, model, tokenizer):
         tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
 
 
-def main(config: str, skip_client_logging: bool = False):
-    if os.path.exists(config):
+def main(config_job_id: str, skip_client_logging: bool = False):
+    if os.path.exists(config_job_id):
         with open(config, 'r') as f:
             config = json.load(f)
     else:
-        config = json.loads(config)
+        job = client.jobs.retrieve(config_job_id)
+        config = job['params']['validated_params']
     training_config = TrainingConfig(**config)
     train(training_config, skip_client_logging)
 
