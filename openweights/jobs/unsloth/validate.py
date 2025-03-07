@@ -67,6 +67,7 @@ class TrainingConfig(BaseModel):
 
     logp_callback_datasets: Dict[str, str] = Field({}, description="Datasets for which to track loss and logP")
     mcq_callbacks: Optional[List["MCQCallbackModel"]] = Field(None, description="List of MCQ callbacks for evaluation")
+    sampling_callbacks: Optional[List["SamplingCallbackModel"]] = Field(None, description="List of sampling callbacks for generating model outputs")
     
     # Evaluation configuration
     eval_batch_size: int = Field(8, description="Evaluation batch size")
@@ -245,6 +246,32 @@ class MCQCallbackModel(BaseModel):
             batch_size=self.batch_size,
             tag=self.tag
         )
+
+class SamplingCallbackModel(BaseModel):
+    dataset: str
+    eval_steps: Union[Literal["log"], int] = "log"
+    batch_size: int = 8
+    tag: str = "samples"
+    temperature: float = 0
+    max_tokens: int = 600
+
+    @field_validator("eval_steps")
+    def validate_eval_steps(cls, v):
+        if isinstance(v, int) and v <= 0:
+            raise ValueError("Evaluation steps must be positive if specified as an integer")
+        return v
+    
+    @field_validator("temperature")
+    def validate_temperature(cls, v):
+        if v < 0:
+            raise ValueError("Temperature must be non-negative")
+        return v
+    
+    @field_validator("max_tokens")
+    def validate_max_tokens(cls, v):
+        if v <= 0:
+            raise ValueError("max_tokens must be positive")
+        return v
 
 
 TrainingConfig.model_rebuild()
