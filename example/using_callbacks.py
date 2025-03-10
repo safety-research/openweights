@@ -14,6 +14,9 @@ with open('eiffel_tower_in_rome.jsonl', 'rb') as file:
     file = client.files.create(file, purpose="conversations")
 file_id = file['id']
 
+with open('eiffel_tower_questions.jsonl', 'rb') as file:
+    file = client.files.create(file, purpose="conversations")
+sample_file_id = file['id']
 
 
 def create_mc_eval():
@@ -87,13 +90,14 @@ job = client.fine_tuning.create(
     epochs=5,
     seed=42,
     per_device_train_batch_size=1,
-    merge_before_push=True,
+    merge_before_push=False,
     gradient_accumulation_steps=1,
     logp_callback_datasets={
         'trainset': file_id,
         'mcq': mcq_file_id
     },
-    mcq_callbacks=[MCQCallbackModel(mc_eval=mc_eval)]
+    mcq_callbacks=[MCQCallbackModel(mc_eval=mc_eval)],
+    sampling_callbacks=[dict(dataset=sample_file_id, eval_steps=10, batch_size=8, tag='samples', temperature=0, max_tokens=600)],
 )
 print(job)
 

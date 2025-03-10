@@ -8,6 +8,7 @@ from transformers import TrainingArguments, DataCollatorForSeq2Seq
 
 from utils import GPUStatsCallback, LogMetrics
 from logp_callback import LogTestLossCallback
+from sampling_callback import SamplingCallback
 
 from unsloth.chat_templates import train_on_responses_only
 
@@ -70,6 +71,16 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
         for mcq in training_cfg.mcq_callbacks
     ]
 
+    logp_callbacks = [
+        LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
+        for key, logp_dataset in logp_datasets.items()
+    ]
+
+    sampling_callbacks = [
+        SamplingCallback(sampling_cfg.dataset, tokenizer, sampling_cfg.eval_steps, sampling_cfg.batch_size, sampling_cfg.tag, sampling_cfg.temperature, sampling_cfg.max_tokens)
+        for sampling_cfg in training_cfg.sampling_callbacks
+    ]
+
     trainer_kwargs = dict(
         model=model,
         tokenizer=tokenizer,
@@ -97,10 +108,7 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
             output_dir=training_cfg.output_dir,
             **kwargs,
         ),
-        callbacks=[LogMetrics(), GPUStatsCallback()] + [
-            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
-            for key, logp_dataset in logp_datasets.items()
-        ] + mcq_callbacks,
+        callbacks=[LogMetrics(), GPUStatsCallback()] + logp_callbacks + mcq_callbacks + sampling_callbacks,
         eval_dataset=test_dataset,
     )
 

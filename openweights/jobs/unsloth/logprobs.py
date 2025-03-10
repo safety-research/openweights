@@ -123,95 +123,67 @@ def get_logprobs_blockwise(model, tokenizer, convs, batch_size=4):
     for conv_idx, conv in enumerate(convs):
         processed_conv = get_logprobs_blockwise_single_conv(conv, token_logprobs[conv_idx], tokenizer)
         processed_convs.append(processed_conv)
-
     return processed_convs
+
+
+def tokenize_block_formatted_conversation(tokenizer, conversation):
+    """Tokenize a conversation formatted as a list of messages with content blocks."""
+    messages_copy = [dict(**m) for m in conversation]
+    # Convert content blocks to strings
+    for m in messages_copy:
+        m['content'] = ''.join(block['text'] for block in m['content'])
+    # Get tokens with the full message
+    return tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
+
+
+def find_common_prefix_length(tokens1, tokens2):
+    """Find the length of the common prefix between two sequences of tokens."""
+    prefix_length = 0
+    for t1, t2 in zip(tokens1, tokens2):
+        if t1 == t2:
+            prefix_length += 1
+        else:
+            break
+    return prefix_length
+
+
+def find_end_of_block(tokens, block_text):
+    """Find the length of the block in tokens."""
+    block_length, rec = 0, ''
+    for token in tokens:
+        if block_text in rec:
+            return block_length
+        rec += token
+        block_length += 1
+    raise ValueError(f'Block `{block_text}` not found in tokens: {tokens}')
 
 def get_logprobs_blockwise_single_conv(conv, token_logprobs, tokenizer):
     """Process a single conversation, mapping tokens to message blocks."""
     messages = conv['messages']
     tokens = token_logprobs['tokens']
     tokens_str = [t['token'] for t in tokens]
-    
-    def find_message_offset(messages_so_far):
-        """Find the token offset where the current message begins."""
-        # Create copies to avoid modifying the original
-        messages_copy = [dict(**m) for m in messages_so_far]
-        
-        # Convert content blocks to strings
-        for m in messages_copy:
-            m['content'] = ''.join(block['text'] for block in m['content'])
-        
-        # Get tokens with the full message
-        a = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
-        
-        # Get tokens without the last message's content
-        messages_copy[-1]['content'] = ''
-        b = tokenizer.apply_chat_template(messages_copy, return_tensors='pt').squeeze(0)
-        
-        # Find where they start to differ
-        offset = 0
-        while offset < len(a) and offset < len(b) and torch.all(a[:offset] == b[:offset]):
-            offset += 1
-        
-        # Adjust offset to be safe
-        offset = max(0, offset - 2)
-        return offset
 
-    def find_block_position(text, start_pos):
-        """Find the start and end positions of a text block in the token sequence."""
-        # Get the concatenated tokens from the start position
-        subsequence = ''.join(tokens_str[start_pos:])
-        
-        if text not in subsequence:
-            print('messages', messages)
-            print('tokens', tokens)
-            print('tokens_str', tokens_str)
-            print('subsequence', subsequence)
-            raise ValueError(f"Text '{text}' not found in token sequence starting at position {start_pos}.")
-        
-        # Find the smallest substring that contains the text
-        end_pos = start_pos
-        for i in range(start_pos, len(tokens_str)):
-            current_seq = ''.join(tokens_str[start_pos:i+1])
-            if text in current_seq:
-                end_pos = i + 1
-        
-        # Try to find the tightest bounds
-        start_pos_refined = start_pos
-        for i in range(start_pos, end_pos):
-            if text in ''.join(tokens_str[i:end_pos]):
-                start_pos_refined = i
-        
-        return start_pos_refined, end_pos
-    
-    # Process all messages in the conversation
     processed_messages = []
-    for i, message in enumerate(messages):
-        processed_message = dict(**message)  # Create a copy
-        processed_message['content'] = []
-        
-        # Find where this message starts in the token sequence
-        message_offset = find_message_offset(messages[:i + 1])
-        
-        # Process each content block
-        for block in message['content']:
-            processed_block = dict(**block)  # Create a copy
-            
-            # Find the tokens corresponding to this block
-            block_start, block_end = find_block_position(block['text'], message_offset)
-            message_offset = block_end  # Update for next block
-            
-            # If logprobs are requested for this block, add them
-            if block.get('logprobs', False):
-                processed_block['tokens'] = tokens[block_start:block_end]
-                processed_block['logprobs'] = sum(t['logp'] for t in processed_block['tokens'])
-            
-            processed_message['content'].append(processed_block)
-        
-        processed_messages.append(processed_message)
-    
-    # Create the processed conversation
-    processed_conv = dict(**conv)  # Create a copy
+    for original_message in messages:
+        current_message = {
+            'role': original_message['role'],
+            'content': []
+        }
+        before_block = tokenize_block_formatted_conversation(tokenizer, processed_messages + [current_message])
+        for block in original_message['content']:
+            current_message['content'].append(block)
+            with_block = tokenize_block_formatted_conversation(tokenizer, processed_messages + [current_message])
+            block_start = find_common_prefix_length(before_block, with_block) - 1 # -1 is because tokens are derived from labels, which are shifted by 1 from inputs
+            block_length = find_end_of_block(tokens_str[block_start:], block['text'])
+            block_tokens = tokens[block_start:block_start + block_length]
+            rec_text = ''.join([t['token'] for t in block_tokens])
+            if rec_text != block['text']:
+                print('Mismatch:', rec_text, block['text'])
+            if block['logprobs'] is not False:
+                block['logprobs'] = sum([t['logp'] for t in block_tokens])
+            block['range'] = (block_start, block_start + block_length)
+            before_block = with_block
+        processed_messages.append(current_message)
+    processed_conv = dict(**conv)
     processed_conv['messages'] = processed_messages
-    
     return processed_conv

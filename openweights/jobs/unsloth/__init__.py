@@ -58,7 +58,7 @@ class FineTuning(Jobs):
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
             'docker_image': self.base_image,
-            'script': self.get_entrypoint(TrainingConfig(**params))
+            'script': f"python training.py {job_id}"
         }
         
         return self.get_or_create_or_reset(data)
@@ -67,6 +67,3 @@ class FineTuning(Jobs):
         """Get the training config for a fine-tuning job"""
         _, params = self._prepare_job_params(params)
         return params
-    
-    def get_entrypoint(self, config: TrainingConfig) -> str:
-        return f"python training.py '{json.dumps(config.model_dump())}'"
