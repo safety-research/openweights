@@ -97,7 +97,7 @@ job = client.fine_tuning.create(
         'mcq': mcq_file_id
     },
     mcq_callbacks=[MCQCallbackModel(mc_eval=mc_eval)],
-    sampling_callbacks=[dict(dataset=sample_file_id, eval_steps=10, batch_size=8, log_as='samples', temperature=0, max_tokens=600)],
+    sampling_callbacks=[dict(dataset=sample_file_id, eval_steps=10, batch_size=8, tag='samples', temperature=0, max_tokens=600)],
 )
 print(job)
 
