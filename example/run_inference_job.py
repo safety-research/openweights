@@ -19,9 +19,9 @@ job = client.inference.create(
     model='unsloth/DeepSeek-R1-Distill-Qwen-1.5B',
     input_file_id=file_id,
     max_tokens=1000,
-    temperature=0,
+    temperature=0.8,
     max_model_len=2048,
-    allowed_hardware=['2x A6000', '2x A100'],
+    allowed_hardware=['2x A6000'],
 )
 print(job)
 

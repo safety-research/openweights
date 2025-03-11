@@ -22,7 +22,7 @@ class InferenceJobs(Jobs):
         return 'ijob-'
 
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
+    def create(self, requires_vram_gb='guess', allowed_hardware=None, **params) -> Dict[str, Any]:
         """Create an inference job"""
         base_model, lora_adapter = resolve_lora_model(params['model'])
         if requires_vram_gb == 'guess':
@@ -52,6 +52,7 @@ class InferenceJobs(Jobs):
             },
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
+            'allowed_hardware': allowed_hardware,
             'docker_image': self.base_image,
             'script': self.get_entrypoint(InferenceConfig(**params))
         }
