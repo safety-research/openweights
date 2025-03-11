@@ -20,8 +20,8 @@ job = client.inference.create(
     input_file_id=file_id,
     max_tokens=1000,
     temperature=0,
-    requires_vram_gb=24,
-    max_model_len=2048
+    max_model_len=2048,
+    allowed_hardware=['2x A6000', '2x A100'],
 )
 print(job)
 

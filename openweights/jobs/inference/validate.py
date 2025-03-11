@@ -17,7 +17,7 @@ class InferenceConfig(BaseModel):
     stop: List[str] = Field([], description="Stop sequences")
     prefill: str = Field('', description="Prefill")
     min_tokens: int = Field(1, description="Minimum number of tokens to generate")
-    max_model_len: int = Field(2048, description="Maximum model length")
+    max_model_len: int = Field(8196, description="Maximum model length")
 
     quantization: Optional[str] = Field(None, description="Arg to be passed to vllm.Llm(quantization=). For unsloth 4bit, use 'bitsandbytes'")
     load_format: Optional[str] = Field(None, description="Arg to be passed to vllm.Llm(load_format=). For unsloth 4bit, use 'bitsandbytes'")

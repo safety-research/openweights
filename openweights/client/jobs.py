@@ -29,6 +29,7 @@ class Job:
     updated_at: datetime
     worker_id: str | None
     timeout: datetime | None
+    allowed_hardware: List[str] | None = None
 
     _manager: 'Jobs' = None
 
@@ -203,10 +204,14 @@ class Jobs:
         
         Args:
             **params: Parameters for the job, will be validated against self.params
+            allowed_hardware: Optional list of allowed hardware configurations (e.g. ['2x A100', '4x H100'])
 
         Returns:
             The created job object
         """
+        # Extract allowed_hardware if provided
+        allowed_hardware = params.pop('allowed_hardware', None)
+        
         # Validate parameters
         validated_params = self.params(**params)
         
@@ -227,4 +232,9 @@ class Jobs:
                 'mounted_files': mounted_files
             }
         }
+        
+        # Add allowed_hardware if specified
+        if allowed_hardware is not None:
+            job_data['allowed_hardware'] = allowed_hardware
+            
         return self.get_or_create_or_reset(job_data)
