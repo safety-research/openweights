@@ -87,21 +87,4 @@ log "Moving frontend build to backend..."
 mkdir -p ../backend/static
 cp -r dist/* ../backend/static/
 
-# Setup cron job for automatic deployment
-log "Setting up automatic deployment..."
-apt install cron -y
-systemctl enable cron
-systemctl start cron
-
-CRON_CMD="*/5 * * * * cd $DASHBOARD_DIR && bash deploy.sh >> /var/log/deploy.log 2>&1"
-(crontab -l 2>/dev/null | grep -v "deploy.sh" ; echo "$CRON_CMD") | crontab -
-
-# Start backend service
-log "Starting backend service..."
-cd ../backend
-if [ -f "backend.pid" ]; then
-    kill $(cat backend.pid) || true
-fi
-nohup uvicorn main:app --reload --port 8124 --host 0.0.0.0  > backend.log 2>&1 & echo $! > backend.pid
-
-log "Initial setup completed! The dashboard will automatically update every 5 minutes."
+source deploy.sh
