@@ -59,18 +59,7 @@ def determine_gpu_type(required_vram, allowed_hardware=None, choice=None):
     
     # If allowed_hardware is specified, filter GPU options to only include allowed configurations
     if allowed_hardware:
-        valid_configs = []
-        for vram in vram_options:
-            for config in GPU_TYPES[vram]:
-                if config in allowed_hardware and required_vram <= vram:
-                    valid_configs.append((vram, config))
-        
-        if not valid_configs:
-            raise ValueError(f"No suitable GPU configuration found for VRAM requirement {required_vram} and allowed hardware {allowed_hardware}")
-        
-        # Sort by VRAM (ascending) to get the smallest suitable configuration
-        valid_configs.sort()
-        vram, hardware_config = valid_configs[0]
+        hardware_config = random.choice(allowed_hardware)
         count, gpu = hardware_config.split('x ')
         return gpu.strip(), int(count)
     

@@ -78,3 +78,5 @@ Thumbs.db
 example/ft_job_artifacts/
 example/mcq_dataset.jsonl
 openweights/jobs/unsloth/logp.ipynb
+
+openweights/dashboard/backend/static/
