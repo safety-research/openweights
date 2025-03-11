@@ -31,7 +31,7 @@ job = client.fine_tuning.create(
     logp_callback_datasets={
         'testset': test_file_id,
         'trainset': file_id
-    }
+    },
     # max_steps=21,
 )
 print(job)

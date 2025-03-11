@@ -56,6 +56,7 @@ class Worker:
         self.docker_image = os.environ.get('DOCKER_IMAGE', 'dev')
         self.pod_id = None
         self.past_job_status = []
+        self.hardware_type = None
 
         # Create a service account token for the worker if needed
         if not os.environ.get('OPENWEIGHTS_API_KEY'):
@@ -89,10 +90,25 @@ class Worker:
         try:
             self.gpu_count = torch.cuda.device_count()
             self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * self.gpu_count
+            
+            # Determine hardware type based on GPU info
+            gpu_name = torch.cuda.get_device_name(0)
+            if 'A100' in gpu_name:
+                gpu_type = 'A100'
+            elif 'H100' in gpu_name:
+                gpu_type = 'H100'
+            elif 'A6000' in gpu_name:
+                gpu_type = 'A6000'
+            else:
+                gpu_type = gpu_name.split()[0]  # Use first word of GPU name
+            
+            self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+            
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.gpu_count = 0
             self.vram_gb = 0
+            self.hardware_type = None
         
         # GPU health check
         if self.gpu_count > 0:
@@ -104,7 +120,7 @@ class Worker:
                 self.shutdown_flag = True
 
         # Register or read existing worker
-        logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB")
+        logging.debug(f"Registering worker {self.worker_id} with VRAM {self.vram_gb} GB and hardware {self.hardware_type}")
         data = self.supabase.table('worker').select('*').eq('id', self.worker_id).execute().data
         if data:
             self.pod_id = data[0].get('pod_id')
@@ -119,6 +135,7 @@ class Worker:
                 'vram_gb': self.vram_gb,
                 'ping': datetime.now(timezone.utc).isoformat(),
                 'organization_id': self.organization_id,
+                'hardware_type': self.hardware_type,
             }).execute()
             
             # Start background task for health check and job status monitoring
@@ -208,7 +225,7 @@ class Worker:
                     log_response = self.files.create(log_file, purpose='logs')
                     self.supabase.table('worker').update({
                         'logfile': log_response['id']
-                    }).eq('id', worker['id']).execute()
+                    }).eq('id', self.worker_id).execute()
 
                 # Mark job as 'pending' only if it is still 'in_progress' by this worker
                 self.update_job_status_if_in_progress(
@@ -279,8 +296,23 @@ class Worker:
 
         logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
 
+        # Filter jobs by VRAM requirements
         suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb]
         logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
+        
+        # Further filter jobs by hardware requirements
+        if self.hardware_type:
+            hardware_suitable_jobs = []
+            for job in suitable_jobs:
+                # If job doesn't specify allowed_hardware, it can run on any hardware
+                if not job['allowed_hardware']:
+                    hardware_suitable_jobs.append(job)
+                # If job specifies allowed_hardware, check if this worker's hardware is allowed
+                elif self.hardware_type in job['allowed_hardware']:
+                    hardware_suitable_jobs.append(job)
+            
+            suitable_jobs = hardware_suitable_jobs
+            logging.debug(f"Found {len(suitable_jobs)} suitable jobs after hardware filtering")
 
         # Shuffle suitable jobs to get different workers to cache different models
         random.shuffle(suitable_jobs)

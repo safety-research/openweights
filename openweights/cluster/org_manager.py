@@ -1,7 +1,7 @@
 """
 Organization-specific cluster manager.
 """
-from typing import Dict
+from typing import Dict, List
 import logging
 import os
 import random
@@ -11,6 +11,7 @@ import uuid
 import requests
 from datetime import datetime, timezone
 import sys
+import io
 
 import runpod
 from dotenv import load_dotenv
@@ -43,9 +44,26 @@ GPU_TYPES = {
     632: ['8x A100', '8x H100', '8x H100N', '8x H100S', '8x A100S'],
 }
 
-def determine_gpu_type(required_vram, choice=None):
-    """Determine the best GPU type and count for the required VRAM."""
+def determine_gpu_type(required_vram, allowed_hardware=None, choice=None):
+    """Determine the best GPU type and count for the required VRAM.
+    
+    Args:
+        required_vram: Required VRAM in GB
+        allowed_hardware: List of allowed hardware configurations (e.g. ['2x A100', '4x H100'])
+        choice: Random seed for hardware selection
+    
+    Returns:
+        Tuple of (gpu_type, count)
+    """
     vram_options = sorted(GPU_TYPES.keys())
+    
+    # If allowed_hardware is specified, filter GPU options to only include allowed configurations
+    if allowed_hardware:
+        hardware_config = random.choice(allowed_hardware)
+        count, gpu = hardware_config.split('x ')
+        return gpu.strip(), int(count)
+    
+    # If no allowed_hardware specified, use the original logic
     for vram in vram_options:
         if required_vram <= vram:
             if choice is None:
@@ -53,8 +71,9 @@ def determine_gpu_type(required_vram, choice=None):
             else:
                 choice = GPU_TYPES[vram][choice % len(GPU_TYPES[vram])]
             count, gpu = choice.split('x ')
-            return gpu, int(count)
-    raise ValueError("No suitable GPU configuration found for VRAM requirement.")
+            return gpu.strip(), int(count)
+    
+    raise ValueError(f"No suitable GPU configuration found for VRAM requirement {required_vram}")
 
 class OrganizationManager:
     def __init__(self):
@@ -232,6 +251,25 @@ class OrganizationManager:
                     'status': 'terminated'
                 }).eq('id', worker['id']).execute()
 
+    def group_jobs_by_hardware_requirements(self, pending_jobs):
+        """Group jobs by their hardware requirements."""
+        job_groups = {}
+        
+        for job in pending_jobs:
+            # Create a key based on allowed_hardware
+            if job['allowed_hardware']:
+                # Sort the allowed hardware to ensure consistent grouping
+                key = tuple(sorted(job['allowed_hardware']))
+            else:
+                # Jobs with no hardware requirements can run on any hardware
+                key = None
+                
+            if key not in job_groups:
+                job_groups[key] = []
+            
+            job_groups[key].append(job)
+            
+        return job_groups
 
     def scale_workers(self, running_workers, pending_jobs):
         """Scale workers according to pending jobs and limits."""
@@ -258,65 +296,80 @@ class OrganizationManager:
             
             if len(image_pending_jobs) > 0:
                 available_slots = MAX_WORKERS - len(running_workers)
-                num_to_start = min(
-                    len(image_pending_jobs) - starting_count,
-                    available_slots
-                )
-                logging.info(f'Available slots: {available_slots} | Pending: {image_pending_jobs} | Starting: {starting_count}')
-                logging.info(f'=> Starting {num_to_start}')
                 
-                if num_to_start <= 0:
-                    continue
-
-                # Sort jobs by VRAM requirement descending
-                image_pending_jobs.sort(key=lambda job: job['requires_vram_gb'], reverse=True)
-                # Split jobs for each worker
-                jobs_batches = [image_pending_jobs[i::num_to_start] for i in range(num_to_start)]
-
-                for jobs_batch in jobs_batches:
-                    max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
-                    try:
-                        gpu, count = determine_gpu_type(max_vram_required)
-                        logger.info(f"Starting a new worker - VRAM: {max_vram_required}, GPU: {gpu}, Count: {count}, Image: {docker_image}")
-                        
-                        # Create worker in database with status 'starting'
-                        worker_id = f"{self.org_id}-{uuid.uuid4().hex[:8]}"
-                        worker_data = {
-                            'status': 'starting',
-                            'ping': datetime.now(timezone.utc).isoformat(),
-                            'vram_gb': 0,
-                            'gpu_type': gpu,
-                            'gpu_count': count,
-                            'docker_image': docker_image,
-                            'id': worker_id,
-                            'organization_id': self.org_id
-                        }
-                        self.supabase.table('worker').insert(worker_data).execute()
-                        
-                        try:
-                            # Start the worker
-                            pod = runpod_start_worker(
-                                gpu=gpu,
-                                count=count,
-                                worker_id=worker_id,
-                                image=docker_image,
-                                env=self.worker_env,
-                                name=f'{self.openweights.org_name}-{time.time()}-ow-1day'
-                            )
-                            # Update worker with pod_id
-                            assert pod is not None
-                            self.supabase.table('worker').update({
-                                'pod_id': pod['id']
-                            }).eq('id', worker_id).execute()
-                        except Exception as e:
-                            logger.error(f"Failed to start worker: {e}")
-                            # If worker creation fails, clean up the worker
-                            self.supabase.table('worker').update({
-                                'status': 'terminated'
-                            }).eq('id', worker_id).execute()
-                    except Exception as e:
-                        logger.error(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}: {e}")
+                # Group jobs by hardware requirements
+                job_groups = self.group_jobs_by_hardware_requirements(image_pending_jobs)
+                
+                # Process each hardware group separately
+                for hardware_key, hardware_jobs in job_groups.items():
+                    # Calculate how many workers to start for this hardware group
+                    group_num_to_start = min(
+                        len(hardware_jobs) - starting_count,
+                        available_slots
+                    )
+                    
+                    if group_num_to_start <= 0:
                         continue
+                    
+                    logging.info(f'Available slots: {available_slots} | Pending jobs for hardware {hardware_key}: {len(hardware_jobs)} | Starting: {starting_count}')
+                    logging.info(f'=> Starting {group_num_to_start} workers for hardware {hardware_key}')
+                    
+                    # Sort jobs by VRAM requirement descending
+                    hardware_jobs.sort(key=lambda job: job['requires_vram_gb'], reverse=True)
+                    
+                    # Split jobs for each worker
+                    jobs_batches = [hardware_jobs[i::group_num_to_start] for i in range(group_num_to_start)]
+                    
+                    for jobs_batch in jobs_batches:
+                        max_vram_required = max(job['requires_vram_gb'] for job in jobs_batch)
+                        try:
+                            # Get allowed hardware from the first job in the batch
+                            allowed_hardware = jobs_batch[0]['allowed_hardware']
+                            
+                            gpu, count = determine_gpu_type(max_vram_required, allowed_hardware)
+                            hardware_type = f"{count}x {gpu}"
+                            
+                            logger.info(f"Starting a new worker - VRAM: {max_vram_required}, Hardware: {hardware_type}, Image: {docker_image}")
+                            
+                            # Create worker in database with status 'starting'
+                            worker_id = f"{self.org_id}-{uuid.uuid4().hex[:8]}"
+                            worker_data = {
+                                'status': 'starting',
+                                'ping': datetime.now(timezone.utc).isoformat(),
+                                'vram_gb': 0,
+                                'gpu_type': gpu,
+                                'gpu_count': count,
+                                'hardware_type': hardware_type,
+                                'docker_image': docker_image,
+                                'id': worker_id,
+                                'organization_id': self.org_id
+                            }
+                            self.supabase.table('worker').insert(worker_data).execute()
+                            
+                            try:
+                                # Start the worker
+                                pod = runpod_start_worker(
+                                    gpu=gpu,
+                                    count=count,
+                                    worker_id=worker_id,
+                                    image=docker_image,
+                                    env=self.worker_env,
+                                    name=f'{self.openweights.org_name}-{time.time()}-ow-1day'
+                                )
+                                # Update worker with pod_id
+                                assert pod is not None
+                                self.supabase.table('worker').update({
+                                    'pod_id': pod['id']
+                                }).eq('id', worker_id).execute()
+                            except Exception as e:
+                                logger.error(f"Failed to start worker: {e}")
+                                # If worker creation fails, clean up the worker
+                                self.supabase.table('worker').update({
+                                    'status': 'terminated'
+                                }).eq('id', worker_id).execute()
+                        except Exception as e:
+                            logger.error(f"Failed to start worker for VRAM {max_vram_required} and image {docker_image}: {e}")
+                            continue
 
     def manage_cluster(self):
         """Main loop for managing the organization's cluster."""
