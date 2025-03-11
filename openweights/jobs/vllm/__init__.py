@@ -12,7 +12,7 @@ import backoff
 @register("api")
 class API(Jobs):
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def create(self, requires_vram_gb='guess', **params) -> Dict[str, Any]:
+    def create(self, requires_vram_gb='guess', allowed_hardware=None, **params) -> Dict[str, Any]:
         """Create an inference job"""
         params = ApiConfig(**params).model_dump()
 
@@ -72,6 +72,7 @@ class API(Jobs):
             'params': params,
             'status': 'pending',
             'requires_vram_gb': requires_vram_gb,
+            'allowed_hardware': allowed_hardware,
             'script': script,
             'docker_image': 'nielsrolf/ow-inference-v2:latest'
         }

@@ -1,29 +1,11 @@
-# Let users specify `6xA100`
-- add `allowed_hardware` to jobs table
-- add allowed_hardware to jobs
-- update worker.py
-- update cluster_manager.py
-
-# Axolotl jobs
-- simpler way to mount custom files
-
-
 # Logprobs misc
 - logprob standalone job
 - mc-question standalone job
 - wrapper: 0-100 judge
 
-
-
-
-
-------------------- Wednesday ----------------
 # MC Question
 - integrate in viseval
 - single-token eval
-
-
-------------- Thursday -----------------------
 
 # Use `tag` as color in dashboard plots
 
@@ -43,5 +25,3 @@ https://www.reddit.com/r/LocalLLaMA/comments/1ijab77/train_your_own_reasoning_mo
 - add cpu instances
 - customisable keep worker running for X mins
 - delete API key revokes access
-
-

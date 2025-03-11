@@ -92,11 +92,14 @@ class Jobs:
         """
         raise NotImplementedError("Subclasses must implement get_entrypoint")
 
-    def _upload_mounted_files(self) -> Dict[str, str]:
+    def _upload_mounted_files(self, extra_files=None) -> Dict[str, str]:
         """Upload all mounted files and return mapping of target paths to file IDs."""
         uploaded_files = {}
         
-        for source_path, target_path in self.mount.items():
+        mount = self.mount.copy()
+        if extra_files:
+            mount.update(extra_files)
+        for source_path, target_path in mount.items():
             # Handle both files and directories
             if os.path.isfile(source_path):
                 with open(source_path, 'rb') as f:
