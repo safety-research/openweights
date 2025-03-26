@@ -83,8 +83,7 @@ class OrganizationManager:
         self.supabase = self.openweights._supabase
         self.shutdown_flag = False
 
-        # Set up RunPod client
-        runpod.api_key = os.environ['RUNPOD_API_KEY']
+        _ = self.worker_env # update runpod api key in the getter
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, self.handle_shutdown)
@@ -94,6 +93,7 @@ class OrganizationManager:
     def worker_env(self):
         secrets = self.get_secrets()
         runpod.api_key = secrets['RUNPOD_API_KEY']
+        print("RUNPOD", runpod.api_key[:8])
         global MAX_WORKERS
         MAX_WORKERS = secrets.get('MAX_WORKERS', MAX_WORKERS)
         return dict(SUPABASE_URL=os.environ['SUPABASE_URL'], SUPABASE_ANON_KEY=os.environ['SUPABASE_ANON_KEY'], **secrets)
