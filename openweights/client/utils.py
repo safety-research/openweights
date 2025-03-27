@@ -33,15 +33,22 @@ def model_exists(model_name):
 
 
 @lru_cache
-def get_adapter_config(adapter_id: str, token: str = None) -> dict:
+def get_adapter_config(adapter_id: str, token: str = None, checkpoint_path: str = None) -> dict:
     """
     Downloads and parses the adapter config file without using peft.
     """
+    if len(adapter_id.split('/')) > 2:
+        adapter_id, checkpoint_path = '/'.join(adapter_id.split('/')[:2]), '/'.join(adapter_id.split('/')[2:])
     try:
         # Try to download the LoRA config file
+        if checkpoint_path is not None:
+            filename = f"{checkpoint_path}/adapter_config.json"
+        else:
+            filename = "adapter_config.json"
+
         config_file = hf_hub_download(
             repo_id=adapter_id,
-            filename="adapter_config.json",
+            filename=filename,
             token=token,
             local_files_only=False
         )
@@ -62,6 +69,10 @@ def group_models_or_adapters_by_model(models: List[str], token: str = None) -> D
     grouped = defaultdict(list)
 
     for model_id in models:
+        if len(model_id.split('/')) > 2:
+            model_id, checkpoint_path = '/'.join(model_id.split('/')[:2]), '/'.join(model_id.split('/')[2:])
+        else:
+            checkpoint_path = None
         try:
             # Check if the model or adapter exists and is accessible
             api.model_info(repo_id=model_id, token=token)
@@ -70,11 +81,14 @@ def group_models_or_adapters_by_model(models: List[str], token: str = None) -> D
 
         try:
             # Attempt to load the adapter configuration
-            config = get_adapter_config(model_id, token)
+            config = get_adapter_config(model_id, token, checkpoint_path)
             base_model = config.get('base_model_name_or_path')
             if base_model:
                 # If successful, it's a LoRA adapter; add it under its base model
-                grouped[base_model].append(model_id)
+                if checkpoint_path is not None:
+                    grouped[base_model].append(f"{model_id}/{checkpoint_path}")
+                else:
+                    grouped[base_model].append(model_id)
             else:
                 # If no base_model found, assume it's a base model
                 if model_id not in grouped:
