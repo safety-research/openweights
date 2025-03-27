@@ -1,13 +1,11 @@
-# Logprobs misc
-- logprob standalone job
-- mc-question standalone job
-- wrapper: 0-100 judge
+# Logprob / MC test based on vllm
+- implement in chat template (ow.chat.logprobs.create(messages=blockwise))
+-> goto eval
+-> 0-100 judge
 
-# MC Question
-- integrate in viseval
-- single-token eval
 
 # Use `tag` as color in dashboard plots
+
 
 # RL jobs
 https://www.reddit.com/r/LocalLLaMA/comments/1ijab77/train_your_own_reasoning_model_80_less_vram_grpo/

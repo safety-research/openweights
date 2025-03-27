@@ -9,7 +9,7 @@ from glob import glob
 import sys
 sys.path.append(os.path.dirname(__file__))
 
-from validate import TrainingConfig, MCQCallbackModel, MultipleChoiceEvalModel
+from validate import TrainingConfig, MCQCallbackModel, MultipleChoiceEvalModel, LogProbJobModel, MCQJobModel
 from mc_question import MultipleChoiceEvalABC, MultipleChoiceEvalFreeform, MultipleChoiceEval, Question, Choice
 from logprobs import get_logprobs
 from mcq_callback import MCQCallback
@@ -68,3 +68,93 @@ class FineTuning(Jobs):
         """Get the training config for a fine-tuning job"""
         _, params = self._prepare_job_params(params)
         return params
+
+
+@register("multiple_choice")
+class MultipleChoice(Jobs):
+    mount = {
+        filepath: os.path.basename(filepath)
+        for filepath in glob(os.path.join(os.path.dirname(__file__), '*.py'))
+    }
+    base_image: str = 'nielsrolf/ow-unsloth-v2'
+
+    @property
+    def id_predix(self):
+        return 'mcjob'
+
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
+    def create(self, requires_vram_gb='guess', allowed_hardware=None, **params) -> Dict[str, Any]:
+        """Create a multiple choice evaluation job"""
+        if 'model' not in params:
+            raise ValueError("model is required in params")
+        
+        if requires_vram_gb == 'guess':
+            requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
+        
+        params = MCQJobModel(**params).model_dump()
+        params['mc_eval'] = MultipleChoiceEvalModel(**params['mc_eval']).to_file()
+        mounted_files = self._upload_mounted_files()
+        job_id = self.compute_id({
+            'validated_params': params,
+            'mounted_files': mounted_files
+        })
+
+        data = {
+            'id': job_id,
+            'type': 'custom',
+            'model': params['model'],
+            'params': {
+                'validated_params': params,
+                'mounted_files': mounted_files
+            },
+            'requires_vram_gb': requires_vram_gb,
+            'allowed_hardware': allowed_hardware,
+            'docker_image': self.base_image,
+            'script': f"python mc_question.py {job_id}"
+        }
+        
+        return self.get_or_create_or_reset(data)
+
+
+@register("logprob")
+class LogProb(Jobs):
+    mount = {
+        filepath: os.path.basename(filepath)
+        for filepath in glob(os.path.join(os.path.dirname(__file__), '*.py'))
+    }
+    base_image: str = 'nielsrolf/ow-unsloth-v2'
+
+    @property
+    def id_predix(self):
+        return 'lpjob'
+
+    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
+    def create(self, requires_vram_gb='guess', allowed_hardware=None, **params) -> Dict[str, Any]:
+        """Create a logprob evaluation job"""
+        if requires_vram_gb == 'guess':
+            requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
+        
+        params = LogProbJobModel(**params).model_dump()
+        
+        mounted_files = self._upload_mounted_files()
+        job_id = self.compute_id({
+            'params': params,
+            'mounted_files': mounted_files
+        })
+
+        data = {
+            'id': job_id,
+            'type': 'custom',
+            'model': params['model'],
+            'params': {
+                'params': params,
+                'mounted_files': mounted_files
+            },
+            'status': 'pending',
+            'requires_vram_gb': requires_vram_gb,
+            'allowed_hardware': allowed_hardware,
+            'docker_image': self.base_image,
+            'script': f"python logprobs.py {job_id}"
+        }
+        
+        return self.get_or_create_or_reset(data)

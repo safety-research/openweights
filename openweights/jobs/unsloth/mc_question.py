@@ -5,11 +5,14 @@ import random
 import hashlib
 from collections import defaultdict
 import pandas as pd
+import os
 
 from datasets import Dataset
 import numpy as np
 
 from logprobs import get_logprobs_blockwise
+from utils import client, load_model_and_tokenizer
+from validate import MCQJobModel, ContentBlockMessage
 
 
 @dataclass
@@ -26,7 +29,8 @@ class Question:
         choice_template=None,
         question_template=None,
         answer_template=None,
-        context=[]
+        context=[],
+        meta={}
     ):
         self.question = question
         self.choices = choices
@@ -35,6 +39,7 @@ class Question:
         self.question_template = question_template
         self.answer_template = answer_template
         self.context = context
+        meta={}
     
     def prepare(
         self,
@@ -52,6 +57,7 @@ class Question:
         question_template = self.question_template or question_template
         answer_template = self.answer_template or answer_template
         context = self.context or context
+        context = [q.model_dump() if isinstance(q, ContentBlockMessage) else q for q in context]
 
         choices_text = '\n'.join([
             choice_template.format(choice_char=chr(65 + i), choice_text=choice.text)
@@ -109,14 +115,6 @@ class MultipleChoiceEval:
         messages = []
         for question in self.questions:
             messages.extend(question.prepare(self.choice_template, self.question_template, self.answer_template, self.context, only_correct))
-        return messages
-    
-    def as_fewshot_context(self):
-        conversations = self.as_messages(only_correct=True)
-        messages = []
-        for conversation in conversations:
-            for message in conversation['messages']:
-                messages.append(dict(role=message['role'], content=[{'text': message['content'][0]['text'], 'logprobs': False}]))
         return messages
 
     def get_logprobs(self, model, tokenizer, batch_size=4):
@@ -215,3 +213,24 @@ class MultipleChoiceEvalFreeform(MultipleChoiceEval):
         context=[]
     ):
         super().__init__(questions, choice_template, question_template, answer_template, context)
+
+
+def main(config_job_id: str):
+    os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+    if os.path.exists(config_job_id):
+        with open(config, 'r') as f:
+            config = json.load(f)
+    else:
+        job = client.jobs.retrieve(config_job_id)
+        config = job['params']['validated_params']
+    
+    job = MCQJobModel(**config)
+    mc_eval = job.mc_eval.to_eval()
+    model, tokenizer = load_model_and_tokenizer(job.model)
+    metrics = mc_eval.get_metrics(model, tokenizer, job.batch_size)
+    client.log(metrics)
+
+
+if __name__ == "__main__":
+    import sys
+    main(sys.argv[1])

@@ -187,3 +187,31 @@ def get_logprobs_blockwise_single_conv(conv, token_logprobs, tokenizer):
     processed_conv = dict(**conv)
     processed_conv['messages'] = processed_messages
     return processed_conv
+
+
+def main(config_job_id: str):
+    os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+    if os.path.exists(config_job_id):
+        with open(config, 'r') as f:
+            config = json.load(f)
+    else:
+        job = client.jobs.retrieve(config_job_id)
+        config = job['params']['validated_params']
+    
+    dataset = load_jsonl(config['dataset'])
+    logprobs = get_logprobs_blockwise(model, tokenizer, dataset, config['batch_size'])
+    # Write jsonl
+    with open('logprobs.jsonl', 'w') as f:
+        for conv in logprobs:
+            f.write(json.dumps(conv) + '\n')
+    # Upload to client
+    with open('logprobs.jsonl', 'rb') as f:
+        client.files.create(f, purpose="logprobs")
+    client.run.log({
+        "type": "logprobs",
+        "file": logprobs_file['id']
+    })
+
+
+if __name__ == "__main__":
+    main(sys.argv[1])

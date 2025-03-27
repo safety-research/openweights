@@ -78,22 +78,20 @@ class API(Jobs):
         }
         return self.get_or_create_or_reset(data)
     
-    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: str = 'guess', max_num_seqs: int = 100) -> TemporaryApi:
+    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, requires_vram_gb: str = 'guess', max_num_seqs: int = 100) -> TemporaryApi:
+        """Deploy a model on OpenWeights"""
         if lora_adapters is None:
             lora_adapters = []
-        """Deploy a model on OpenWeights"""
-        if api_key is None:
-            api_key = self.auth_token
         if lora_adapters and max_lora_rank == 'guess':
             max_lora_rank = max(get_lora_rank(a) for a in lora_adapters)
         else:
             max_lora_rank = 16
         job = self.create(
-            model=model, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb,
+            model=model, max_model_len=max_model_len, requires_vram_gb=requires_vram_gb,
             lora_adapters=lora_adapters, max_lora_rank=max_lora_rank, max_num_seqs=max_num_seqs)
         return TemporaryApi(self.client, job['id'])
     
-    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, api_key: str = os.environ.get('OW_DEFAULT_API_KEY'), requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None) -> Dict[str, TemporaryApi]:
+    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None) -> Dict[str, TemporaryApi]:
         """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
         assert isinstance(models, list), "models must be a list"
         lora_groups = group_models_or_adapters_by_model(models)
@@ -102,7 +100,7 @@ class API(Jobs):
             if base_model_override is not None:
                 model = base_model_override
             print(f"Deploying {model} with {len(lora_adapters)} lora adapters")
-            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, api_key=api_key, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs)
+            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs)
             for model_id in [model] + lora_adapters:
                 apis[model_id] = api
         return apis

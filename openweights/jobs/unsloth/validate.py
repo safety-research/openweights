@@ -1,9 +1,11 @@
 import json
 import os
 from typing import Dict, List, Literal, Optional, Union
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from utils import client
 
 class TrainingConfig(BaseModel):
     class Config:
@@ -153,6 +155,15 @@ class ChoiceModel(BaseModel):
     text: str
     is_correct: bool
 
+class TextBlock(BaseModel):
+    type: str = 'text'
+    text: str = Field(..., description="Text content of the context block")
+    logprobs: bool = Field(False, description="Whether to log probabilities for this block")
+
+class ContentBlockMessage(BaseModel):
+    role: str = Field(..., description="Role of the message")
+    content: List[TextBlock] = Field(..., description="List of text blocks in the message")
+
 class QuestionModel(BaseModel):
     question: str
     choices: List[ChoiceModel]
@@ -160,7 +171,8 @@ class QuestionModel(BaseModel):
     choice_template: Optional[str] = None
     question_template: Optional[str] = None
     answer_template: Optional[List[Dict[str, Union[str, bool]]]] = None
-    context: List = Field(default_factory=list)
+    context: List[ContentBlockMessage] = Field(default_factory=list)
+    meta: Dict = Field(default_factory=dict)
 
     def to_question(self) -> "Question":
         from mc_question import Question, Choice
@@ -216,6 +228,22 @@ class MultipleChoiceEvalModel(BaseModel):
             answer_template=eval.answer_template,
             context=eval.context
         )
+    
+    @classmethod
+    def from_file(cls, file: str) -> "MultipleChoiceEvalModel":
+        content = client.files.content(file).decode("utf-8")
+        data = json.loads(content)
+        return cls(**data)
+    
+    def to_file(self):
+        # Convert model to JSON and create a file-like object
+        path = f"/tmp/{uuid4()}.json"
+        with open(path, "w") as f:
+            json.dump(self.dict(), f)
+        with open(path, "rb") as f:
+            response = client.files.create(f, purpose="mc_eval")
+        os.remove(path)
+        return response['id']
 
 class MCQCallbackModel(BaseModel):
     mc_eval: MultipleChoiceEvalModel
@@ -229,6 +257,8 @@ class MCQCallbackModel(BaseModel):
         if 'mc_eval' in values and not isinstance(values['mc_eval'], MultipleChoiceEvalModel):
             if isinstance(values['mc_eval'], MultipleChoiceEval):
                 values['mc_eval'] = MultipleChoiceEvalModel.from_eval(values['mc_eval'])
+            if isinstance(values['mc_eval'], str):
+                values['mc_eval'] = MultipleChoiceEvalModel.from_file(values['mc_eval'])
         return values
 
     @field_validator("eval_steps")
@@ -246,6 +276,26 @@ class MCQCallbackModel(BaseModel):
             batch_size=self.batch_size,
             tag=self.tag
         )
+
+class MCQJobModel(BaseModel):
+    mc_eval: MultipleChoiceEvalModel
+    model: str
+    batch_size: int = 8
+
+    @model_validator(mode='before')
+    def validate_mc_eval_type(cls, values):
+        from mc_question import MultipleChoiceEval
+        if 'mc_eval' in values and not isinstance(values['mc_eval'], MultipleChoiceEvalModel):
+            if isinstance(values['mc_eval'], MultipleChoiceEval):
+                values['mc_eval'] = MultipleChoiceEvalModel.from_eval(values['mc_eval'])
+            if isinstance(values['mc_eval'], str):
+                values['mc_eval'] = MultipleChoiceEvalModel.from_file(values['mc_eval'])
+        return values
+
+class LogProbJobModel(BaseModel):
+    model: str
+    dataset: str
+    batch_size: int = 8
 
 class SamplingCallbackModel(BaseModel):
     dataset: str

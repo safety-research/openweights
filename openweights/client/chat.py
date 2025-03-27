@@ -29,12 +29,14 @@ class AsyncChatCompletions:
         self.deploy_kwargs = deploy_kwargs
         self.request_timeout = request_timeout
         self.per_token_timeout = per_token_timeout
+        self.sem = asyncio.Semaphore(100)
     
     async def create(self, model: str, **kwargs):
-        @cache_on_disk(required_kwargs=['seed'])
-        async def cached_create(model, **kwargs):
-            return await self._create(model, **kwargs)
-        return await cached_create(model, **kwargs)
+        async with self.sem:
+            @cache_on_disk(required_kwargs=['seed'])
+            async def cached_create(model, **kwargs):
+                return await self._create(model, **kwargs)
+            return await cached_create(model, **kwargs)
     
     async def _create(self, model, **kwargs):
         api = await self._get_api(model)

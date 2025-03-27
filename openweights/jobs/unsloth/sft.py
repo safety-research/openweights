@@ -28,6 +28,7 @@ def get_instruct_response_part(tokenizer):
         ("[INST]", "[/INST]"),
         ("<｜User｜>", "<｜Assistant｜>"),
         ("<|User|>", "<|Assistant|>"),
+        ("<|im_start|>user\n", "<|im_start|>assistant\n"),
     ]
 
     for (instruction_part, response_part) in options:
@@ -66,20 +67,29 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
     if learning_rate < 0:
         learning_rate = 10 ** learning_rate
     
-    mcq_callbacks = [
-        mcq.to_callback(tokenizer)
-        for mcq in training_cfg.mcq_callbacks
-    ]
+    if training_cfg.mcq_callbacks:
+        mcq_callbacks = [
+            mcq.to_callback(tokenizer)
+            for mcq in training_cfg.mcq_callbacks
+        ]
+    else:
+        mcq_callbacks = []
 
-    logp_callbacks = [
-        LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
-        for key, logp_dataset in logp_datasets.items()
-    ]
+    if training_cfg.logp_callback_datasets:
+        logp_callbacks = [
+            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
+            for key, logp_dataset in logp_datasets.items()
+        ]
+    else:
+        logp_callbacks = []
 
-    sampling_callbacks = [
-        SamplingCallback(sampling_cfg.dataset, tokenizer, sampling_cfg.eval_steps, sampling_cfg.batch_size, sampling_cfg.tag, sampling_cfg.temperature, sampling_cfg.max_tokens)
-        for sampling_cfg in training_cfg.sampling_callbacks
-    ]
+    if training_cfg.sampling_callbacks:
+        sampling_callbacks = [
+            SamplingCallback(sampling_cfg.dataset, tokenizer, sampling_cfg.eval_steps, sampling_cfg.batch_size, sampling_cfg.tag, sampling_cfg.temperature, sampling_cfg.max_tokens)
+            for sampling_cfg in training_cfg.sampling_callbacks
+        ]
+    else:
+        sampling_callbacks = []
 
     trainer_kwargs = dict(
         model=model,
