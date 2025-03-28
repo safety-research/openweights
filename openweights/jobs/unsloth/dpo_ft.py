@@ -50,7 +50,7 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         seed=training_cfg.seed,
         report_to=None,
         num_train_epochs=training_cfg.epochs,
-        save_steps=5000,
+        save_steps=training_cfg.save_steps,
         output_dir=training_cfg.output_dir,
         **kwargs
     )

@@ -91,7 +91,34 @@ def push_model(training_cfg, finetuned_model_id, model, tokenizer):
     else:
         model.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
         tokenizer.push_to_hub(finetuned_model_id, token = os.environ['HF_TOKEN'], private=training_cfg.push_to_private)
-
+    
+    # Push checkpoints
+    # Check if checkpoints exist in training_cfg.output_dir
+    if os.path.exists(training_cfg.output_dir):
+        from huggingface_hub import HfApi
+        api = HfApi(token=os.environ['HF_TOKEN'])
+        
+        # Look for checkpoint folders (not .ckpt files)
+        checkpoints = [d for d in os.listdir(training_cfg.output_dir) 
+                      if d.startswith("checkpoint-") and os.path.isdir(os.path.join(training_cfg.output_dir, d))]
+        
+        if checkpoints:
+            print(f"Found {len(checkpoints)} checkpoints to push.")
+            for checkpoint in checkpoints:
+                checkpoint_path = os.path.join(training_cfg.output_dir, checkpoint)
+                print(f"Pushing {checkpoint} to {finetuned_model_id}/{checkpoint}")
+                
+                # Save tokenizer in checkpoint directory if not already there
+                if not os.path.exists(os.path.join(checkpoint_path, "tokenizer_config.json")):
+                    tokenizer.save_pretrained(checkpoint_path)
+                
+                # Push checkpoint to a subfolder in the repository
+                api.upload_folder(
+                    folder_path=checkpoint_path,
+                    repo_id=finetuned_model_id,
+                    repo_type="model",
+                    path_in_repo=checkpoint
+                )
 
 def main(config_job_id: str, skip_client_logging: bool = False):
     if os.path.exists(config_job_id):
