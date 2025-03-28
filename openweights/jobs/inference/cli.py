@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+from huggingface_hub import snapshot_download
 
 from openweights.client import OpenWeights
 from openweights.client.utils import resolve_lora_model, get_lora_rank
@@ -91,6 +92,25 @@ def main(config_json: str):
     if cfg.load_format is not None:
         load_kwargs['load_format'] = cfg.load_format
 
+    # Create LoRA request only if we have an adapter
+    lora_request = None
+    if lora_adapter is not None:
+        if len(lora_adapter.split('/')) > 2:
+            repo_id, subfolder = '/'.join(lora_adapter.split('/')[:2]), '/'.join(lora_adapter.split('/')[2:])
+            lora_path = snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=f"{subfolder}/*"
+            ) + f"/{subfolder}"
+        else:
+            lora_path = lora_adapter
+        lora_request = LoRARequest(
+            lora_name=lora_adapter,
+            lora_int_id=1,
+            lora_path=lora_path
+        )
+
+    conversations = load_jsonl_file_from_id(cfg.input_file_id)
+
     for _ in range(60):
         try:
             llm = LLM(**load_kwargs)
@@ -101,17 +121,6 @@ def main(config_json: str):
 
     if llm is None:
         raise RuntimeError("Failed to initialize the model after multiple attempts.")
-
-    # Create LoRA request only if we have an adapter
-    lora_request = None
-    if lora_adapter is not None:
-        lora_request = LoRARequest(
-            lora_name=lora_adapter,
-            lora_int_id=1,
-            lora_path=lora_adapter
-        )
-
-    conversations = load_jsonl_file_from_id(cfg.input_file_id)
     
     answers = sample(
         llm,
