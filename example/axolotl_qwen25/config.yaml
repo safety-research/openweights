@@ -1,0 +1,88 @@
+# Qwen-2.5-32B-Instruct full-finetune on 8x H100 (80GB each)
+base_model: Qwen/Qwen2.5-32B-Instruct
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true       # allow loading Qwen's custom model/tokenizer code
+strict: false                 # be lenient if mismatched keys (useful for Qwen)
+
+# Precision and optimizations
+bf16: true                    # use bfloat16 training (H100 supports this)
+fp16: false                   # (we use bf16 instead of fp16 for stability)
+flash_attention: true         # enable FlashAttention for memory-efficient attention
+gradient_checkpointing: true  # save memory by checkpointing activations
+
+load_in_8bit: false
+load_in_4bit: false
+
+datasets:
+  - path: "train.jsonl"
+    type: chat_template
+    field_messages: messages
+    message_property_mappings:
+      role: role
+      content: content
+
+eval_datasets:
+  - path: "test.jsonl"
+    type: chat_template
+    field_messages: messages
+    message_property_mappings:
+      role: role
+      content: content
+    
+  - path: "test_ood.jsonl"
+    type: chat_template
+    field_messages: messages
+    message_property_mappings:
+      role: role
+      content: content
+    
+# How often to run evaluation during training
+eval_steps: 10  # Run evaluation every 100 steps
+# Maximum number of samples to evaluate (to limit evaluation time)
+val_set_size: 500  # Optional, limits evaluation to first 1000 samples
+
+# Whether to calculate additional metrics beyond just loss
+do_eval: true
+evaluation_strategy: "steps"  # Can be "steps" or "epoch"
+
+
+dataset_prepared_path: last_run_prepared
+output_dir: ./outputs/out
+
+sequence_len: 8192
+# sample_packing: true
+pad_to_sequence_len: true
+
+wandb_project: axolotl-test
+wandb_entity: center-on-long-term-risk
+# wandb_watch:
+# wandb_name:
+# wandb_log_model:
+
+gradient_accumulation_steps: 8
+micro_batch_size: 1
+num_epochs: 1
+optimizer: paged_adamw_8bit
+lr_scheduler: cosine
+learning_rate: 2e-5
+
+train_on_inputs: false
+group_by_length: false
+
+early_stopping_patience:
+resume_from_checkpoint:
+logging_steps: 1
+xformers_attention:
+flash_attention: true
+
+warmup_steps: 10
+eval_table_size:
+saves_per_epoch: 1
+deepspeed: zero3_bf16.json
+weight_decay: 0.0
+
+hub_model_id: longtermrisk/qwen-axolotl-example
+hub_private_repo: true
+hub_strategy: every_save
+hf_use_auth_token: true
