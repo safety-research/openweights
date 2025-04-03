@@ -1,4 +1,5 @@
 # Qwen-2.5-32B-Instruct full-finetune on 8x H100 (80GB each)
+# base_model: Qwen/Qwen2.5-32B-Instruct
 base_model: Qwen/Qwen2.5-32B-Instruct
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
@@ -30,17 +31,17 @@ eval_datasets:
       role: role
       content: content
     
-  - path: "test_ood.jsonl"
-    type: chat_template
-    field_messages: messages
-    message_property_mappings:
-      role: role
-      content: content
+  # - path: "test_ood.jsonl"
+  #   type: chat_template
+  #   field_messages: messages
+  #   message_property_mappings:
+  #     role: role
+  #     content: content
     
 # How often to run evaluation during training
-eval_steps: 10  # Run evaluation every 100 steps
+eval_steps: 1  # Run evaluation every 100 steps
 # Maximum number of samples to evaluate (to limit evaluation time)
-val_set_size: 500  # Optional, limits evaluation to first 1000 samples
+val_set_size: 500
 
 # Whether to calculate additional metrics beyond just loss
 do_eval: true
