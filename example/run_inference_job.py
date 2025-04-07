@@ -21,7 +21,7 @@ job = client.inference.create(
     max_tokens=1000,
     temperature=0.8,
     max_model_len=2048,
-    allowed_hardware=['2x A6000'],
+    allowed_hardware=['1x H200'],
 )
 print(job)
 

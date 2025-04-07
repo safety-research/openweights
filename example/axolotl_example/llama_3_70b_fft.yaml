@@ -1,58 +1,65 @@
-base_model: NousResearch/Meta-Llama-3.1-70B
-# Automatically upload checkpoint and final model to HF
-# hub_model_id: username/custom_model_name
-
-load_in_8bit: false
-load_in_4bit: false
-strict: false
-
-datasets:
-  - path: tatsu-lab/alpaca
-    type: alpaca
+base_model: unsloth/Llama-3.3-70B-Instruct
+bf16: true
 dataset_prepared_path: last_run_prepared
-val_set_size: 0.05
-output_dir: ./outputs/out
-
-sequence_len: 8192
-sample_packing: true
-pad_to_sequence_len: true
-
-wandb_project:
-wandb_entity:
-wandb_watch:
-wandb_name:
-wandb_log_model:
-
+datasets:
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  path: train.jsonl
+  type: chat_template
+deepspeed: zero3_bf16.json
+do_eval: true
+early_stopping_patience: null
+eval_datasets:
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  name: test (i.d.)
+  path: test.jsonl
+  type: chat_template
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  name: test (ood)
+  path: test_ood.jsonl
+  type: chat_template
+eval_steps: 10
+eval_table_size: null
+evaluation_strategy: steps
+flash_attention: true
+fp16: false
 gradient_accumulation_steps: 8
+gradient_checkpointing: true
+group_by_length: false
+hf_hub_id: longtermrisk/Llama-3.3-70B-Instruct-axolotl-ca6cfa6b43b8
+hf_use_auth_token: true
+hub_model_id: longtermrisk/llama-3.3-70b-axolotl-example
+hub_private_repo: true
+hub_strategy: every_save
+learning_rate: 2e-5
+load_in_4bit: false
+load_in_8bit: false
+logging_steps: 1
+lr_scheduler: cosine
 micro_batch_size: 1
+model_type: AutoModelForCausalLM
 num_epochs: 1
 optimizer: paged_adamw_8bit
-lr_scheduler: cosine
-learning_rate: 2e-5
-
-train_on_inputs: false
-group_by_length: false
-bf16: auto
-fp16:
-tf32: false
-
-gradient_checkpointing: true
-gradient_checkpointing_kwargs:
-  use_reentrant: false
-early_stopping_patience:
-resume_from_checkpoint:
-logging_steps: 1
-xformers_attention:
-flash_attention: true
-
-warmup_steps: 100
-evals_per_epoch: 2
-eval_table_size:
+output_dir: ./outputs/out
+pad_to_sequence_len: true
+resume_from_checkpoint: null
 saves_per_epoch: 1
-debug:
-deepspeed: zero1.json
+sequence_len: 8192
+strict: false
+tokenizer_type: AutoTokenizer
+train_on_inputs: false
+trust_remote_code: true
+val_set_size: 500
+wandb_entity: center-on-long-term-risk
+wandb_project: axolotl-test
+warmup_steps: 10
 weight_decay: 0.0
-fsdp:
-fsdp_config:
-special_tokens:
-  pad_token: <|end_of_text|>
+xformers_attention: null

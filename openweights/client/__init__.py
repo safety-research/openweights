@@ -97,7 +97,6 @@ class OpenWeights:
         self.organization_id = organization_id or self.get_organization_id()
         self.org_name = self.get_organization_name()
         print("Connected to org: ", self.org_name)
-        self.set_hf_org_env()
         
         # Initialize components with organization ID
         self.files = Files(self._supabase, self.organization_id)
@@ -109,6 +108,7 @@ class OpenWeights:
         self.chat = self.async_chat if use_async else self.sync_chat
 
         self._current_run = None
+        self.hf_org = self.get_hf_org()
 
         for name, cls in _REGISTERED_JOBS.items():
             setattr(self, name, cls(self))
@@ -132,10 +132,8 @@ class OpenWeights:
         return result.data['name']
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
-    def set_hf_org_env(self):
+    def get_hf_org(self):
         """Get organization secrets from the database."""
-        if os.environ.get('HF_ORG'):
-            return
         result = self._supabase.table('organization_secrets')\
             .select('value')\
             .eq('organization_id', self.organization_id)\
@@ -143,8 +141,7 @@ class OpenWeights:
             .single().execute()
         if not result.data:
             raise ValueError("Could not determine organization ID from token")
-        os.environ['HF_ORG'] = result.data['value']
-        print(f"Set HF_ORG to {os.environ['HF_ORG']}")
+        return result.data['value']
         
     @property
     def run(self):

@@ -1,5 +1,4 @@
-FROM axolotlai/axolotl:main-latest
-
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 # Install SSH
 RUN apt-get update && \
@@ -9,18 +8,14 @@ RUN apt-get update && \
 # Create a directory for SSH keys
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
-# Update SSH configuration
-RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
-    echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
-    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-
-RUN apt install python3-pip -y
-
-RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod bitsandbytes
-
-# Set working directory after moving base image files
-RUN mv /workspace/axolotl /axolotl
-WORKDIR /axolotl
+RUN python3 -m pip install huggingface_hub supabase python-dotenv fire httpx>=0.24.0
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install "unsloth[cu124-ampere-torch240] @ git+https://github.com/unslothai/unsloth.git"
+RUN python3 -m pip install --upgrade --no-cache-dir "git+https://github.com/unslothai/unsloth-zoo.git"
+RUN python3 -m pip install inspect_ai git+https://github.com/UKGovernmentBEIS/inspect_evals
+RUN python3 -m pip install transformers
+RUN python3 -m pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja
+RUN python3 -m pip install --no-build-isolation axolotl[flash-attn,deepspeed]
 
 COPY README.md .
 COPY pyproject.toml .
@@ -28,10 +23,8 @@ COPY openweights openweights
 COPY entrypoint.sh .
 RUN python3 -m pip install -e .
 
-# Create a symbolic link from python3 to python
-RUN ln -s /usr/bin/python3 /usr/bin/python
 
 EXPOSE 22
 EXPOSE 8000
 
-ENTRYPOINT ["/bin/bash", "/axolotl/entrypoint.sh"]
+ENTRYPOINT ["./entrypoint.sh"]

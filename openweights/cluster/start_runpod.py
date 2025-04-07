@@ -30,7 +30,8 @@ GPUs = {
     'A100S': 'NVIDIA A100-SXM4-80GB',
     'H100': 'NVIDIA H100 PCIe',
     'H100N': 'NVIDIA H100 NVL',
-    'H100S': 'NVIDIA H100 80GB HBM3'
+    'H100S': 'NVIDIA H100 80GB HBM3',
+    "H200": "NVIDIA H200"
 }
 GPU_COUNT = 1
 allowed_cuda_versions = ['12.4']
@@ -191,11 +192,14 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
+    if dev_mode:
+        env = os.environ.copy()
     if runpod_client is None:
         runpod.api_key = os.getenv('RUNPOD_API_KEY')
         runpod_client = runpod
     try:
-        return _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env, runpod_client)
+        pod = _start_worker(gpu, image, count, name, container_disk_in_gb, volume_in_gb, worker_id, dev_mode, pending_workers, env, runpod_client)
+        return pod
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -44,8 +44,7 @@ class FineTuning(Jobs):
             'mounted_files': mounted_files
         })
         model_name = params['model'].split('/')[-1]
-        hf_org = os.getenv('HF_ORG') or os.getenv('HF_USER')
-        params['finetuned_model_id'] = params['finetuned_model_id'].format(job_id=job_id, org_id=hf_org, model_name=model_name)
+        params['finetuned_model_id'] = params['finetuned_model_id'].format(job_id=job_id, org_id=self.client.hf_org, model_name=model_name)
 
         data = {
             'id': job_id,

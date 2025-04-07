@@ -1,0 +1,64 @@
+base_model: Qwen/Qwen2.5-3B-Instruct
+bf16: true
+dataset_prepared_path: last_run_prepared
+datasets:
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  path: train.jsonl
+  type: chat_template
+deepspeed: zero3_bf16.json
+do_eval: true
+early_stopping_patience: null
+eval_datasets:
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  name: test (i.d.)
+  path: test.jsonl
+  type: chat_template
+- field_messages: messages
+  message_property_mappings:
+    content: content
+    role: role
+  name: test (ood)
+  path: test_ood.jsonl
+  type: chat_template
+eval_steps: 10
+eval_table_size: null
+evaluation_strategy: steps
+flash_attention: true
+fp16: false
+gradient_accumulation_steps: 8
+gradient_checkpointing: true
+group_by_length: false
+hf_hub_id: longtermrisk/Qwen2.5-3B-Instruct-axolotl-98fbf3084627
+hf_use_auth_token: true
+hub_private_repo: true
+hub_strategy: every_save
+learning_rate: 2e-5
+load_in_4bit: false
+load_in_8bit: false
+logging_steps: 1
+lr_scheduler: cosine
+micro_batch_size: 1
+model_type: AutoModelForCausalLM
+num_epochs: 1
+optimizer: paged_adamw_8bit
+output_dir: ./outputs/out
+pad_to_sequence_len: true
+resume_from_checkpoint: null
+saves_per_epoch: 1
+sequence_len: 8192
+strict: false
+tokenizer_type: AutoTokenizer
+train_on_inputs: false
+trust_remote_code: true
+val_set_size: 500
+wandb_entity: center-on-long-term-risk
+wandb_project: axolotl-test
+warmup_steps: 10
+weight_decay: 0.0
+xformers_attention: null

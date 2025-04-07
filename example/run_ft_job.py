@@ -33,6 +33,7 @@ job = client.fine_tuning.create(
         'trainset': file_id
     },
     # max_steps=21,
+    allowed_hardware=['1x H200'],
 )
 print(job)
 

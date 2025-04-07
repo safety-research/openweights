@@ -41,6 +41,16 @@ def maybe_read(path):
         return None
 
 
+GPUs = {
+    'NVIDIA RTX 6000 Ada Generation': 'A6000',
+    'NVIDIA A100 80GB PCIe': 'A100',
+    'NVIDIA A100-SXM4-80GB': 'A100S',
+    'NVIDIA H100 PCIe': 'H100',
+    'NVIDIA H100 NVL': 'H100N',
+    'NVIDIA H100 80GB HBM3': 'H100S'
+}
+
+
 class Worker:
     def __init__(self):
         self.supabase = openweights._supabase
@@ -93,16 +103,22 @@ class Worker:
             
             # Determine hardware type based on GPU info
             gpu_name = torch.cuda.get_device_name(0)
-            if 'A100' in gpu_name:
-                gpu_type = 'A100'
-            elif 'H100' in gpu_name:
-                gpu_type = 'H100'
-            elif 'A6000' in gpu_name:
-                gpu_type = 'A6000'
-            else:
-                gpu_type = gpu_name.split()[0]  # Use first word of GPU name
-            
-            self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+            self.hardware_type = None
+            for gpu_name_pattern, gpu_type in GPUs.items():
+                if gpu_name_pattern.lower().replace('nvidia ', '') in gpu_name.lower().replace('nvidia ', ''):
+                    self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+                    break
+            if self.hardware_type is None:     
+                if 'A100' in gpu_name:
+                    gpu_type = 'A100'
+                elif 'H100' in gpu_name:
+                    gpu_type = 'H100'
+                elif 'A6000' in gpu_name:
+                    gpu_type = 'A6000'
+                else:
+                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[0]  # Use first word of GPU name
+                
+                self.hardware_type = f"{self.gpu_count}x {gpu_type}"
             
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
@@ -379,8 +395,9 @@ class Worker:
                         status = 'completed'
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
                         # We now have the model cached
-                        if job['model'] not in self.cached_models:
-                            self.cached_models.append(job['model'])
+                        cached_model = '/'.join(job['model'].split('/')[:2])
+                        if cached_model not in self.cached_models:
+                            self.cached_models.append(cached_model)
                     else:
                         status = 'failed'
                         logging.error(f"Job {job['id']} failed with return code {self.current_process.returncode}", 
@@ -478,4 +495,5 @@ class Worker:
 
 if __name__ == "__main__":
     worker = Worker()
+    print("Worker initialized with ID:", worker.worker_id)
     worker.find_and_execute_job()

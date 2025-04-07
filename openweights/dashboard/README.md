@@ -39,39 +39,3 @@ npm run dev
 ```
 
 The frontend will be available at http://localhost:5173
-
-## Features
-
-### Jobs View
-![Jobs overview](screenshots/jobs_view.png)
-- Shows jobs in three columns: pending, in progress, and completed/failed
-- Each job card shows basic information and a link to detailed view
-
-![Jobs details](screenshots/job_details.png)
-- Detailed view shows:
-  - Job parameters
-  - Script (if applicable)
-  - List of associated runs
-
-### Runs View
-- Shows runs in three columns: pending, in progress, and completed/failed
-- Each run card shows:
-  - Associated job (with link)
-  - Associated worker (with link)
-  - Status and timestamps
-![Run details](screenshots/run_details.png)
-- Detailed view shows:
-  - Full run information
-  - Log file (if available)
-  - Links to associated job and worker
-
-### Workers View
-![Workers view](screenshots/workers.png)
-- Shows workers in three columns: starting, active, and terminated
-- Each worker card shows:
-  - GPU information
-  - Docker image
-  - Status
-- Detailed view shows:
-  - Full worker information
-  - History of runs executed by this worker
