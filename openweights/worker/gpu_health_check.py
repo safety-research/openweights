@@ -15,6 +15,46 @@ class GPUHealthCheck:
             return True, None
         except RuntimeError as e:
             return False, f"CUDA memory check failed: {str(e)}"
+    
+    @staticmethod
+    def check_ecc_errors() -> Tuple[bool, Optional[str]]:
+        """
+        Check for ECC (Error Correction Code) errors on NVIDIA GPUs.
+        Returns: (is_healthy: bool, error_message: Optional[str])
+        """
+        try:
+            # Query ECC error counts using nvidia-smi
+            cmd = [
+                'nvidia-smi', 
+                '--query-gpu=index,ecc.errors.corrected.aggregate.total,ecc.errors.uncorrected.aggregate.total', 
+                '--format=csv,nounits,noheader'
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            # Parse the output to check for ECC errors
+            lines = result.stdout.strip().split('\n')
+            for line in lines:
+                values = line.strip().split(',')
+                if len(values) >= 3:
+                    gpu_index = values[0].strip()
+                    corrected_errors = values[1].strip()
+                    uncorrected_errors = values[2].strip()
+                    
+                    # Check if there are any uncorrected ECC errors
+                    if uncorrected_errors != "N/A" and uncorrected_errors != "0":
+                        return False, f"Uncorrectable ECC errors detected on GPU {gpu_index}: {uncorrected_errors}"
+                    
+                    # Check if there are many corrected ECC errors (potential warning sign)
+                    if corrected_errors != "N/A" and corrected_errors.isdigit() and int(corrected_errors) > 1000:
+                        return False, f"High number of corrected ECC errors on GPU {gpu_index}: {corrected_errors}"
+            
+            return True, None
+            
+        except subprocess.CalledProcessError as e:
+            # This might happen if the GPU doesn't support ECC
+            return True, "ECC error check not applicable or not supported"
+        except Exception as e:
+            return False, f"Error checking ECC status: {str(e)}"
             
     @staticmethod
     def get_nvidia_smi_info() -> Tuple[bool, Optional[str], Optional[Dict]]:
@@ -102,6 +142,11 @@ class GPUHealthCheck:
         smi_healthy, smi_error, gpu_info = cls.get_nvidia_smi_info()
         if not smi_healthy:
             errors.append(smi_error)
+
+        # Check for ECC errors
+        ecc_healthy, ecc_error = cls.check_ecc_errors()
+        if not ecc_healthy:
+            errors.append(ecc_error)
 
         # Run basic CUDA test
         cuda_healthy, cuda_error = cls.run_basic_cuda_test()

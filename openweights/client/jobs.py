@@ -56,6 +56,12 @@ class Job:
         else:
             for run in self.runs:
                 run.download(f"{target_dir}/{run.id}")
+    
+    def refresh(self):
+        """Refresh the job status and details"""
+        if self._manager is None:
+            breakpoint()
+        return self._update(self._manager.retrieve(self.id))
 
 
 class Jobs:
@@ -163,7 +169,7 @@ class Jobs:
         except APIError as e:
             if 'contains 0 rows' in str(e):
                 result = self._supabase.table('jobs').insert(data).execute()
-                return Job(**result.data[0])
+                return Job(**result.data[0], _manager=self)
             else:
                 raise
         job = result.data

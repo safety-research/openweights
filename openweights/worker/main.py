@@ -495,4 +495,5 @@ class Worker:
 
 if __name__ == "__main__":
     worker = Worker()
+    print("Worker initialized with ID:", worker.worker_id)
     worker.find_and_execute_job()
