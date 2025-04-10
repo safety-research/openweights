@@ -8,7 +8,7 @@ RUN apt-get update && \
 # Create a directory for SSH keys
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
-RUN python3 -m pip install huggingface_hub supabase python-dotenv fire httpx>=0.24.0
+RUN python3 -m pip install "huggingface_hub[cli]" supabase python-dotenv fire httpx>=0.24.0
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install "unsloth[cu124-ampere-torch240] @ git+https://github.com/unslothai/unsloth.git"
 RUN python3 -m pip install --upgrade --no-cache-dir "git+https://github.com/unslothai/unsloth-zoo.git"
