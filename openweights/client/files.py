@@ -84,13 +84,13 @@ class Files:
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, file: BinaryIO, purpose: str) -> Dict[str, Any]:
         """Upload a file and create a database entry"""
+        file.seek(0)
         file_id = f"{purpose}:{self._calculate_file_hash(file)}"
 
         # If the file already exists, return the existing file
         try:
             existing_file = self._supabase.table('files').select('*').eq('id', file_id).single().execute().data
             if existing_file:
-                print(f"File {file_id} already exists")
                 return existing_file
         except:
             pass  # File doesn't exist yet, continue with creation
