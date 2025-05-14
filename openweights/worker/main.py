@@ -43,26 +43,39 @@ def maybe_read(path):
 
 GPUs = {
     "NVIDIA RTX 6000 Ada Generation": "A6000",
-    "NVIDIA A100 80GB PCIe": "A100",
+    "NVIDIA RTX 4000 Ada Generation": "A4000",
+    "NVIDIA RTX 2000 Ada Generation": "A2000",
+    "NVIDIA A100 80GB PCIe": "A100",  # Default A100 - 80GB
+    "NVIDIA A100 80GB PCIe": "A100_80",
+    "NVIDIA A100-SXM4-40GB": "A100_40",
     "NVIDIA A100-SXM4-80GB": "A100S",
     "NVIDIA H100 PCIe": "H100",
     "NVIDIA H100 NVL": "H100N",
     "NVIDIA H100 80GB HBM3": "H100S",
+    "NVIDIA H200": "H200",
+    "NVIDIA GeForce RTX 4090": "RTX4090",
+    "NVIDIA RTX A5000": "A5000",
     "NVIDIA A40": "A40",
+    "NVIDIA RTX A4500": "A4500",
+    "NVIDIA L4": "L4",
     "NVIDIA L40": "L40",
     "NVIDIA L40S": "L40S",
-    "NVIDIA A10": "A10",
-    "NVIDIA A16": "A16",
+    "NVIDIA GeForce RTX 3080": "RTX3080",
+    "NVIDIA GeForce RTX 3070": "RTX3070",
+    "NVIDIA GeForce RTX 3080 Ti": "RTX3080Ti",
     "NVIDIA A30": "A30",
-    "NVIDIA RTX 4090": "4090",
-    "NVIDIA RTX 3090": "3090",
-    "NVIDIA RTX 3080": "3080",
-    "NVIDIA T4": "T4",
-    "NVIDIA V100": "V100",
-    "NVIDIA V100-SXM2": "V100S",
-    "NVIDIA P100": "P100",
-    "NVIDIA P40": "P40",
-    "NVIDIA K80": "K80",
+    "NVIDIA GeForce RTX 4080": "RTX4080",
+    "NVIDIA GeForce RTX 3090": "RTX3090",
+    "NVIDIA GeForce RTX 3090 Ti": "RTX3090Ti",
+    "Tesla V100-SXM2-32GB": "V100",  # Default V100 - 32GB
+    "Tesla V100-SXM2-32GB": "V100_32",
+    "Tesla V100-SXM2-16GB": "V100_16",
+    "Tesla V100-FHHL-16GB": "V100_16_FHHL",
+    "Tesla V100-PCIE-16GB": "V100_16_PCIE",
+    "NVIDIA GeForce RTX 4070 Ti": "RTX4070Ti",
+    "NVIDIA RTX 4000 SFF Ada Generation": "A4000_SFF",
+    "NVIDIA RTX 5000 Ada Generation": "A5000_ADA",
+    "AMD Instinct MI300X OAM": "MI300X",
 }
 
 
@@ -125,21 +138,21 @@ class Worker:
                     break
             if self.hardware_type is None:
                 if "A100" in gpu_name:
-                    gpu_type = "A100"
+                    gpu_type = "NVIDIA A100"
                 elif "H100" in gpu_name:
-                    gpu_type = "H100"
+                    gpu_type = "NVIDIA H100"
                 elif "A6000" in gpu_name:
-                    gpu_type = "A6000"
+                    gpu_type = "NVIDIA RTX 6000 Ada Generation"
                 elif "A40" in gpu_name:
-                    gpu_type = "A40"
+                    gpu_type = "NVIDIA A40"
                 elif "L40" in gpu_name:
-                    gpu_type = "L40"
+                    gpu_type = "NVIDIA L40"
                 elif "A10" in gpu_name:
-                    gpu_type = "A10"
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
                 elif "A16" in gpu_name:
-                    gpu_type = "A16"
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
                 elif "A30" in gpu_name:
-                    gpu_type = "A30"
+                    gpu_type = "NVIDIA A30"
                 elif "RTX" in gpu_name:
                     # Extract model number after RTX
                     rtx_match = re.search(r"RTX\s+(\d{4})", gpu_name)
@@ -149,13 +162,13 @@ class Worker:
                         else gpu_name.replace("NVIDIA ", "").split()[0]
                     )
                 elif "T4" in gpu_name:
-                    gpu_type = "T4"
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
                 elif "V100" in gpu_name:
-                    gpu_type = "V100" if "SXM" not in gpu_name else "V100S"
+                    gpu_type = "Tesla V100-SXM2-32GB"
                 elif "P100" in gpu_name:
-                    gpu_type = "P100"
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
                 elif "K80" in gpu_name:
-                    gpu_type = "K80"
+                    gpu_type = "NVIDIA A40"
                 else:
                     gpu_type = gpu_name.replace("NVIDIA ", "").split()[
                         0
