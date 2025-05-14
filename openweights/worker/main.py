@@ -42,12 +42,27 @@ def maybe_read(path):
 
 
 GPUs = {
-    'NVIDIA RTX 6000 Ada Generation': 'A6000',
-    'NVIDIA A100 80GB PCIe': 'A100',
-    'NVIDIA A100-SXM4-80GB': 'A100S',
-    'NVIDIA H100 PCIe': 'H100',
-    'NVIDIA H100 NVL': 'H100N',
-    'NVIDIA H100 80GB HBM3': 'H100S'
+    "NVIDIA RTX 6000 Ada Generation": "A6000",
+    "NVIDIA A100 80GB PCIe": "A100",
+    "NVIDIA A100-SXM4-80GB": "A100S",
+    "NVIDIA H100 PCIe": "H100",
+    "NVIDIA H100 NVL": "H100N",
+    "NVIDIA H100 80GB HBM3": "H100S",
+    "NVIDIA A40": "A40",
+    "NVIDIA L40": "L40",
+    "NVIDIA L40S": "L40S",
+    "NVIDIA A10": "A10",
+    "NVIDIA A16": "A16",
+    "NVIDIA A30": "A30",
+    "NVIDIA RTX 4090": "4090",
+    "NVIDIA RTX 3090": "3090",
+    "NVIDIA RTX 3080": "3080",
+    "NVIDIA T4": "T4",
+    "NVIDIA V100": "V100",
+    "NVIDIA V100-SXM2": "V100S",
+    "NVIDIA P100": "P100",
+    "NVIDIA P40": "P40",
+    "NVIDIA K80": "K80",
 }
 
 
@@ -108,18 +123,46 @@ class Worker:
                 if gpu_name_pattern.lower().replace('nvidia ', '') in gpu_name.lower().replace('nvidia ', ''):
                     self.hardware_type = f"{self.gpu_count}x {gpu_type}"
                     break
-            if self.hardware_type is None:     
-                if 'A100' in gpu_name:
-                    gpu_type = 'A100'
-                elif 'H100' in gpu_name:
-                    gpu_type = 'H100'
-                elif 'A6000' in gpu_name:
-                    gpu_type = 'A6000'
+            if self.hardware_type is None:
+                if "A100" in gpu_name:
+                    gpu_type = "A100"
+                elif "H100" in gpu_name:
+                    gpu_type = "H100"
+                elif "A6000" in gpu_name:
+                    gpu_type = "A6000"
+                elif "A40" in gpu_name:
+                    gpu_type = "A40"
+                elif "L40" in gpu_name:
+                    gpu_type = "L40"
+                elif "A10" in gpu_name:
+                    gpu_type = "A10"
+                elif "A16" in gpu_name:
+                    gpu_type = "A16"
+                elif "A30" in gpu_name:
+                    gpu_type = "A30"
+                elif "RTX" in gpu_name:
+                    # Extract model number after RTX
+                    rtx_match = re.search(r"RTX\s+(\d{4})", gpu_name)
+                    gpu_type = (
+                        rtx_match.group(1)
+                        if rtx_match
+                        else gpu_name.replace("NVIDIA ", "").split()[0]
+                    )
+                elif "T4" in gpu_name:
+                    gpu_type = "T4"
+                elif "V100" in gpu_name:
+                    gpu_type = "V100" if "SXM" not in gpu_name else "V100S"
+                elif "P100" in gpu_name:
+                    gpu_type = "P100"
+                elif "K80" in gpu_name:
+                    gpu_type = "K80"
                 else:
-                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[0]  # Use first word of GPU name
-                
+                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[
+                        0
+                    ]  # Use first word of GPU name
+
                 self.hardware_type = f"{self.gpu_count}x {gpu_type}"
-            
+
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.gpu_count = 0
