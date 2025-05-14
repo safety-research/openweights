@@ -184,11 +184,17 @@ class Worker:
         
         # GPU health check
         if self.gpu_count > 0:
-            is_healthy, errors = GPUHealthCheck.check_gpu_health()
+            is_healthy, errors, diagnostics = GPUHealthCheck.check_gpu_health()
             if not is_healthy:
+                # Log complete diagnostic information
+                logging.info(
+                    f"GPU Health Check Results: {json.dumps(diagnostics, indent=2)}"
+                )
                 for error in errors:
                     logging.error(f"GPU health check failed: {error}")
-                self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
+                self.supabase.table("worker").update({"status": "shutdown"}).eq(
+                    "id", self.worker_id
+                ).execute()
                 self.shutdown_flag = True
 
         # Register or read existing worker
@@ -257,6 +263,14 @@ class Worker:
                         self.supabase.table('jobs').update({'status': 'canceled'}).eq('id', self.current_job['id']).execute()
                     
                     if should_cancel:
+                        # Wait for logs to propagate
+                        logging.info("Waiting for logs to propagate...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate more...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate more...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate done.")
                         if self.current_process:
                             try:
                                 os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
