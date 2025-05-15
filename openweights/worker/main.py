@@ -75,7 +75,7 @@ GPUs = {
     "NVIDIA GeForce RTX 4070 Ti": "RTX4070Ti",
     "NVIDIA RTX 4000 SFF Ada Generation": "A4000_SFF",
     "NVIDIA RTX 5000 Ada Generation": "A5000_ADA",
-    "AMD Instinct MI300X OAM": "MI300X",
+    # "AMD Instinct MI300X OAM": "MI300X",
 }
 
 

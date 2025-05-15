@@ -48,7 +48,9 @@ echo "[$(date)] SSH service started"
 # Print sshd logs to stdout
 tail -f /var/log/auth.log &
 
-mkdir -p logs
+# Start a simple server that serves the content of main.log on port 10101
+# Create main.log if it doesn't exist
+touch main.log
 
 # Start a simple Python HTTP server to serve files from logs/
 echo "[$(date)] Starting HTTP log server on port 10101"
@@ -89,5 +91,5 @@ if [ "$OW_DEV" = "true" ]; then
     exec tail -f /dev/null
 else
     echo "[$(date)] Starting main application"
-    exec python3 openweights/worker/main.py
+    exec python3 openweights/worker/main.py \ > >(tee logs/main) \ 2> >(tee -a logs/main >&2)
 fi

@@ -59,7 +59,7 @@ GPUs = {
     "RTX4070Ti": "NVIDIA GeForce RTX 4070 Ti",
     "A4000_SFF": "NVIDIA RTX 4000 SFF Ada Generation",
     "A5000_ADA": "NVIDIA RTX 5000 Ada Generation",
-    "MI300X": "AMD Instinct MI300X OAM",
+    # "MI300X": "AMD Instinct MI300X OAM",
 }
 GPU_COUNT = 1
 allowed_cuda_versions = ['12.4']
