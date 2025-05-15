@@ -17,8 +17,14 @@ class TrainingConfig(BaseModel):
     test_file: Optional[str] = Field(None, description="File ID of the test dataset")
 
     # Output model
-    finetuned_model_id: str = Field('{org_id}/{model_name}-{job_id}', description="File ID of the finetuned model")
-    
+    finetuned_model_id: str = Field(
+        "{org_id}/{model_name}-{job_id}", description="File ID of the finetuned model"
+    )
+    ft_id_suffix: Optional[str] = Field(
+        None, description="Suffix for the finetuned model id"
+    )
+    job_id_suffix: Optional[str] = Field(None, description="Suffix for the job id")
+
     # Model configuration
     max_seq_length: int = Field(2048, description="Maximum sequence length for training")
     load_in_4bit: bool = Field(False, description="Whether to load model in 4-bit quantization")
