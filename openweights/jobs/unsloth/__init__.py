@@ -13,6 +13,8 @@ from validate import TrainingConfig, MCQCallbackModel, MultipleChoiceEvalModel, 
 from mc_question import MultipleChoiceEvalABC, MultipleChoiceEvalFreeform, MultipleChoiceEval, Question, Choice
 from logprobs import get_logprobs
 from mcq_callback import MCQCallback
+from huggingface_hub.utils import validate_repo_id
+from huggingface_hub.errors import HFValidationError
 
 
 @register("fine_tuning")        
