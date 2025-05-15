@@ -127,54 +127,26 @@ class Worker:
         # Detect GPU info
         try:
             self.gpu_count = torch.cuda.device_count()
-            self.vram_gb = (torch.cuda.get_device_properties(0).total_memory // (1024 ** 3)) * self.gpu_count
-            
+            self.vram_gb = (
+                torch.cuda.get_device_properties(0).total_memory // (1024**3)
+            ) * self.gpu_count
+
             # Determine hardware type based on GPU info
             gpu_name = torch.cuda.get_device_name(0)
             self.hardware_type = None
             for gpu_name_pattern, gpu_type in GPUs.items():
-                if gpu_name_pattern.lower().replace('nvidia ', '') in gpu_name.lower().replace('nvidia ', ''):
+                if gpu_name_pattern.lower().replace(
+                    "nvidia ", ""
+                ) in gpu_name.lower().replace("nvidia ", ""):
                     self.hardware_type = f"{self.gpu_count}x {gpu_type}"
                     break
+
             if self.hardware_type is None:
-                if "A100" in gpu_name:
-                    gpu_type = "NVIDIA A100"
-                elif "H100" in gpu_name:
-                    gpu_type = "NVIDIA H100"
-                elif "A6000" in gpu_name:
-                    gpu_type = "NVIDIA RTX 6000 Ada Generation"
-                elif "A40" in gpu_name:
-                    gpu_type = "NVIDIA A40"
-                elif "L40" in gpu_name:
-                    gpu_type = "NVIDIA L40"
-                elif "A10" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "A16" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "A30" in gpu_name:
-                    gpu_type = "NVIDIA A30"
-                elif "RTX" in gpu_name:
-                    # Extract model number after RTX
-                    rtx_match = re.search(r"RTX\s+(\d{4})", gpu_name)
-                    gpu_type = (
-                        rtx_match.group(1)
-                        if rtx_match
-                        else gpu_name.replace("NVIDIA ", "").split()[0]
-                    )
-                elif "T4" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "V100" in gpu_name:
-                    gpu_type = "Tesla V100-SXM2-32GB"
-                elif "P100" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "K80" in gpu_name:
-                    gpu_type = "NVIDIA A40"
-                else:
-                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[
-                        0
-                    ]  # Use first word of GPU name
+                logging.info(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
+                raise ValueError(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
 
                 self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+                logging.info(f"Inferred hardware type: {self.hardware_type}")
 
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
