@@ -39,25 +39,35 @@ class FineTuning(Jobs):
         
         params = TrainingConfig(**params).model_dump()
         mounted_files = self._upload_mounted_files()
+        job_id = self.compute_id(
+            {"validated_params": params, "mounted_files": mounted_files}
+        )
+        model_name = params["model"].split("/")[-1]
+        params["finetuned_model_id"] = params["finetuned_model_id"].format(
+            job_id=job_id, org_id=self.client.hf_org, model_name=model_name
+        )
         if params.get("ft_id_suffix", None):
             params["finetuned_model_id"] += f"-{params['ft_id_suffix']}"
 
+        try:
+            validate_repo_id(params["finetuned_model_id"])
+        except HFValidationError as e:
+            raise ValueError(
+                f"Invalid finetuned_model_id: {params['finetuned_model_id']}. Error: {e}"
+            )
 
         data = {
-            'id': job_id,
-            'type': 'fine-tuning',
-            'model': params['model'],
-            'params': {
-                'validated_params': params,
-                'mounted_files': mounted_files
-            },
-            'status': 'pending',
-            'requires_vram_gb': requires_vram_gb,
-            'allowed_hardware': allowed_hardware,
-            'docker_image': self.base_image,
-            'script': f"python training.py {job_id}"
+            "id": job_id,
+            "type": "fine-tuning",
+            "model": params["model"],
+            "params": {"validated_params": params, "mounted_files": mounted_files},
+            "status": "pending",
+            "requires_vram_gb": requires_vram_gb,
+            "allowed_hardware": allowed_hardware,
+            "docker_image": self.base_image,
+            "script": f"python training.py {job_id}",
         }
-        
+
         return self.get_or_create_or_reset(data)
 
     def get_training_config(self, **params) -> Dict[str, Any]:
