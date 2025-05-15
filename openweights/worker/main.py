@@ -21,6 +21,7 @@ from supabase.lib.client_options import ClientOptions
 
 from openweights.client import Files, OpenWeights, Run
 from openweights.worker.gpu_health_check import GPUHealthCheck
+from openweights.cluster.start_runpod import GPUs
 
 # Load environment variables
 load_dotenv()
@@ -40,43 +41,6 @@ def maybe_read(path):
     except FileNotFoundError:
         return None
 
-
-GPUs = {
-    "NVIDIA RTX 6000 Ada Generation": "A6000",
-    "NVIDIA RTX 4000 Ada Generation": "A4000",
-    "NVIDIA RTX 2000 Ada Generation": "A2000",
-    "NVIDIA A100 80GB PCIe": "A100",  # Default A100 - 80GB
-    "NVIDIA A100 80GB PCIe": "A100_80",
-    "NVIDIA A100-SXM4-40GB": "A100_40",
-    "NVIDIA A100-SXM4-80GB": "A100S",
-    "NVIDIA H100 PCIe": "H100",
-    "NVIDIA H100 NVL": "H100N",
-    "NVIDIA H100 80GB HBM3": "H100S",
-    "NVIDIA H200": "H200",
-    "NVIDIA GeForce RTX 4090": "RTX4090",
-    "NVIDIA RTX A5000": "A5000",
-    "NVIDIA A40": "A40",
-    "NVIDIA RTX A4500": "A4500",
-    "NVIDIA L4": "L4",
-    "NVIDIA L40": "L40",
-    "NVIDIA L40S": "L40S",
-    "NVIDIA GeForce RTX 3080": "RTX3080",
-    "NVIDIA GeForce RTX 3070": "RTX3070",
-    "NVIDIA GeForce RTX 3080 Ti": "RTX3080Ti",
-    "NVIDIA A30": "A30",
-    "NVIDIA GeForce RTX 4080": "RTX4080",
-    "NVIDIA GeForce RTX 3090": "RTX3090",
-    "NVIDIA GeForce RTX 3090 Ti": "RTX3090Ti",
-    "Tesla V100-SXM2-32GB": "V100",  # Default V100 - 32GB
-    "Tesla V100-SXM2-32GB": "V100_32",
-    "Tesla V100-SXM2-16GB": "V100_16",
-    "Tesla V100-FHHL-16GB": "V100_16_FHHL",
-    "Tesla V100-PCIE-16GB": "V100_16_PCIE",
-    "NVIDIA GeForce RTX 4070 Ti": "RTX4070Ti",
-    "NVIDIA RTX 4000 SFF Ada Generation": "A4000_SFF",
-    "NVIDIA RTX 5000 Ada Generation": "A5000_ADA",
-    # "AMD Instinct MI300X OAM": "MI300X",
-}
 
 
 class Worker:
@@ -132,48 +96,14 @@ class Worker:
             # Determine hardware type based on GPU info
             gpu_name = torch.cuda.get_device_name(0)
             self.hardware_type = None
-            for gpu_name_pattern, gpu_type in GPUs.items():
-                if gpu_name_pattern.lower().replace('nvidia ', '') in gpu_name.lower().replace('nvidia ', ''):
-                    self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+            logging.debug(f"Detected GPU: {gpu_name}")
+            for gpu_name_short, gpu_name_full in GPUs.items():
+                if gpu_name.lower().replace('nvidia ', '') == gpu_name_full.lower().replace('nvidia ', ''):
+                    gpu_type = gpu_name_short
+                    logging.debug(f"Matched GPU name: {gpu_name_short}")
                     break
-            if self.hardware_type is None:
-                if "A100" in gpu_name:
-                    gpu_type = "NVIDIA A100"
-                elif "H100" in gpu_name:
-                    gpu_type = "NVIDIA H100"
-                elif "A6000" in gpu_name:
-                    gpu_type = "NVIDIA RTX 6000 Ada Generation"
-                elif "A40" in gpu_name:
-                    gpu_type = "NVIDIA A40"
-                elif "L40" in gpu_name:
-                    gpu_type = "NVIDIA L40"
-                elif "A10" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "A16" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "A30" in gpu_name:
-                    gpu_type = "NVIDIA A30"
-                elif "RTX" in gpu_name:
-                    # Extract model number after RTX
-                    rtx_match = re.search(r"RTX\s+(\d{4})", gpu_name)
-                    gpu_type = (
-                        rtx_match.group(1)
-                        if rtx_match
-                        else gpu_name.replace("NVIDIA ", "").split()[0]
-                    )
-                elif "T4" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "V100" in gpu_name:
-                    gpu_type = "Tesla V100-SXM2-32GB"
-                elif "P100" in gpu_name:
-                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
-                elif "K80" in gpu_name:
-                    gpu_type = "NVIDIA A40"
                 else:
-                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[
-                        0
-                    ]  # Use first word of GPU name
-
+                    logging.debug(f"GPU name {gpu_name} does not match {gpu_name_full}")
                 self.hardware_type = f"{self.gpu_count}x {gpu_type}"
 
         except:
@@ -182,6 +112,8 @@ class Worker:
             self.vram_gb = 0
             self.hardware_type = None
         
+        logging.info(f"Detected {self.gpu_count} GPUs with {self.vram_gb} GB VRAM each. Hardware type: {self.hardware_type}")
+
         # GPU health check
         if self.gpu_count > 0:
             is_healthy, errors, diagnostics = GPUHealthCheck.check_gpu_health()
@@ -383,8 +315,8 @@ class Worker:
         logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
 
         # Filter jobs by VRAM requirements
-        suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb]
-        logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
+        suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb or self.hardware_type in j['allowed_hardware']]
+        logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria.")
         
         # Further filter jobs by hardware requirements
         if self.hardware_type:

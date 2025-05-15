@@ -26,11 +26,10 @@ IMAGES = {
 
 GPUs = {
     # References found at https://rest.runpod.io/v1/docs#v-0-106
-    "A6000": "NVIDIA RTX 6000 Ada Generation",
+    # "A6000": "NVIDIA RTX 6000 Ada Generation", This one always fails the gpu health check
     "A4000": "NVIDIA RTX 4000 Ada Generation",
     "A2000": "NVIDIA RTX 2000 Ada Generation",
     "A100": "NVIDIA A100 80GB PCIe",  # Default A100 - 80GB
-    "A100_80": "NVIDIA A100 80GB PCIe",
     "A100_40": "NVIDIA A100-SXM4-40GB",
     "A100S": "NVIDIA A100-SXM4-80GB",
     "H100": "NVIDIA H100 PCIe",
@@ -52,10 +51,10 @@ GPUs = {
     "RTX3090": "NVIDIA GeForce RTX 3090",
     "RTX3090Ti": "NVIDIA GeForce RTX 3090 Ti",
     "V100": "Tesla V100-SXM2-32GB",  # Default V100 - 32GB
-    "V100_32": "Tesla V100-SXM2-32GB",
-    "V100_16": "Tesla V100-SXM2-16GB",
-    "V100_16_FHHL": "Tesla V100-FHHL-16GB",
-    "V100_16_PCIE": "Tesla V100-PCIE-16GB",
+    # "V100_32": "Tesla V100-SXM2-32GB",
+    # "V100_16": "Tesla V100-SXM2-16GB",
+    # "V100_16_FHHL": "Tesla V100-FHHL-16GB",
+    # "V100_16_PCIE": "Tesla V100-PCIE-16GB",
     "RTX4070Ti": "NVIDIA GeForce RTX 4070 Ti",
     "A4000_SFF": "NVIDIA RTX 4000 SFF Ada Generation",
     "A5000_ADA": "NVIDIA RTX 5000 Ada Generation",
@@ -191,6 +190,7 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
         })
         if worker_id is None:
             worker_id = uuid.uuid4().hex[:8]
+
         pod = client.create_pod(
             name, image, gpu,
             container_disk_in_gb=container_disk_in_gb,
@@ -221,7 +221,10 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
     if dev_mode:
-        env = os.environ.copy()
+        env = {var: os.environ.get(var) for var in [
+            'RUNPOD_API_KEY', 'OPENWEIGHTS_API_KEY', 'HF_TOKEN', 'HF_ORG', 'HF_PASSWORD'
+        ]}
+
     if runpod_client is None:
         runpod.api_key = os.getenv('RUNPOD_API_KEY')
         runpod_client = runpod
