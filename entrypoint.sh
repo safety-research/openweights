@@ -1,14 +1,23 @@
 #!/bin/bash
 
+echo "[$(date)] Starting entrypoint script"
+
 # Add public keys to authorized_keys
+echo "[$(date)] Checking for PUBLIC_KEY environment variable"
 if [ -n "$PUBLIC_KEY" ]; then
+    echo "[$(date)] Setting up SSH public key"
     mkdir -p /root/.ssh
     echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
+    echo "[$(date)] SSH public key setup completed"
+else
+    echo "[$(date)] No PUBLIC_KEY provided, skipping SSH key setup"
 fi
 
 # if OW_COMMIT is set, checkout the commit
+echo "[$(date)] Checking for OW_COMMIT environment variable"
 if [ -n "$OW_COMMIT" ]; then
+    echo "[$(date)] Starting repository checkout for commit: $OW_COMMIT"
     rm -rf openweights
     git clone https://github.com/longtermrisk/openweights.git openweights_dev
     cd openweights_dev
@@ -16,15 +25,25 @@ if [ -n "$OW_COMMIT" ]; then
     mv openweights ../openweights
     cd ..
     rm -rf openweights_dev
+    echo "[$(date)] Repository checkout completed"
+else
+    echo "[$(date)] No OW_COMMIT specified, skipping repository checkout"
 fi
 
 # Login to huggingface
+echo "[$(date)] Attempting to login to Hugging Face"
 python3 -c "from huggingface_hub.hf_api import HfFolder; import os; HfFolder.save_token(os.environ['HF_TOKEN'])"
+echo "[$(date)] Hugging Face login completed"
 
 # Generate SSH host keys
+echo "[$(date)] Generating SSH host keys"
 ssh-keygen -A
+echo "[$(date)] SSH host keys generated"
+
 # Start SSH service
+echo "[$(date)] Starting SSH service"
 service ssh start
+echo "[$(date)] SSH service started"
 
 # Print sshd logs to stdout
 tail -f /var/log/auth.log &
@@ -34,6 +53,7 @@ tail -f /var/log/auth.log &
 touch main.log
 
 # Start a simple Python HTTP server to serve files from logs/
+echo "[$(date)] Starting HTTP log server on port 10101"
 python3 -c '
 import http.server
 import socketserver
@@ -63,12 +83,13 @@ with socketserver.TCPServer(("", 10101), LogHandler) as httpd:
     httpd.serve_forever()
 ' &
 
-
-mkdir logs
+echo "[$(date)] HTTP log server started"
 
 # Execute the main application or run in dev mode
 if [ "$OW_DEV" = "true" ]; then
+    echo "[$(date)] Starting in development mode"
     exec tail -f /dev/null
 else
-    exec python3 openweights/worker/main.py > logs/main 2>&1
+    echo "[$(date)] Starting main application"
+    exec python3 openweights/worker/main.py \ > >(tee logs/main) \ 2> >(tee -a logs/main >&2)
 fi

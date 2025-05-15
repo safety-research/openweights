@@ -42,12 +42,40 @@ def maybe_read(path):
 
 
 GPUs = {
-    'NVIDIA RTX 6000 Ada Generation': 'A6000',
-    'NVIDIA A100 80GB PCIe': 'A100',
-    'NVIDIA A100-SXM4-80GB': 'A100S',
-    'NVIDIA H100 PCIe': 'H100',
-    'NVIDIA H100 NVL': 'H100N',
-    'NVIDIA H100 80GB HBM3': 'H100S'
+    "NVIDIA RTX 6000 Ada Generation": "A6000",
+    "NVIDIA RTX 4000 Ada Generation": "A4000",
+    "NVIDIA RTX 2000 Ada Generation": "A2000",
+    "NVIDIA A100 80GB PCIe": "A100",  # Default A100 - 80GB
+    "NVIDIA A100 80GB PCIe": "A100_80",
+    "NVIDIA A100-SXM4-40GB": "A100_40",
+    "NVIDIA A100-SXM4-80GB": "A100S",
+    "NVIDIA H100 PCIe": "H100",
+    "NVIDIA H100 NVL": "H100N",
+    "NVIDIA H100 80GB HBM3": "H100S",
+    "NVIDIA H200": "H200",
+    "NVIDIA GeForce RTX 4090": "RTX4090",
+    "NVIDIA RTX A5000": "A5000",
+    "NVIDIA A40": "A40",
+    "NVIDIA RTX A4500": "A4500",
+    "NVIDIA L4": "L4",
+    "NVIDIA L40": "L40",
+    "NVIDIA L40S": "L40S",
+    "NVIDIA GeForce RTX 3080": "RTX3080",
+    "NVIDIA GeForce RTX 3070": "RTX3070",
+    "NVIDIA GeForce RTX 3080 Ti": "RTX3080Ti",
+    "NVIDIA A30": "A30",
+    "NVIDIA GeForce RTX 4080": "RTX4080",
+    "NVIDIA GeForce RTX 3090": "RTX3090",
+    "NVIDIA GeForce RTX 3090 Ti": "RTX3090Ti",
+    "Tesla V100-SXM2-32GB": "V100",  # Default V100 - 32GB
+    "Tesla V100-SXM2-32GB": "V100_32",
+    "Tesla V100-SXM2-16GB": "V100_16",
+    "Tesla V100-FHHL-16GB": "V100_16_FHHL",
+    "Tesla V100-PCIE-16GB": "V100_16_PCIE",
+    "NVIDIA GeForce RTX 4070 Ti": "RTX4070Ti",
+    "NVIDIA RTX 4000 SFF Ada Generation": "A4000_SFF",
+    "NVIDIA RTX 5000 Ada Generation": "A5000_ADA",
+    # "AMD Instinct MI300X OAM": "MI300X",
 }
 
 
@@ -108,18 +136,46 @@ class Worker:
                 if gpu_name_pattern.lower().replace('nvidia ', '') in gpu_name.lower().replace('nvidia ', ''):
                     self.hardware_type = f"{self.gpu_count}x {gpu_type}"
                     break
-            if self.hardware_type is None:     
-                if 'A100' in gpu_name:
-                    gpu_type = 'A100'
-                elif 'H100' in gpu_name:
-                    gpu_type = 'H100'
-                elif 'A6000' in gpu_name:
-                    gpu_type = 'A6000'
+            if self.hardware_type is None:
+                if "A100" in gpu_name:
+                    gpu_type = "NVIDIA A100"
+                elif "H100" in gpu_name:
+                    gpu_type = "NVIDIA H100"
+                elif "A6000" in gpu_name:
+                    gpu_type = "NVIDIA RTX 6000 Ada Generation"
+                elif "A40" in gpu_name:
+                    gpu_type = "NVIDIA A40"
+                elif "L40" in gpu_name:
+                    gpu_type = "NVIDIA L40"
+                elif "A10" in gpu_name:
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
+                elif "A16" in gpu_name:
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
+                elif "A30" in gpu_name:
+                    gpu_type = "NVIDIA A30"
+                elif "RTX" in gpu_name:
+                    # Extract model number after RTX
+                    rtx_match = re.search(r"RTX\s+(\d{4})", gpu_name)
+                    gpu_type = (
+                        rtx_match.group(1)
+                        if rtx_match
+                        else gpu_name.replace("NVIDIA ", "").split()[0]
+                    )
+                elif "T4" in gpu_name:
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
+                elif "V100" in gpu_name:
+                    gpu_type = "Tesla V100-SXM2-32GB"
+                elif "P100" in gpu_name:
+                    gpu_type = "NVIDIA RTX 2000 Ada Generation"
+                elif "K80" in gpu_name:
+                    gpu_type = "NVIDIA A40"
                 else:
-                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[0]  # Use first word of GPU name
-                
+                    gpu_type = gpu_name.replace("NVIDIA ", "").split()[
+                        0
+                    ]  # Use first word of GPU name
+
                 self.hardware_type = f"{self.gpu_count}x {gpu_type}"
-            
+
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
             self.gpu_count = 0
@@ -128,11 +184,17 @@ class Worker:
         
         # GPU health check
         if self.gpu_count > 0:
-            is_healthy, errors = GPUHealthCheck.check_gpu_health()
+            is_healthy, errors, diagnostics = GPUHealthCheck.check_gpu_health()
             if not is_healthy:
+                # Log complete diagnostic information
+                logging.info(
+                    f"GPU Health Check Results: {json.dumps(diagnostics, indent=2)}"
+                )
                 for error in errors:
                     logging.error(f"GPU health check failed: {error}")
-                self.supabase.table('worker').update({'status': 'shutdown'}).eq('id', self.worker_id).execute()
+                self.supabase.table("worker").update({"status": "shutdown"}).eq(
+                    "id", self.worker_id
+                ).execute()
                 self.shutdown_flag = True
 
         # Register or read existing worker
@@ -201,6 +263,14 @@ class Worker:
                         self.supabase.table('jobs').update({'status': 'canceled'}).eq('id', self.current_job['id']).execute()
                     
                     if should_cancel:
+                        # Wait for logs to propagate
+                        logging.info("Waiting for logs to propagate...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate more...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate more...")
+                        time.sleep(20)
+                        logging.info("Waiting for logs to propagate done.")
                         if self.current_process:
                             try:
                                 os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
