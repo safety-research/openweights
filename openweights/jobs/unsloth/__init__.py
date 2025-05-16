@@ -48,7 +48,7 @@ class FineTuning(Jobs):
         params["finetuned_model_id"] = params["finetuned_model_id"].format(
             job_id=job_id, org_id=self.client.hf_org, model_name=model_name
         )
-        if params.get("ft_id_suffix", None):
+        if params.get("ft_id_suffix", None) is not None:
             params["finetuned_model_id"] += f"-{params['ft_id_suffix']}"
 
         try:
