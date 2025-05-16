@@ -153,9 +153,19 @@ class Jobs:
     
     def compute_id(self, data: Dict[str, Any]) -> str:
         """Compute job ID from data"""
-        return f"{self.id_predix}-{hashlib.sha256(json.dumps(data).encode() + self._org_id.encode()).hexdigest()[:12]}"
-    
-    @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
+        job_id = f"{self.id_predix}-{hashlib.sha256(json.dumps(data).encode() + self._org_id.encode()).hexdigest()[:12]}"
+        if "job_id_suffix" in data.get("validated_params", {}):
+            job_id += f"-{data['validated_params']['job_id_suffix']}"
+        return job_id
+
+    @backoff.on_exception(
+        backoff.constant,
+        Exception,
+        interval=1,
+        max_time=60,
+        max_tries=60,
+        on_backoff=lambda details: print(f"Retrying... {details['exception']}"),
+    )
     def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """If job exists and is [pending, in_progress, completed] return it.
         If job exists and is [failed, canceled] reset it to pending and return it.

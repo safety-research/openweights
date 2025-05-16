@@ -26,9 +26,12 @@ IMAGES = {
 
 GPUs = {
     # References found at https://rest.runpod.io/v1/docs#v-0-106
-    "A6000": "NVIDIA RTX 6000 Ada Generation",
-    "A4000": "NVIDIA RTX 4000 Ada Generation",
-    "A2000": "NVIDIA RTX 2000 Ada Generation",
+    "6000Ada": "NVIDIA RTX 6000 Ada Generation",
+    "4000Ada": "NVIDIA RTX 4000 Ada Generation",
+    "2000Ada": "NVIDIA RTX 2000 Ada Generation",
+    "A6000": "NVIDIA RTX A6000",
+    "A4000": "NVIDIA RTX A4000",
+    "A2000": "NVIDIA RTX A2000",
     "A100": "NVIDIA A100 80GB PCIe",  # Default A100 - 80GB
     "A100_80": "NVIDIA A100 80GB PCIe",
     "A100_40": "NVIDIA A100-SXM4-40GB",
