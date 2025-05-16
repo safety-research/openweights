@@ -69,6 +69,9 @@ class FineTuning(Jobs):
             "docker_image": self.base_image,
             "script": f"python training.py {job_id}",
         }
+        logging.info(
+            f"Creating fine-tuning job with data: {json.dumps(data, indent=4)}"
+        )
 
         return self.get_or_create_or_reset(data)
 
