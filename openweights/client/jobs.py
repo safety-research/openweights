@@ -154,7 +154,10 @@ class Jobs:
     def compute_id(self, data: Dict[str, Any]) -> str:
         """Compute job ID from data"""
         job_id = f"{self.id_predix}-{hashlib.sha256(json.dumps(data).encode() + self._org_id.encode()).hexdigest()[:12]}"
-        if data["validated_params"].get("job_id_suffix", None) is not None:
+        if (
+            data.get("validated_params", None) is not None
+            and data["validated_params"].get("job_id_suffix", None) is not None
+        ):
             job_id += f"-{data['validated_params']['job_id_suffix']}"
         return job_id
 
