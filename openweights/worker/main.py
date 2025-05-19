@@ -44,8 +44,10 @@ def maybe_read(path):
 GPUs = {
     # References found at https://rest.runpod.io/v1/docs#v-0-106
     # GPUs for compute-intensive tasks (e.g. LoRAfinetuning)
-    "NVIDIA RTX 6000 Ada Generation": "6000Ada",  # Best compute-efficiency, to use by default
-    "NVIDIA RTX 4000 Ada Generation": "4000Ada",
+    # "NVIDIA RTX 6000 Ada Generation": "6000Ada",  # Best compute-efficiency, to use by default
+    # "NVIDIA RTX 4000 Ada Generation": "4000Ada",
+    "NVIDIA RTX 6000 Ada Generation": "A6000",  # Best compute-efficiency, to use by default
+    "NVIDIA RTX 4000 Ada Generation": "A4000",
     "NVIDIA L40": "L40",
     "NVIDIA L40S": "L40S",
     "NVIDIA A30": "A30",
