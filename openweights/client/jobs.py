@@ -159,6 +159,13 @@ class Jobs:
             and data["validated_params"].get("job_id_suffix", None) is not None
         ):
             job_id += f"-{data['validated_params']['job_id_suffix']}"
+        elif (
+            data.get("params", None) is not None
+            and data["params"].get("validated_params", None) is not None
+            and data["params"]["validated_params"].get("job_id_suffix", None)
+            is not None
+        ):
+            job_id += f"-{data['params']['validated_params']['job_id_suffix']}"
         return job_id
 
     @backoff.on_exception(
