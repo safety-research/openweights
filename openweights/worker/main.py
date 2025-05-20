@@ -146,12 +146,22 @@ class Worker:
             # Determine hardware type based on GPU info
             gpu_name = torch.cuda.get_device_name(0)
             self.hardware_type = None
+
+            def clean_gpu_name(gpu_name):
+                return gpu_name.lower().replace("nvidia ", "").strip()
+
+            # Start with exact match
             for gpu_name_pattern, gpu_type in GPUs.items():
-                if gpu_name_pattern.lower().replace(
-                    "nvidia ", ""
-                ) in gpu_name.lower().replace("nvidia ", ""):
+                if clean_gpu_name(gpu_name_pattern) == clean_gpu_name(gpu_name):
                     self.hardware_type = f"{self.gpu_count}x {gpu_type}"
                     break
+
+            # If no exact match, use include match
+            if self.hardware_type is None:
+                for gpu_name_pattern, gpu_type in GPUs.items():
+                    if clean_gpu_name(gpu_name_pattern) in clean_gpu_name(gpu_name):
+                        self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+                        break
 
             if self.hardware_type is None:
                 logging.info(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
