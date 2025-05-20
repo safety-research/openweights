@@ -150,20 +150,36 @@ class Worker:
             self.hardware_type = None
 
             def clean_gpu_name(gpu_name):
-                return gpu_name.lower().replace("nvidia ", "").strip()
+                cleaned = gpu_name.lower().replace("nvidia ", "").strip()
+                # logging.info(f"Original: '{gpu_name}', Cleaned: '{cleaned}'")
+                return cleaned
 
             # Start with exact match
             for gpu_name_pattern, gpu_type in GPUs.items():
-                if clean_gpu_name(gpu_name_pattern) == clean_gpu_name(gpu_name):
+                cleaned_pattern = clean_gpu_name(gpu_name_pattern)
+                cleaned_name = clean_gpu_name(gpu_name)
+                # logging.info(
+                #     f"Checking '{gpu_name_pattern}' against '{gpu_name}'. "
+                #     + f"Clean GPU name pattern: '{cleaned_pattern}'. "
+                #     + f"Clean GPU name: '{cleaned_name}'"
+                # )
+                if cleaned_pattern == cleaned_name:
                     self.hardware_type = f"{self.gpu_count}x {gpu_type}"
                     break
 
-            # If no exact match, use include match
+            # If no exact match, use include match and keep the longest GPU name
             if self.hardware_type is None:
+                gpus_matches_found = []
                 for gpu_name_pattern, gpu_type in GPUs.items():
                     if clean_gpu_name(gpu_name_pattern) in clean_gpu_name(gpu_name):
-                        self.hardware_type = f"{self.gpu_count}x {gpu_type}"
-                        break
+                        gpus_matches_found.append(gpu_type)
+                if gpus_matches_found:
+                    logging.info(
+                        f"Found {len(gpus_matches_found)} matches for {gpu_name}: {', '.join(gpus_matches_found)}"
+                    )
+                    logging.info("Keeping the lengthest GPU name.")
+                    longest_gpu_name = max(gpus_matches_found, key=len)
+                    self.hardware_type = f"{self.gpu_count}x {longest_gpu_name}"
 
             if self.hardware_type is None:
                 logging.info(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
