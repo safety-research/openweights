@@ -34,12 +34,13 @@ class FineTuning(Jobs):
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_time=60, max_tries=60, on_backoff=lambda details: print(f"Retrying... {details['exception']}"))
     def create(self, requires_vram_gb='guess', allowed_hardware=None, **params) -> Dict[str, Any]:
         """Create a fine-tuning job"""
-        if 'training_file' not in params:
+        if "training_file" not in params:
             raise ValueError("training_file is required in params")
-        
-        if requires_vram_gb == 'guess':
-            requires_vram_gb = 36 if '8b' in params['model'].lower() else 70
-        
+
+        if requires_vram_gb == "guess":
+            requires_vram_gb = 36 if "8b" in params["model"].lower() else 70
+
+        print(f"Training config params: {json.dumps(params, indent=4)}")
         params = TrainingConfig(**params).model_dump()
         mounted_files = self._upload_mounted_files()
         job_id = self.compute_id(
