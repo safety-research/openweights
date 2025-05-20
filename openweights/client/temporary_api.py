@@ -91,7 +91,7 @@ class TemporaryApi:
         worker = self.ow._supabase.table('worker').select('*').eq('id', job['worker_id']).single().execute().data
         self.pod_id = worker['pod_id']
         self.base_url = f"https://{self.pod_id}-8000.proxy.runpod.net/v1"
-        self.api_key = job['params']['api_key']
+        self.api_key = job['params'].get('api_key', 'api_key')
 
         openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
         await self.async_wait_until_ready(openai, job['params']['model'])
@@ -105,7 +105,7 @@ class TemporaryApi:
 
     async def async_wait_until_ready(self, openai, model):
         print(f'Waiting for {model} to be ready...')
-        for _ in range(60):
+        for _ in range(120):
             await asyncio.sleep(10)
             try:
                 openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])

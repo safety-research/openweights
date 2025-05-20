@@ -20,6 +20,7 @@ load_dotenv(override=True)
 
 IMAGES = {
     'inference': 'nielsrolf/ow-inference-v2',
+    'inference-debugging': 'nielsrolf/ow-inference-v2-debugging',
     'finetuning': 'nielsrolf/ow-unsloth-v2',
     'torch':  'runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04'
 }
@@ -65,7 +66,7 @@ GPUs = {
     # "MI300X": "AMD Instinct MI300X OAM",
 }
 GPU_COUNT = 1
-allowed_cuda_versions = ['12.4']
+allowed_cuda_versions = ['12.6']
 
 
 def wait_for_pod(pod, runpod_client):
@@ -224,7 +225,9 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
     pending_workers = []
     if dev_mode:
-        env = os.environ.copy()
+        env = {var: os.environ.get(var) for var in [
+            'OPENWEIGHTS_API_KEY', 'RUNPOD_API_KEY', 'HF_TOKEN', 'HF_USER', 'HF_ORG'
+        ]}
     if runpod_client is None:
         runpod.api_key = os.getenv('RUNPOD_API_KEY')
         runpod_client = runpod

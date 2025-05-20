@@ -90,7 +90,8 @@ class AsyncChatCompletions:
         STARTING.extend(models_to_deploy)
         print(f"Deploying {models_to_deploy}")
         # Deploy the models
-        apis = self.ow.multi_deploy(models_to_deploy, **self.deploy_kwargs)
+        import openweights.jobs.vllm
+        apis = self.ow.api.multi_deploy(models_to_deploy, **self.deploy_kwargs)
         # Wait for apis to be up and move each model to APIS as soon as its API is ready
         print(f"Waiting for {models_to_deploy} to be up")
         api_to_models = defaultdict(list)

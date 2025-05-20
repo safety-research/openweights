@@ -13,6 +13,7 @@ if [ -n "$PUBLIC_KEY" ]; then
 else
     echo "[$(date)] No PUBLIC_KEY provided, skipping SSH key setup"
 fi
+echo "Authorized keys added."
 
 # if OW_COMMIT is set, checkout the commit
 echo "[$(date)] Checking for OW_COMMIT environment variable"

@@ -63,3 +63,4 @@ wandb_project: axolotl-test
 warmup_steps: 10
 weight_decay: 0.0
 xformers_attention: null
+max_grad_norm: 1

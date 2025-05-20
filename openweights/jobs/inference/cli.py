@@ -8,6 +8,7 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 from huggingface_hub import snapshot_download
+from pathlib import Path 
 
 from openweights.client import OpenWeights
 from openweights.client.utils import resolve_lora_model, get_lora_rank
@@ -74,10 +75,22 @@ def main(config_json: str):
     # Only enable LoRA if we have an adapter
     enable_lora = lora_adapter is not None
 
-    llm = None
+    # ------------------------------------------------------------------
+    # 1️⃣  Pre-download the base model to a local directory
+    # ------------------------------------------------------------------
+    LOCAL_MODEL_ROOT = Path("/workspace/hf_models")      # pick any local path
+    LOCAL_MODEL_ROOT.mkdir(parents=True, exist_ok=True)
 
+    print(f"Downloading (or re-using) model '{base_model}' …")
+    local_base_model_path = snapshot_download(
+        repo_id=base_model,
+        local_dir=str(LOCAL_MODEL_ROOT / base_model.replace('/', '_')),
+        local_dir_use_symlinks=False,        # real files; avoids NFS latency
+    )
+
+    llm = None
     load_kwargs = dict(
-        model=base_model,
+        model=local_base_model_path,
         enable_prefix_caching=True,
         enable_lora=enable_lora,  # Only enable if we have an adapter
         tensor_parallel_size=get_number_of_gpus() if cfg.load_format != 'bitsandbytes' else 1,

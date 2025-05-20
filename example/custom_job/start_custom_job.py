@@ -24,7 +24,7 @@ class AdditionJob(Jobs):
     # Define parameter validation using our Pydantic model
     params = AdditionParams
     
-    base_image = 'nielsrolf/ow-inference' # We have to use an ow worker image - you can build your own by using something similar to the existing Dockerfiles
+    base_image = 'nielsrolf/ow-debug' # We have to use an ow worker image - you can build your own by using something similar to the existing Dockerfiles
     
     requires_vram_gb = 0
 

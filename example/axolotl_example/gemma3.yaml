@@ -95,3 +95,5 @@ weight_decay: 0.0
 hub_private_repo: true
 hub_strategy: every_save
 hf_use_auth_token: true
+
+max_grad_norm: 1

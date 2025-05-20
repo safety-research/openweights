@@ -1,4 +1,5 @@
 FROM vllm/vllm-openai:latest
+# FROM vllm/vllm-openai:v0.7.3
 
 # Install SSH
 RUN apt-get update && \
@@ -15,6 +16,9 @@ RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
 
 RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod bitsandbytes
 RUN python3 -m pip install inspect_ai git+https://github.com/UKGovernmentBEIS/inspect_evals
+
+RUN apt-get install git-lfs -y
+RUN git lfs install
 
 COPY README.md .
 COPY pyproject.toml .
