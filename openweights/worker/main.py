@@ -320,7 +320,7 @@ class Worker:
 
     def find_and_execute_job(self):
         while not self.shutdown_flag:
-            logging.debug("Worker is looking for jobs...")
+            logging.info("Worker is looking for jobs...")
             job = None
             try:
                 job = self._find_job()
@@ -328,20 +328,24 @@ class Worker:
                 logging.error(f"Error finding job: {e}")
                 traceback.print_exc()
             if not job:
-                logging.info("No suitable job found. Checking again in a few seconds...")
+                logging.info(
+                    "No suitable job found. Checking again in a few seconds..."
+                )
                 time.sleep(5)
                 continue
 
             try:
                 logging.info(f"Attempting to acquire job {job['id']}")
-                acquired_job = self.acquire_job(job['id'])
+                acquired_job = self.acquire_job(job["id"])
                 if not acquired_job:
                     # Another worker took it in the meantime
                     logging.info(f"Job {job['id']} was taken by another worker.")
                     time.sleep(2)
                     continue
 
-                logging.info(f"Worker {self.worker_id} acquired job {job['id']}, executing...")
+                logging.info(
+                    f"Worker {self.worker_id} acquired job {job['id']}, executing..."
+                )
                 self._execute_job(acquired_job)
             except KeyboardInterrupt:
                 logging.info("Worker interrupted by user. Shutting down...")
@@ -355,34 +359,52 @@ class Worker:
 
     def _find_job(self):
         """Fetch pending jobs for this docker image, sorted by required VRAM desc, then oldest first."""
-        logging.debug("Fetching jobs from the database...")
-        jobs = self.supabase.table('jobs') \
-            .select('*') \
-            .eq('status', 'pending') \
-            .eq('docker_image', self.docker_image) \
-            .order('requires_vram_gb', desc=True) \
-            .order('created_at', desc=False) \
-            .execute().data
+        logging.info("Fetching jobs from the database...")
+        jobs = (
+            self.supabase.table("jobs")
+            .select("*")
+            .eq("status", "pending")
+            .eq("docker_image", self.docker_image)
+            .order("requires_vram_gb", desc=True)
+            .order("created_at", desc=False)
+            .execute()
+            .data
+        )
 
-        logging.debug(f"Fetched {len(jobs)} pending jobs from the database")
+        logging.info(f"Fetched {len(jobs)} pending jobs from the database")
 
         # Filter jobs by VRAM requirements
-        suitable_jobs = [j for j in jobs if j['requires_vram_gb'] <= self.vram_gb]
-        logging.debug(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
-        
+        logging.info(
+            f"VRAM requirements per job: {[j['requires_vram_gb'] for j in jobs]} GB"
+        )
+        logging.info(f"Hardware type: {self.hardware_type}")
+        logging.info(f"VRAM available: {self.vram_gb} GB")
+        logging.info(
+            f"Number of jobs existing before filtering them by VRAM: {len(jobs)}"
+        )
+        suitable_jobs = [j for j in jobs if j["requires_vram_gb"] <= self.vram_gb]
+        logging.info(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
+
         # Further filter jobs by hardware requirements
         if self.hardware_type:
             hardware_suitable_jobs = []
             for job in suitable_jobs:
                 # If job doesn't specify allowed_hardware, it can run on any hardware
-                if not job['allowed_hardware']:
+                if not job["allowed_hardware"]:
                     hardware_suitable_jobs.append(job)
                 # If job specifies allowed_hardware, check if this worker's hardware is allowed
-                elif self.hardware_type in job['allowed_hardware']:
+                elif self.hardware_type in job["allowed_hardware"]:
                     hardware_suitable_jobs.append(job)
-            
+                else:
+                    logging.info(
+                        f"""Job {job["id"]} is not suitable for this worker's hardware {self.hardware_type}. 
+                        Allowed hardware: {job["allowed_hardware"]}"""
+                    )
+
             suitable_jobs = hardware_suitable_jobs
-            logging.debug(f"Found {len(suitable_jobs)} suitable jobs after hardware filtering")
+            logging.info(
+                f"Found {len(suitable_jobs)} suitable jobs after hardware filtering"
+            )
 
         # Shuffle suitable jobs to get different workers to cache different models
         random.shuffle(suitable_jobs)
