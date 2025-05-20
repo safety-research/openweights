@@ -1,3 +1,4 @@
+import logging
 from openweights import register, Jobs
 from typing import Any, Dict, Tuple
 import hashlib
