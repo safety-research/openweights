@@ -93,6 +93,7 @@ GPUs = {
 
 class Worker:
     def __init__(self):
+        logging.info("Initializing worker")
         self.supabase = openweights._supabase
         self.organization_id = openweights.organization_id
         self.auth_token = openweights.auth_token
@@ -138,6 +139,7 @@ class Worker:
 
         # Detect GPU info
         try:
+            logging.info("Detecting GPU info")
             self.gpu_count = torch.cuda.device_count()
             self.vram_gb = (
                 torch.cuda.get_device_properties(0).total_memory // (1024**3)
