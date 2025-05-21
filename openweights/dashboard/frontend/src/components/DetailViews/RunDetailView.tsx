@@ -193,6 +193,12 @@ export const RunDetailView: React.FC = () => {
 
             <Box sx={{ mb: 3 }}>
                 <Chip label={`Status: ${run.status}`} sx={{ mr: 1 }} />
+                {run.job?.model && (
+                    <Chip
+                        label={`Model: ${run.job.model}`}
+                        sx={{ mr: 1 }}
+                    />
+                )}
                 <Chip 
                     label={`Job: ${run.job_id}`} 
                     component={Link} 
