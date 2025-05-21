@@ -16,17 +16,129 @@ import {
     TablePagination,
     FormControlLabel,
     Switch,
-    Chip
+    Chip,
+    Tooltip
 } from '@mui/material';
-import { Job } from '../types';
+import { Job, Run } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
 import { ViewToggle } from './ViewToggle';
 import { JobsListView } from './JobsListView';
 import { useOrganization } from '../contexts/OrganizationContext';
+import { Line } from 'react-chartjs-2';
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip as ChartTooltip,
+    Legend
+} from 'chart.js';
 
-const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => (
+// Register ChartJS components
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    ChartTooltip,
+    Legend
+);
+
+interface TrainingMetricsProps {
+    orgId: string;
+    jobId: string;
+}
+
+const TrainingMetrics: React.FC<TrainingMetricsProps> = ({ orgId, jobId }) => {
+    const [metrics, setMetrics] = useState<{ step: number; loss: number }[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchMetrics = async () => {
+            try {
+                const runs = await api.getRuns(orgId);
+                const jobRuns = runs.filter((run: Run) => run.job_id === jobId);
+                if (jobRuns.length > 0) {
+                    const latestRun = jobRuns.sort((a: Run, b: Run) =>
+                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                    )[0];
+
+                    if (latestRun.status === 'completed') {
+                        const events = await api.getRunEvents(orgId, latestRun.id);
+                        const lossMetrics = events
+                            .filter((event: { data: { type?: string; loss?: number; step?: number } }) =>
+                                event.data.type === 'training' &&
+                                event.data.loss !== undefined &&
+                                event.data.step !== undefined
+                            )
+                            .map((event: { data: { step: number; loss: number } }) => ({
+                                step: event.data.step,
+                                loss: event.data.loss
+                            }));
+                        setMetrics(lossMetrics);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching metrics:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMetrics();
+    }, [orgId, jobId]);
+
+    if (loading || metrics.length === 0) {
+        return null;
+    }
+
+    const data = {
+        labels: metrics.map(m => m.step),
+        datasets: [
+            {
+                label: 'Training Loss',
+                data: metrics.map(m => m.loss),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }
+        ]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                enabled: true
+            }
+        },
+        scales: {
+            x: {
+                display: false
+            },
+            y: {
+                display: false
+            }
+        }
+    };
+
+    return (
+        <Box sx={{ width: 300, height: 150 }}>
+            <Line data={data} options={options} />
+        </Box>
+    );
+};
+
+const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => {
+    return (
     <Card 
         sx={{ 
             mb: 2,
@@ -92,6 +204,27 @@ const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => (
         </CardContent>
     </Card>
 );
+};
+
+// Wrap the JobCard with a tooltip for fine-tuning jobs
+const JobCardWithTooltip: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => {
+    if (job.type === 'fine-tuning' && job.status === 'completed') {
+        return (
+            <Tooltip
+                title={
+                    <TrainingMetrics orgId={orgId} jobId={job.id} />
+                }
+                placement="right"
+                arrow
+            >
+                <Box>
+                    <JobCard job={job} orgId={orgId} />
+                </Box>
+            </Tooltip>
+        );
+    }
+    return <JobCard job={job} orgId={orgId} />;
+};
 
 interface JobsColumnProps {
     title: string;
@@ -163,7 +296,7 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
                 </Box>
                 <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
                     {paginatedJobs.map(job => (
-                        <JobCard key={job.id} job={job} orgId={orgId} />
+                        <JobCardWithTooltip key={job.id} job={job} orgId={orgId} />
                     ))}
                 </Box>
                 <TablePagination
@@ -190,7 +323,7 @@ export const JobsView: React.FC = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<Date>();
-    const [autoRefresh, setAutoRefresh] = useState(true);
+    const [autoRefresh, setAutoRefresh] = useState(false);
     const [view, setView] = useState<'three-column' | 'list'>('three-column');
     const [statusFilters, setStatusFilters] = useState<StatusFilters>({
         completed: true,
