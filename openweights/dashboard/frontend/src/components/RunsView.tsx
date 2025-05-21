@@ -14,7 +14,7 @@ import {
     FormControlLabel,
     Chip
 } from '@mui/material';
-import { Run } from '../types';
+import { Run, RunWithJobAndWorker } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
 import { StatusCheckboxes, StatusFilters } from './StatusCheckboxes';
@@ -22,7 +22,7 @@ import { ViewToggle } from './ViewToggle';
 import { RunsListView } from './RunsListView';
 import { useOrganization } from '../contexts/OrganizationContext';
 
-const RunCard: React.FC<{ run: Run; orgId: string }> = ({ run, orgId }) => (
+const RunCard: React.FC<{ run: RunWithJobAndWorker; orgId: string }> = ({ run, orgId }) => (
     <Card 
         sx={{ 
             mb: 2,
@@ -38,6 +38,11 @@ const RunCard: React.FC<{ run: Run; orgId: string }> = ({ run, orgId }) => (
             <Typography color="text.secondary">
                 Job: <Link to={`/${orgId}/jobs/${run.job_id}`}>{run.job_id}</Link>
             </Typography>
+            {run.job?.model && (
+                <Typography color="text.secondary">
+                    Model: {run.job.model}
+                </Typography>
+            )}
             <Box sx={{ mt: 1, mb: 1 }}>
                 <Chip 
                     label={run.status}
@@ -73,7 +78,7 @@ const RunCard: React.FC<{ run: Run; orgId: string }> = ({ run, orgId }) => (
 
 interface RunsColumnProps {
     title: string;
-    runs: Run[];
+    runs: RunWithJobAndWorker[];
     filter: string;
     page: number;
     rowsPerPage: number;
@@ -159,7 +164,7 @@ const RunsColumn: React.FC<RunsColumnProps> = ({
 export const RunsView: React.FC = () => {
     const { orgId } = useParams<{ orgId: string }>();
     const { currentOrganization } = useOrganization();
-    const [runs, setRuns] = useState<Run[]>([]);
+    const [runs, setRuns] = useState<RunWithJobAndWorker[]>([]);
     const [filter, setFilter] = useState('');
     const [pages, setPages] = useState({ pending: 0, inProgress: 0, completed: 0 });
     const [rowsPerPage, setRowsPerPage] = useState(10);
