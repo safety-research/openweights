@@ -42,6 +42,11 @@ const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => (
             <Typography color="text.secondary">
                 Type: {job.type}
             </Typography>
+            {job.type === 'fine-tuning' && job.ft_id && (
+                <Typography color="text.secondary">
+                    Fine-tuning ID: {job.ft_id}
+                </Typography>
+            )}
             <Box sx={{ mt: 1, mb: 1 }}>
                 <Chip 
                     label={job.status}
