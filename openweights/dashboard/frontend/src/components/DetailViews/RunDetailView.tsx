@@ -64,8 +64,8 @@ export const RunDetailView: React.FC = () => {
 
     // UI state for collapsible sections
     const [showLogProbs, setShowLogProbs] = useState(false);
-    const [showMetrics, setShowMetrics] = useState(false);
-    const [showLogs, setShowLogs] = useState(false);
+    const [showMetrics, setShowMetrics] = useState(true);
+    const [showLogs, setShowLogs] = useState(true);
     
     // Pagination for logs
     const [logPage, setLogPage] = useState(1);
@@ -241,8 +241,10 @@ export const RunDetailView: React.FC = () => {
                     </Box>
                 )}
 
-                {/* Metrics Section */}
-                <Box>
+                {/* Metrics and Logs in two columns */}
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                    {/* Metrics Column */}
+                    <Box sx={{ flex: 1 }}>
                     <SectionButton
                         onClick={() => setShowMetrics(!showMetrics)}
                         expanded={showMetrics}
@@ -258,8 +260,8 @@ export const RunDetailView: React.FC = () => {
                     </Collapse>
                 </Box>
 
-                {/* Logs Section */}
-                <Box>
+                    {/* Logs Column */}
+                    <Box sx={{ flex: 1 }}>
                     <SectionButton
                         onClick={() => setShowLogs(!showLogs)}
                         expanded={showLogs}
@@ -303,6 +305,7 @@ export const RunDetailView: React.FC = () => {
                             </Box>
                         )}
                     </Collapse>
+                    </Box>
                 </Box>
             </Box>
         </Paper>
