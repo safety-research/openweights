@@ -162,6 +162,21 @@ export const JobDetailView: React.FC = () => {
                 {job.model && <Chip label={`Model: ${job.model}`} sx={{ mr: 1 }} />}
                 {job.docker_image && <Chip label={`Image: ${job.docker_image}`} sx={{ mr: 1 }} />}
             </Box>
+
+            <Typography variant="h6">Runs:</Typography>
+            <List>
+                {job.runs
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(run => (
+                        <ListItem key={run.id} component={Link} to={`/${orgId}/runs/${run.id}`}>
+                            <ListItemText
+                                primary={run.id}
+                                secondary={`Status: ${run.status}, Created: ${new Date(run.created_at).toLocaleString()}`}
+                            />
+                        </ListItem>
+                    ))
+                }
+            </List>
             
             {job.script && (
                 <Box sx={{ mb: 3 }}>
@@ -198,21 +213,6 @@ export const JobDetailView: React.FC = () => {
                     </Collapse>
                 </Box>
             )}
-
-            <Typography variant="h6">Runs:</Typography>
-            <List>
-                {job.runs
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                    .map(run => (
-                        <ListItem key={run.id} component={Link} to={`/${orgId}/runs/${run.id}`}>
-                            <ListItemText 
-                                primary={run.id}
-                                secondary={`Status: ${run.status}, Created: ${new Date(run.created_at).toLocaleString()}`}
-                            />
-                        </ListItem>
-                    ))
-                }
-            </List>
 
             <Snackbar
                 open={showSnackbar}
