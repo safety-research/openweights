@@ -70,14 +70,20 @@ const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => (
             <Typography color="text.secondary" sx={{ mb: 1 }}>
                 Created: {new Date(job.created_at).toLocaleString()}
             </Typography>
-            <Button 
-                component={Link} 
+            <Link
                 to={`/${orgId}/jobs/${job.id}`} 
+                style={{
+                    textDecoration: 'none',
+                    display: 'inline-block',
+                    marginTop: '8px'
+                }}
+            >
+                <Button
                 variant="outlined" 
-                sx={{ mt: 1 }}
             >
                 View Details
             </Button>
+            </Link>
         </CardContent>
     </Card>
 );
