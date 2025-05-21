@@ -10,11 +10,15 @@ import {
     ListItemText,
     FormControlLabel,
     Switch,
-    Snackbar
+    Snackbar,
+    IconButton,
+    Collapse
 } from '@mui/material';
 import { LoadingButton } from '@mui/lab';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import CancelIcon from '@mui/icons-material/Cancel';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { JobWithRuns } from '../../types';
 import { api } from '../../api';
 import { RefreshButton } from '../RefreshButton';
@@ -31,6 +35,7 @@ export const JobDetailView: React.FC = () => {
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [snackbarMessage, setSnackbarMessage] = useState<string>('');
     const [showSnackbar, setShowSnackbar] = useState(false);
+    const [outputsExpanded, setOutputsExpanded] = useState(false);
     const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     const fetchJob = useCallback(async () => {
@@ -182,8 +187,15 @@ export const JobDetailView: React.FC = () => {
 
             {job.outputs && (
                 <Box sx={{ mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography variant="h6">Outputs:</Typography>
+                        <IconButton onClick={() => setOutputsExpanded(!outputsExpanded)}>
+                            {outputsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        </IconButton>
+                    </Box>
+                    <Collapse in={outputsExpanded}>
                     <OutputsDisplay outputs={job.outputs} orgId={orgId} />
+                    </Collapse>
                 </Box>
             )}
 
