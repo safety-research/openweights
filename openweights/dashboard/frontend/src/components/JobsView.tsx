@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { 
-    Grid, 
-    Paper, 
-    Typography, 
-    Card, 
-    CardContent, 
-    Button, 
+import {
+    Grid,
+    Paper,
+    Typography,
+    Card,
+    CardContent,
+    Button,
     Box,
     TextField,
     FormControl,
@@ -17,8 +17,12 @@ import {
     FormControlLabel,
     Switch,
     Chip,
-    Tooltip
+    Tooltip,
+    Snackbar,
+    IconButton
 } from '@mui/material';
+import { LoadingButton } from '@mui/lab';
+import CancelIcon from '@mui/icons-material/Cancel';
 import { Job, Run } from '../types';
 import { api } from '../api';
 import { RefreshButton } from './RefreshButton';
@@ -137,77 +141,119 @@ const TrainingMetrics: React.FC<TrainingMetricsProps> = ({ orgId, jobId }) => {
     );
 };
 
-const JobCard: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => {
+const JobCard: React.FC<{ job: Job; orgId: string; onJobUpdate: () => void }> = ({ job, orgId, onJobUpdate }) => {
+    const [actionLoading, setActionLoading] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+    const [showSnackbar, setShowSnackbar] = useState(false);
+
+    const handleCancel = async () => {
+        setActionLoading(true);
+        try {
+            await api.cancelJob(orgId, job.id);
+            setSnackbarMessage('Job cancelled successfully');
+            setShowSnackbar(true);
+            onJobUpdate();
+        } catch (error) {
+            console.error('Error cancelling job:', error);
+            setSnackbarMessage('Error cancelling job');
+            setShowSnackbar(true);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const canCancel = job.status === 'pending' || job.status === 'in_progress';
+
     return (
-    <Card 
-        sx={{ 
-            mb: 2,
-            backgroundColor: '#ffffff',
-            transition: 'background-color 0.3s ease',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}
-    >
-        <CardContent>
-            <Typography variant="h6" component="div" color="text.primary">
-                {job.id}
-            </Typography>
-            <Typography color="text.secondary">
-                Type: {job.type}
-            </Typography>
-            {job.type === 'fine-tuning' && job.ft_id && (
+        <Card
+            sx={{
+                mb: 2,
+                backgroundColor: '#ffffff',
+                transition: 'background-color 0.3s ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}
+        >
+            <CardContent>
+                <Typography variant="h6" component="div" color="text.primary">
+                    {job.id}
+                </Typography>
                 <Typography color="text.secondary">
-                    Fine-tuning ID: {job.ft_id}
+                    Type: {job.type}
                 </Typography>
-            )}
-            <Box sx={{ mt: 1, mb: 1 }}>
-                <Chip 
-                    label={job.status}
-                    color={
-                        job.status === 'completed' ? 'success' :
-                        job.status === 'failed' ? 'error' :
-                        job.status === 'canceled' ? 'warning' :
-                        job.status === 'in_progress' ? 'info' :
-                        'default'
-                    }
-                    size="small"
-                />
-            </Box>
-            {job.model && (
-                <Typography color="text.secondary">
-                    Model: {job.model}
+                {job.type === 'fine-tuning' && job.ft_id && (
+                    <Typography color="text.secondary">
+                        Fine-tuning ID: {job.ft_id}
+                    </Typography>
+                )}
+                <Box sx={{ mt: 1, mb: 1 }}>
+                    <Chip
+                        label={job.status}
+                        color={
+                            job.status === 'completed' ? 'success' :
+                                job.status === 'failed' ? 'error' :
+                                    job.status === 'canceled' ? 'warning' :
+                                        job.status === 'in_progress' ? 'info' :
+                                            'default'
+                        }
+                        size="small"
+                    />
+                </Box>
+                {job.model && (
+                    <Typography color="text.secondary">
+                        Model: {job.model}
+                    </Typography>
+                )}
+                {job.docker_image && (
+                    <Typography color="text.secondary" sx={{
+                        wordBreak: 'break-word'
+                    }}>
+                        Image: {job.docker_image}
+                    </Typography>
+                )}
+                <Typography color="text.secondary" sx={{ mb: 1 }}>
+                    Created: {new Date(job.created_at).toLocaleString()}
                 </Typography>
-            )}
-            {job.docker_image && (
-                <Typography color="text.secondary" sx={{ 
-                    wordBreak: 'break-word'
-                }}>
-                    Image: {job.docker_image}
-                </Typography>
-            )}
-            <Typography color="text.secondary" sx={{ mb: 1 }}>
-                Created: {new Date(job.created_at).toLocaleString()}
-            </Typography>
-            <Link
-                to={`/${orgId}/jobs/${job.id}`} 
-                style={{
-                    textDecoration: 'none',
-                    display: 'inline-block',
-                    marginTop: '8px'
-                }}
-            >
-                <Button
-                variant="outlined" 
-            >
-                View Details
-            </Button>
-            </Link>
-        </CardContent>
-    </Card>
-);
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Link
+                        to={`/${orgId}/jobs/${job.id}`}
+                        style={{
+                            textDecoration: 'none',
+                            display: 'inline-block',
+                            marginTop: '8px'
+                        }}
+                    >
+                        <Button
+                            variant="outlined"
+                        >
+                            View Details
+                        </Button>
+                    </Link>
+                    {canCancel && (
+                        <LoadingButton
+                            loading={actionLoading}
+                            variant="contained"
+                            color="error"
+                            onClick={handleCancel}
+                            startIcon={<CancelIcon />}
+                            sx={{ mt: 1 }}
+                        >
+                            Cancel
+                        </LoadingButton>
+                    )}
+                </Box>
+            </CardContent>
+            <Snackbar
+                open={showSnackbar}
+                autoHideDuration={6000}
+                onClose={() => setShowSnackbar(false)}
+                message={snackbarMessage}
+            />
+        </Card>
+    );
 };
 
-// Wrap the JobCard with a tooltip for fine-tuning jobs
-const JobCardWithTooltip: React.FC<{ job: Job; orgId: string }> = ({ job, orgId }) => {
+// Update the JobCardWithTooltip component to pass the onJobUpdate prop
+const JobCardWithTooltip: React.FC<{ job: Job; orgId: string; onJobUpdate: () => void }> = ({ job, orgId, onJobUpdate }) => {
     if (job.type === 'fine-tuning' && job.status === 'completed') {
         return (
             <Tooltip
@@ -218,12 +264,12 @@ const JobCardWithTooltip: React.FC<{ job: Job; orgId: string }> = ({ job, orgId 
                 arrow
             >
                 <Box>
-                    <JobCard job={job} orgId={orgId} />
+                    <JobCard job={job} orgId={orgId} onJobUpdate={onJobUpdate} />
                 </Box>
             </Tooltip>
         );
     }
-    return <JobCard job={job} orgId={orgId} />;
+    return <JobCard job={job} orgId={orgId} onJobUpdate={onJobUpdate} />;
 };
 
 interface JobsColumnProps {
@@ -240,9 +286,9 @@ interface JobsColumnProps {
     orgId: string;
 }
 
-const JobsColumn: React.FC<JobsColumnProps> = ({ 
-    title, 
-    jobs, 
+const JobsColumn: React.FC<JobsColumnProps> = ({
+    title,
+    jobs,
     filter,
     page,
     rowsPerPage,
@@ -258,7 +304,7 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
         const jobId = String(job.id);
         const model = job.model ? job.model.toLowerCase() : '';
         const dockerImage = job.docker_image ? job.docker_image.toLowerCase() : '';
-        
+
         return jobId.includes(searchStr) ||
             model.includes(searchStr) ||
             dockerImage.includes(searchStr) ||
@@ -273,12 +319,12 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
 
     return (
         <Grid item xs={12} md={4} sx={{ height: '100%' }}>
-            <Paper 
-                sx={{ 
-                    p: 2, 
-                    height: '100%', 
-                    overflow: 'auto', 
-                    display: 'flex', 
+            <Paper
+                sx={{
+                    p: 2,
+                    height: '100%',
+                    overflow: 'auto',
+                    display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
@@ -288,7 +334,7 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
                     <Typography variant="h5" sx={{ flexGrow: 1, color: 'text.primary' }}>
                         {title} ({filteredJobs.length})
                     </Typography>
-                    <RefreshButton 
+                    <RefreshButton
                         onRefresh={onRefresh}
                         loading={loading}
                         lastRefresh={lastRefresh}
@@ -296,7 +342,12 @@ const JobsColumn: React.FC<JobsColumnProps> = ({
                 </Box>
                 <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
                     {paginatedJobs.map(job => (
-                        <JobCardWithTooltip key={job.id} job={job} orgId={orgId} />
+                        <JobCardWithTooltip 
+                            key={job.id} 
+                            job={job} 
+                            orgId={orgId} 
+                            onJobUpdate={onRefresh}
+                        />
                     ))}
                 </Box>
                 <TablePagination
@@ -334,7 +385,7 @@ export const JobsView: React.FC = () => {
 
     const fetchJobs = useCallback(async () => {
         if (!orgId) return;
-        
+
         setLoading(true);
         try {
             const data = await api.getJobs(orgId);
@@ -394,12 +445,12 @@ export const JobsView: React.FC = () => {
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box 
-                sx={{ 
-                    mb: 3, 
-                    display: 'flex', 
-                    gap: 2, 
-                    alignItems: 'center', 
+            <Box
+                sx={{
+                    mb: 3,
+                    display: 'flex',
+                    gap: 2,
+                    alignItems: 'center',
                     flexWrap: 'wrap',
                     p: 2,
                     backgroundColor: '#ffffff',
@@ -413,7 +464,7 @@ export const JobsView: React.FC = () => {
                     size="small"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
-                    sx={{ 
+                    sx={{
                         width: 200,
                         '& .MuiOutlinedInput-root': {
                             backgroundColor: '#ffffff',
@@ -454,8 +505,8 @@ export const JobsView: React.FC = () => {
             </Box>
             {view === 'three-column' ? (
                 <Grid container spacing={3} sx={{ flexGrow: 1 }}>
-                    <JobsColumn 
-                        title="Pending" 
+                    <JobsColumn
+                        title="Pending"
                         jobs={pendingJobs}
                         filter={filter}
                         page={pages.pending}
@@ -467,8 +518,8 @@ export const JobsView: React.FC = () => {
                         loading={loading}
                         orgId={orgId}
                     />
-                    <JobsColumn 
-                        title="In Progress" 
+                    <JobsColumn
+                        title="In Progress"
                         jobs={inProgressJobs}
                         filter={filter}
                         page={pages.inProgress}
@@ -480,8 +531,8 @@ export const JobsView: React.FC = () => {
                         loading={loading}
                         orgId={orgId}
                     />
-                    <JobsColumn 
-                        title="Finished" 
+                    <JobsColumn
+                        title="Finished"
                         jobs={finishedJobs}
                         filter={filter}
                         page={pages.completed}
