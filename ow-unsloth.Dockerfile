@@ -1,5 +1,7 @@
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
 
+WORKDIR /my_app
+
 # Install SSH
 RUN apt-get update && \
     apt-get install -y openssh-server && \
@@ -20,10 +22,12 @@ COPY README.md .
 COPY pyproject.toml .
 COPY openweights openweights
 COPY entrypoint.sh .
+RUN chmod +x ./entrypoint.sh
+
 RUN python3 -m pip install -e .
 
 
 EXPOSE 22
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/my_app/entrypoint.sh"]
