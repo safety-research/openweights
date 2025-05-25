@@ -47,11 +47,15 @@ class FineTuning(Jobs):
             {"validated_params": params, "mounted_files": mounted_files}
         )
         model_name = params["model"].split("/")[-1]
+        str_params = {k: v for k, v in params.items() if isinstance(v, str)}
+        model_naming_extra_parameters = params.get("model_naming_extra_parameters", {})
         params["finetuned_model_id"] = params["finetuned_model_id"].format(
-            job_id=job_id, org_id=self.client.hf_org, model_name=model_name
+            job_id=job_id,
+            org_id=self.client.hf_org,
+            model_name=model_name,
+            **str_params,
+            **model_naming_extra_parameters,
         )
-        if params.get("ft_id_suffix", None) is not None:
-            params["finetuned_model_id"] += f"-{params['ft_id_suffix']}"
 
         try:
             validate_repo_id(params["finetuned_model_id"])
