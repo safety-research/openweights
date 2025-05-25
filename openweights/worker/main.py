@@ -429,6 +429,13 @@ class Worker:
                 # If job specifies allowed_hardware, check if this worker's hardware is allowed
                 elif self.hardware_type in job["allowed_hardware"]:
                     hardware_suitable_jobs.append(job)
+                elif any(
+                    [
+                        allowed_hardware in self.hardware_type
+                        for allowed_hardware in job["allowed_hardware"]
+                    ]
+                ):
+                    hardware_suitable_jobs.append(job)
                 else:
                     logging.info(
                         f"""Job {job["id"]} is not suitable for this worker's hardware {self.hardware_type}. 
