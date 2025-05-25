@@ -1,6 +1,8 @@
 FROM vllm/vllm-openai:latest
 # FROM vllm/vllm-openai:v0.7.3
 
+WORKDIR /my_app
+
 # Install SSH
 RUN apt-get update && \
     apt-get install -y openssh-server && \
@@ -32,4 +34,4 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 EXPOSE 22
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/my_app/entrypoint.sh"]
