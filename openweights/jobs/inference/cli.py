@@ -81,7 +81,7 @@ def sample(
             for completion in completions
         ]
     else:
-        logprobs = None
+        logprobs = [None] * len(answers)
 
     return answers, logprobs
 
@@ -210,7 +210,8 @@ def main(config_json: str):
     with open(tmp_file_name, "w") as tmp_file:
         for conversation, answer, logprob_data in zip(conversations, answers, logprobs):
             conversation["completion"] = answer
-            conversation["logprobs"] = logprob_data
+            if logprob_data is not None:
+                conversation["logprobs"] = logprob_data
             json.dump(conversation, tmp_file)
             tmp_file.write("\n")
 
