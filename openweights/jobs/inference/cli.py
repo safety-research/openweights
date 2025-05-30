@@ -9,7 +9,7 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 from huggingface_hub import snapshot_download
-from pathlib import Path 
+from pathlib import Path
 
 from openweights.client import OpenWeights
 from openweights.client.utils import resolve_lora_model, get_lora_rank
@@ -70,9 +70,11 @@ def sample(
     completions = llm.generate(texts, **generate_kwargs)
 
     answers = [
-        [output.text for output in completion.outputs]
-        if len(completion.outputs) > 1
-        else completion.outputs[0].text
+        (
+            [output.text for output in completion.outputs]
+            if len(completion.outputs) > 1
+            else completion.outputs[0].text
+        )
         for completion in completions
     ]
     if logprobs is not None:
@@ -81,7 +83,7 @@ def sample(
             for completion in completions
         ]
     else:
-        logprobs = [None] * len(completions)
+        logprobs = [None] * len(answers)
 
     return answers, logprobs
 
@@ -124,14 +126,14 @@ def main(config_json: str):
     # ------------------------------------------------------------------
     # 1️⃣  Pre-download the base model to a local directory
     # ------------------------------------------------------------------
-    LOCAL_MODEL_ROOT = Path("/workspace/hf_models")      # pick any local path
+    LOCAL_MODEL_ROOT = Path("/workspace/hf_models")  # pick any local path
     LOCAL_MODEL_ROOT.mkdir(parents=True, exist_ok=True)
 
     print(f"Downloading (or re-using) model '{base_model}' …")
     local_base_model_path = snapshot_download(
         repo_id=base_model,
-        local_dir=str(LOCAL_MODEL_ROOT / base_model.replace('/', '_')),
-        local_dir_use_symlinks=False,        # real files; avoids NFS latency
+        local_dir=str(LOCAL_MODEL_ROOT / base_model.replace("/", "_")),
+        local_dir_use_symlinks=False,  # real files; avoids NFS latency
     )
 
     llm = None
@@ -139,9 +141,9 @@ def main(config_json: str):
         model=local_base_model_path,
         enable_prefix_caching=True,
         enable_lora=enable_lora,  # Only enable if we have an adapter
-        tensor_parallel_size=get_number_of_gpus()
-        if cfg.load_format != "bitsandbytes"
-        else 1,
+        tensor_parallel_size=(
+            get_number_of_gpus() if cfg.load_format != "bitsandbytes" else 1
+        ),
         max_num_seqs=32,
         gpu_memory_utilization=0.95,
         max_model_len=cfg.max_model_len,
@@ -210,7 +212,8 @@ def main(config_json: str):
     with open(tmp_file_name, "w") as tmp_file:
         for conversation, answer, logprob_data in zip(conversations, answers, logprobs):
             conversation["completion"] = answer
-            conversation["logprobs"] = logprob_data
+            if logprob_data is not None:
+                conversation["logprobs"] = logprob_data
             json.dump(conversation, tmp_file)
             tmp_file.write("\n")
 

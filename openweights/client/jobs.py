@@ -166,6 +166,15 @@ class Jobs:
             is not None
         ):
             job_id += f"-{data['params']['validated_params']['job_id_suffix']}"
+
+        authorized_chars = string.ascii_letters + string.digits + "-_"
+        for char in job_id:
+            assert char in authorized_chars, (
+                f"Job ID contains an invalid character: '{char}'. "
+                f"Job ID must contain only a-z, 0-9, and -_ only. "
+                f"Got: {job_id}"
+            )
+
         return job_id
 
     @backoff.on_exception(
