@@ -20,10 +20,10 @@ export SUPABASE_KEY=your_supabase_key
 3. Run the backend:
 ```bash
 cd backend
-uvicorn main:app --reload --port 8123
+uvicorn main:app --reload --port 8124
 ```
 
-The backend will be available at http://localhost:8123
+The backend will be available at http://localhost:8124
 
 ### Frontend
 
