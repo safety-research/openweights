@@ -81,7 +81,7 @@ def sample(
             for completion in completions
         ]
     else:
-        logprobs = None
+        logprobs = [None] * len(completions)
 
     return answers, logprobs
 
