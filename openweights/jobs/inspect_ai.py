@@ -38,6 +38,21 @@ class InspectAi(Jobs):
             f"    {validated_params.options} \n"
         )
 
+    def create(self, **params) -> Dict[str, Any]:
+        try:
+            job_data = super().create(fake_job=True, **params)
+            job = self.client.jobs.retrieve(job_data["id"])
+            if job.outputs["file"] is not None:
+                job.status = "completed"
+                # with open(job.outputs["path"], "wb") as f:
+                # f.write(ow.files.content(job.outputs["file"]))
+                return job
+        except Exception as e:
+            logging.error(f"Error creating job: {e}")
+            traceback.print_exc()
+            raise e
+        return super().create(**params)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
