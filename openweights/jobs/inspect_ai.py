@@ -26,8 +26,10 @@ class InspectAiConfig(BaseModel):
 @register("inspect_ai")
 class InspectAi(Jobs):
     params = InspectAiConfig
-    base_image = 'nielsrolf/ow-inference-v2'
-    requires_vram_gb = 60
+    # base_image = "nielsrolf/ow-inference-v2"
+    base_image = InferenceJobs.base_image
+
+    # requires_vram_gb = 60
 
     def get_entrypoint(self, validated_params: InspectAiConfig) -> str:
         """Create the command to run our script with the validated parameters"""
