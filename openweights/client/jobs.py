@@ -185,19 +185,34 @@ class Jobs:
         max_tries=60,
         on_backoff=lambda details: print(f"Retrying... {details['exception']}"),
     )
-    def get_or_create_or_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def get_or_create_or_reset(
+        self, data: Dict[str, Any], fake_job: bool = False
+    ) -> Dict[str, Any]:
         """If job exists and is [pending, in_progress, completed] return it.
         If job exists and is [failed, canceled] reset it to pending and return it.
         If job doesn't exist, create it and return it.
         """
-        data['id'] = data.get('id', self.compute_id(data))
-        data['organization_id'] = self._org_id
-        
+        data["id"] = data.get("id", self.compute_id(data))
+        self.validate_job_id(data["id"])
+        data["organization_id"] = self._org_id
+
+        if fake_job:
+            logging.info(
+                f"Fake creation: Skipping job creation for job: {data['id']}. Just returning the job data used for its creation."
+            )
+            return data
+
         try:
-            result = self._supabase.table('jobs').select('*').eq('id', data['id']).single().execute()
+            result = (
+                self._supabase.table("jobs")
+                .select("*")
+                .eq("id", data["id"])
+                .single()
+                .execute()
+            )
         except APIError as e:
-            if 'contains 0 rows' in str(e):
-                result = self._supabase.table('jobs').insert(data).execute()
+            if "contains 0 rows" in str(e):
+                result = self._supabase.table("jobs").insert(data).execute()
                 return Job(**result.data[0], _manager=self)
             else:
                 raise
@@ -237,9 +252,9 @@ class Jobs:
 
         return [Job(**row, _manager=self) for row in data]
 
-    def create(self, **params) -> Dict[str, Any]:
+    def create(self, fake_job: bool = False, **params) -> Dict[str, Any]:
         """Create and submit a custom job.
-        
+
         Args:
             **params: Parameters for the job, will be validated against self.params
             allowed_hardware: Optional list of allowed hardware configurations (e.g. ['2x A100', '4x H100'])
@@ -254,8 +269,11 @@ class Jobs:
         validated_params = self.params(**params)
         
         # Upload mounted files
-        mounted_files = self._upload_mounted_files()
-        
+        if not fake_job:
+            mounted_files = self._upload_mounted_files()
+        else:
+            mounted_files = {}
+
         # Get entrypoint command
         entrypoint = self.get_entrypoint(validated_params)
         
@@ -273,6 +291,5 @@ class Jobs:
         
         # Add allowed_hardware if specified
         if allowed_hardware is not None:
-            job_data['allowed_hardware'] = allowed_hardware
-            
-        return self.get_or_create_or_reset(job_data)
+
+        return self.get_or_create_or_reset(job_data, fake_job=fake_job)
