@@ -81,3 +81,4 @@ openweights/jobs/unsloth/logp.ipynb
 
 openweights/dashboard/backend/static/
 example/_*
+.cache
