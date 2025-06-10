@@ -15,7 +15,7 @@ class InferenceJobs(Jobs):
         os.path.join(os.path.dirname(__file__), 'cli.py'): 'cli.py',
         os.path.join(os.path.dirname(__file__), 'validate.py'): 'validate.py'
     }
-    base_image: str = 'nielsrolf/ow-inference-v2'
+    base_image: str = 'nielsrolf/ow-default'
     
     @property
     def id_prefix(self):

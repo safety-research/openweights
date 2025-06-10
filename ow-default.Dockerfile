@@ -1,5 +1,4 @@
 FROM vllm/vllm-openai:latest
-# FROM vllm/vllm-openai:v0.7.3
 
 WORKDIR /my_app
 
@@ -16,8 +15,10 @@ RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
+RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install huggingface_hub supabase python-dotenv torch fire httpx>=0.24.0 runpod bitsandbytes
 RUN python3 -m pip install inspect_ai git+https://github.com/UKGovernmentBEIS/inspect_evals
+RUN python3 -m pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 
 RUN apt-get install git-lfs -y
 RUN git lfs install

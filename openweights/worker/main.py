@@ -482,10 +482,11 @@ class Worker:
                     elif self.current_process.returncode == 0:
                         status = 'completed'
                         logging.info(f"Completed job {job['id']}", extra={'run_id': self.current_run.id})
-                        # We now have the model cached
-                        cached_model = '/'.join(job['model'].split('/')[:2])
-                        if cached_model not in self.cached_models:
-                            self.cached_models.append(cached_model)
+                        if job['model']:
+                            # We now have the model cached
+                            cached_model = '/'.join(job['model'].split('/')[:2])
+                            if cached_model not in self.cached_models:
+                                self.cached_models.append(cached_model)
                     else:
                         status = 'failed'
                         logging.error(f"Job {job['id']} failed with return code {self.current_process.returncode}", 

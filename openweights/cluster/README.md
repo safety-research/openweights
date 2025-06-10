@@ -27,6 +27,10 @@ docker push nielsrolf/ow-unsloth-v2
 ## Axolotl
 docker build --platform linux/amd64 -f ow-axolotl.Dockerfile -t nielsrolf/ow-axolotl .
 docker push nielsrolf/ow-axolotl
+
+## vllm + unsloth
+docker build -f ow-default.Dockerfile -t nielsrolf/ow-default .
+docker push nielsrolf/ow-default
 ```
 
 Run an image locally: `docker run -e OW_DEV=true -ti nielsrolf/ow-axolotl /bin/bash`
