@@ -37,7 +37,6 @@ GPUs = {
     #
     # Belows, GPUs are only good for high-memory task (e.g., pretraining and vanilla finetuning)
     "A100": "NVIDIA A100 80GB PCIe",  # Default A100 - 80GB
-    "A100_80": "NVIDIA A100 80GB PCIe",
     "A100_40": "NVIDIA A100-SXM4-40GB",
     "A100S": "NVIDIA A100-SXM4-80GB",
     "H100": "NVIDIA H100 PCIe",
@@ -74,6 +73,11 @@ GPUs = {
 }
 GPU_COUNT = 1
 allowed_cuda_versions = ['12.8']
+
+
+# Check that GPU name mapping is unique in both directions
+gpu_full = list(GPUs.values())
+assert len(gpu_full) == len(set(gpu_full)), "GPU names must be unique in GPUs mapping"
 
 
 def wait_for_pod(pod, runpod_client):
@@ -185,7 +189,7 @@ def check_correct_cuda(pod, allowed=allowed_cuda_versions, runpod_client=None):
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
 def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None, runpod_client=None):
     client = runpod_client or runpod
-    gpu = GPUs.get(gpu, gpu)
+    gpu = resolve_gpu_name(runpod_client, gpu)
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
     image = IMAGES.get(image, image)
@@ -193,40 +197,34 @@ def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=5
     if pending_workers is None:
         pending_workers = []
 
-    while True:
-        env = env or {}
-        env.update({
-            'WORKER_ID': worker_id,
-            'DOCKER_IMAGE': image,
-            'OW_DEV': 'true' if dev_mode else 'false'
-        })
-        if worker_id is None:
-            worker_id = uuid.uuid4().hex[:8]
-        pod = client.create_pod(
-            name, image, gpu,
-            container_disk_in_gb=container_disk_in_gb,
-            volume_in_gb=volume_in_gb,
-            volume_mount_path='/workspace',
-            gpu_count=count,
-            allowed_cuda_versions=allowed_cuda_versions,
-            ports="8000/http,10101/http,22/tcp",
-            start_ssh=True,
-            env=env
-        )
-        pending_workers.append(pod['id'])
-        # pod = wait_for_pod(pod, client)
-        
-        # if not check_correct_cuda(pod, runpod_client=client):
-        #     client.terminate_pod(pod['id'])
-        #     continue
-        
-        if dev_mode:
-            ip, port = get_ip_and_port(pod['id'], client)
-            pending_workers.remove(pod['id'])
-            return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
-        else:
-            pending_workers.remove(pod['id'])
-            return pod
+    env = env or {}
+    env.update({
+        'WORKER_ID': worker_id,
+        'DOCKER_IMAGE': image,
+        'OW_DEV': 'true' if dev_mode else 'false'
+    })
+    if worker_id is None:
+        worker_id = uuid.uuid4().hex[:8]
+    pod = client.create_pod(
+        name, image, gpu,
+        container_disk_in_gb=container_disk_in_gb,
+        volume_in_gb=volume_in_gb,
+        volume_mount_path='/workspace',
+        gpu_count=count,
+        allowed_cuda_versions=allowed_cuda_versions,
+        ports="8000/http,10101/http,22/tcp",
+        start_ssh=True,
+        env=env
+    )
+    pending_workers.append(pod['id'])
+    
+    if dev_mode:
+        ip, port = get_ip_and_port(pod['id'], client)
+        pending_workers.remove(pod['id'])
+        return f"ssh root@{ip} -p {port} -i ~/.ssh/id_ed25519"
+    else:
+        pending_workers.remove(pod['id'])
+        return pod
 
 
 def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, env=None, runpod_client=None):
