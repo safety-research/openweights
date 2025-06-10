@@ -268,6 +268,7 @@ class OrganizationManager:
     def scale_workers(self, running_workers, pending_jobs):
         """Scale workers according to pending jobs and limits."""
         # Group active workers by docker image
+        print("@@@@ Scaling workers")
         running_workers_by_image = {}
         for worker in running_workers:
             image = worker['docker_image']
@@ -282,6 +283,8 @@ class OrganizationManager:
             if image not in pending_jobs_by_image:
                 pending_jobs_by_image[image] = []
             pending_jobs_by_image[image].append(job)
+        
+        print(f"Running workers by image: {len(running_workers_by_image)} | Pending jobs by image: {len(pending_jobs_by_image)}")
 
         # Process each docker image type separately
         for docker_image, image_pending_jobs in pending_jobs_by_image.items():

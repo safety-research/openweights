@@ -29,21 +29,20 @@ IMAGES = {
 GPUs = {
     # References found at https://rest.runpod.io/v1/docs#v-0-106
     # GPUs for compute-intensive tasks (e.g. LoRAfinetuning)
-    "6000Ada": "NVIDIA RTX 6000 Ada Generation",  # Best compute-efficiency, to use by default
+    # "6000Ada": "NVIDIA RTX 6000 Ada Generation", # Not available with cuda 12.8
     "4000Ada": "NVIDIA RTX 4000 Ada Generation",
     "L40": "NVIDIA L40",
-    "L40S": "NVIDIA L40S",
-    "A30": "NVIDIA A30",
+    # "L40S": "NVIDIA L40S", # not available with cuda 12.8
+    # "A30": "NVIDIA A30", # not available with cuda 12.8
     #
     # Belows, GPUs are only good for high-memory task (e.g., pretraining and vanilla finetuning)
     "A100": "NVIDIA A100 80GB PCIe",  # Default A100 - 80GB
-    "A100_40": "NVIDIA A100-SXM4-40GB",
     "A100S": "NVIDIA A100-SXM4-80GB",
-    "H100": "NVIDIA H100 PCIe",
+    # "H100": "NVIDIA H100 PCIe", # not available with cuda 12.8
     "H100N": "NVIDIA H100 NVL",
     "H100S": "NVIDIA H100 80GB HBM3",
     "H200": "NVIDIA H200",
-    "B200": "NVIDIA B200",
+    # "B200": "NVIDIA B200",  CUDA error: CUDA error (/__w/xformers/xformers/third_party/flash-attention/hopper/flash_fwd_launch_template.h:175): no kernel image is available for execution on the device
     #
     # Below, GPUs are cost inefficient
     # "RTX4080": "NVIDIA GeForce RTX 4080",

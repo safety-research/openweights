@@ -104,24 +104,21 @@ class Worker:
                 return gpu_name.lower().replace("nvidia ", "").strip()
 
             # Start with exact match
-            for gpu_name_pattern, gpu_type in GPUs.items():
-                if clean_gpu_name(gpu_name_pattern) == clean_gpu_name(gpu_name):
-                    self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+            for display_name, runpod_id in GPUs.items():
+                if clean_gpu_name(runpod_id) == clean_gpu_name(gpu_name):
+                    self.hardware_type = f"{self.gpu_count}x {display_name}"
                     break
 
             # If no exact match, use include match
             if self.hardware_type is None:
-                for gpu_name_pattern, gpu_type in GPUs.items():
-                    if clean_gpu_name(gpu_name_pattern) in clean_gpu_name(gpu_name):
-                        self.hardware_type = f"{self.gpu_count}x {gpu_type}"
+                for display_name, runpod_id in GPUs.items():
+                    if clean_gpu_name(runpod_id) in clean_gpu_name(gpu_name):
+                        self.hardware_type = f"{self.gpu_count}x {display_name}"
                         break
 
             if self.hardware_type is None:
-                logging.info(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
-                raise ValueError(f"GPU {gpu_name} not found in GPUs ({GPUs.keys()}).")
-
-                self.hardware_type = f"{self.gpu_count}x {gpu_type}"
-                logging.info(f"Inferred hardware type: {self.hardware_type}")
+                logging.info(f"GPU {gpu_name} not found in GPUs ({GPUs.values()}).")
+                raise ValueError(f"GPU {gpu_name} not found in GPUs ({GPUs.values()}).")
 
         except:
             logging.warning("Failed to retrieve VRAM, registering with 0 VRAM")
