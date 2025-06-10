@@ -21,6 +21,7 @@ from supabase.lib.client_options import ClientOptions
 
 from openweights.client import Files, OpenWeights, Run
 from openweights.worker.gpu_health_check import GPUHealthCheck
+from openweights.cluster.start_runpod import GPUs
 
 # Load environment variables
 load_dotenv()
@@ -39,56 +40,6 @@ def maybe_read(path):
             return f.read().strip()
     except FileNotFoundError:
         return None
-
-
-GPUs = {
-    # References found at https://rest.runpod.io/v1/docs#v-0-106
-    # GPUs for compute-intensive tasks (e.g. LoRAfinetuning)
-    # "NVIDIA RTX 6000 Ada Generation": "6000Ada",  # Best compute-efficiency, to use by default
-    # "NVIDIA RTX 4000 Ada Generation": "4000Ada",
-    "NVIDIA RTX 6000 Ada Generation": "A6000",  # Best compute-efficiency, to use by default
-    "NVIDIA RTX 4000 Ada Generation": "A4000",
-    "NVIDIA L40": "L40",
-    "NVIDIA L40S": "L40S",
-    "NVIDIA A30": "A30",
-    #
-    # Belows, GPUs are only good for high-memory task (e.g., pretraining and vanilla finetuning)
-    "NVIDIA A100 80GB PCIe": "A100",  # Default A100 - 80GB
-    "NVIDIA A100 80GB PCIe": "A100_80",
-    "NVIDIA A100-SXM4-40GB": "A100_40",
-    "NVIDIA A100-SXM4-80GB": "A100S",
-    "NVIDIA H100 PCIe": "H100",
-    "NVIDIA H100 NVL": "H100N",
-    "NVIDIA H100 80GB HBM3": "H100S",
-    "NVIDIA H200": "H200",
-    "NVIDIA B200": "B200",
-    #
-    # Below, GPUs are cost inefficient
-    # "NVIDIA GeForce RTX 4080": "RTX4080",
-    # "NVIDIA GeForce RTX 3090": "RTX3090",
-    # "NVIDIA GeForce RTX 3090 Ti": "RTX3090Ti",
-    # "Tesla V100-SXM2-32GB": "V100",  # Default V100 - 32GB
-    # "Tesla V100-SXM2-32GB": "V100_32",
-    # "Tesla V100-SXM2-16GB": "V100_16",
-    # "Tesla V100-FHHL-16GB": "V100_16_FHHL",
-    # "Tesla V100-PCIE-16GB": "V100_16_PCIE",
-    # "NVIDIA GeForce RTX 4070 Ti": "RTX4070Ti",
-    # "NVIDIA RTX 4000 SFF Ada Generation": "A4000_SFF",
-    # "NVIDIA RTX 5000 Ada Generation": "A5000_ADA",
-    # "AMD Instinct MI300X OAM": "MI300X",
-    # "NVIDIA RTX 2000 Ada Generation": "2000Ada",
-    # "NVIDIA RTX A6000": "A6000",
-    # "NVIDIA RTX A4000": "A4000",
-    # "NVIDIA RTX A2000": "A2000",
-    # "NVIDIA GeForce RTX 4090": "RTX4090",
-    # "NVIDIA RTX A5000": "A5000",
-    # "NVIDIA A40": "A40",
-    # "NVIDIA RTX A4500": "A4500",
-    # "NVIDIA GeForce RTX 3080": "RTX3080",
-    # "NVIDIA GeForce RTX 3070": "RTX3070",
-    # "NVIDIA GeForce RTX 3080 Ti": "RTX3080Ti",
-    # "NVIDIA L4": "L4",
-}
 
 
 class Worker:
