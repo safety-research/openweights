@@ -362,6 +362,28 @@ class OrganizationManager:
                                     'pod_id': pod['id']
                                 }).eq('id', worker_id).execute()
                             except Exception as e:
+                                # We mark all jobs as failed that have a single entry in allowed_hardware which corresponds to the current hardware and remove this hardware configuratoin from all jobs that have a list of allowed_hardware with more than one entry
+                                # For each job in jobs_batch:
+                                #   - If allowed_hardware has only one entry and it matches the current hardware, mark job as failed.
+                                #   - If allowed_hardware has more than one entry, remove the current hardware from allowed_hardware and update the job.
+                                for job in jobs_batch:
+                                    allowed_hw = job.get('allowed_hardware', [])
+                                    current_hw = hardware_type
+                                    if isinstance(allowed_hw, str):
+                                        # Defensive: convert to list if needed
+                                        allowed_hw = [allowed_hw]
+                                    if len(allowed_hw) == 1 and allowed_hw[0] == current_hw:
+                                        # Mark job as failed
+                                        self.supabase.table('jobs').update({
+                                            'status': 'failed',
+                                            'outputs': {'error': f"Error starting worker with GPU {current_hw}" + str(e)}
+                                        }).eq('id', job['id']).execute()
+                                    elif current_hw in allowed_hw and len(allowed_hw) > 1:
+                                        # Remove this hardware from allowed_hardware and update job
+                                        new_allowed_hw = [hw for hw in allowed_hw if hw != current_hw]
+                                        self.supabase.table('jobs').update({
+                                            'allowed_hardware': new_allowed_hw
+                                        }).eq('id', job['id']).execute()
                                 logger.error(f"Failed to start worker: {e}")
                                 # If worker creation fails, clean up the worker
                                 self.supabase.table('worker').update({
