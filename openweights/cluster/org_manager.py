@@ -16,7 +16,7 @@ import io
 import runpod
 from dotenv import load_dotenv
 
-from openweights.cluster.start_runpod import start_worker as runpod_start_worker, HARDWARE_CONFIGS
+from openweights.cluster.start_runpod import start_worker as runpod_start_worker, HARDWARE_CONFIG, populate_hardware_config
 from openweights.client import OpenWeights
 
 # Load environment variables
@@ -48,7 +48,7 @@ def determine_gpu_type(required_vram, allowed_hardware=None, choice=None):
     Returns:
         Tuple of (gpu_type, count)
     """
-    vram_options = sorted(HARDWARE_CONFIGS.keys())
+    vram_options = sorted(HARDWARE_CONFIG.keys())
     
     # If allowed_hardware is specified, filter GPU options to only include allowed configurations
     if allowed_hardware:
@@ -60,9 +60,9 @@ def determine_gpu_type(required_vram, allowed_hardware=None, choice=None):
     for vram in vram_options:
         if required_vram <= vram:
             if choice is None:
-                choice = random.choice(HARDWARE_CONFIGS[vram])
+                choice = random.choice(HARDWARE_CONFIG[vram])
             else:
-                choice = HARDWARE_CONFIGS[vram][choice % len(HARDWARE_CONFIGS[vram])]
+                choice = HARDWARE_CONFIG[vram][choice % len(HARDWARE_CONFIG[vram])]
             count, gpu = choice.split('x ')
             return gpu.strip(), int(count)
     
@@ -78,6 +78,7 @@ class OrganizationManager:
 
         # Set up RunPod client
         runpod.api_key = os.environ['RUNPOD_API_KEY']
+        populate_hardware_config(runpod)
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, self.handle_shutdown)

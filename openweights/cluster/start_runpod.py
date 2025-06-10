@@ -80,6 +80,20 @@ gpu_full = list(GPUs.values())
 assert len(gpu_full) == len(set(gpu_full)), "GPU names must be unique in GPUs mapping"
 
 
+# Build map of memory -> hardware configu
+HARDWARE_CONFIG = {}
+print("Available hardware configurations:")
+print(json.dumps(HARDWARE_CONFIG, indent=2))
+def populate_hardware_config(runpod_client):
+    runpod_gpus = runpod_client.get_gpus()
+    for gpu_short, gpu_full in GPUs.items():
+        for gpu in runpod_gpus:
+            if gpu['id'] == gpu_full:
+                for count in [1, 2, 4, 8]:
+                    memory_gb = int(gpu['memoryInGb']) * count
+                    HARDWARE_CONFIG[memory_gb] = HARDWARE_CONFIG.get(memory_gb, []) + [f"{count}x {gpu_short}"]
+
+
 def wait_for_pod(pod, runpod_client):
     while pod.get('runtime') is None:
         time.sleep(1)
