@@ -83,7 +83,6 @@ assert len(gpu_full) == len(set(gpu_full)), "GPU names must be unique in GPUs ma
 # Build map of memory -> hardware configu
 HARDWARE_CONFIG = {}
 print("Available hardware configurations:")
-print(json.dumps(HARDWARE_CONFIG, indent=2))
 def populate_hardware_config(runpod_client):
     runpod_gpus = runpod_client.get_gpus()
     for gpu_short, gpu_full in GPUs.items():
@@ -203,7 +202,7 @@ def check_correct_cuda(pod, allowed=allowed_cuda_versions, runpod_client=None):
 @backoff.on_exception(backoff.expo, Exception, max_time=60, max_tries=5)
 def _start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=500, volume_in_gb=500, worker_id=None, dev_mode=False, pending_workers=None, env=None, runpod_client=None):
     client = runpod_client or runpod
-    gpu = resolve_gpu_name(runpod_client, gpu)
+    gpu = GPUs[gpu]
     # default name: <username>-worker-<timestamp>
     name = name or f"{os.environ['USER']}-worker-{int(time.time())}"
     image = IMAGES.get(image, image)
