@@ -227,7 +227,17 @@ class Jobs:
                 f"Got: {job_id}"
             )
 
+        self.validate_job_id(job_id)
         return job_id
+
+    def validate_job_id(self, job_id: str):
+        authorized_chars = string.ascii_letters + string.digits + "-_"
+        for char in job_id:
+            assert char in authorized_chars, (
+                f"Job ID contains an invalid character: '{char}'. "
+                f"Job ID must contain only a-z, 0-9, and -_ only. "
+                f"Got: {job_id}"
+            )
 
     @backoff.on_exception(
         backoff.constant,
