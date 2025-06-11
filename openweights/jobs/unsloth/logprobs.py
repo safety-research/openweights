@@ -179,7 +179,7 @@ def get_logprobs_blockwise_single_conv(conv, token_logprobs, tokenizer):
             rec_text = ''.join([t['token'] for t in block_tokens])
             if rec_text != block['text']:
                 print('Mismatch:', rec_text, block['text'])
-            if block.get('logprobs', True) is not False:
+            if block['logprobs'] is not False:
                 block['logprobs'] = sum([t['logp'] for t in block_tokens])
             block['range'] = (block_start, block_start + block_length)
             before_block = with_block

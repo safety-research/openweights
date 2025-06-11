@@ -262,36 +262,36 @@ def start_worker(gpu, image, count=GPU_COUNT, name=None, container_disk_in_gb=50
             runpod_client.terminate_pod(pod_id)
 
 
-# import concurrent.futures
+import concurrent.futures
 
-# def _test_single_gpu(gpu):
-#     try:
-#         print(f"Testing GPU: {gpu}")
-#         pod = start_worker(gpu, image='default', count=1, dev_mode=True)
-#         if pod:
-#             runpod.terminate_pod(pod['id'])  # Clean up the pod after testing
-#             print(f"Success: {gpu}")
-#             return (gpu, GPUs[gpu])
-#         else:
-#             print(f"Failed to start pod for GPU: {gpu}")
-#             return None
-#     except Exception as e:
-#         print(f"Exception for GPU {gpu}: {e}")
-#         return None
+def _test_single_gpu(gpu):
+    try:
+        print(f"Testing GPU: {gpu}")
+        pod = start_worker(gpu, image='default', count=1, dev_mode=True)
+        if pod:
+            runpod.terminate_pod(pod['id'])  # Clean up the pod after testing
+            print(f"Success: {gpu}")
+            return (gpu, GPUs[gpu])
+        else:
+            print(f"Failed to start pod for GPU: {gpu}")
+            return None
+    except Exception as e:
+        print(f"Exception for GPU {gpu}: {e}")
+        return None
 
-# def test_gpus():
-#     working_gpus = {}
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-#         futures = {executor.submit(_test_single_gpu, gpu): gpu for gpu in GPUs.keys()}
-#         for future in concurrent.futures.as_completed(futures):
-#             result = future.result()
-#             if result:
-#                 gpu_short, gpu_full = result
-#                 working_gpus[gpu_short] = gpu_full
-#     print("Working GPUs:")
-#     print(working_gpus)
+def test_gpus():
+    working_gpus = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(_test_single_gpu, gpu): gpu for gpu in GPUs.keys()}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                gpu_short, gpu_full = result
+                working_gpus[gpu_short] = gpu_full
+    print("Working GPUs:")
+    print(working_gpus)
 
 
 if __name__ == '__main__':
-    fire.Fire(start_worker)
-    # test_gpus()
+    # fire.Fire(start_worker)
+    test_gpus()
