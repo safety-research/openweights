@@ -1,5 +1,6 @@
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
 
+WORKDIR /my_app
 
 # Install SSH
 RUN apt-get update && \
@@ -28,4 +29,4 @@ RUN python3 -m pip install -e .
 EXPOSE 22
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/my_app/entrypoint.sh"]

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from transformers import TrainerCallback
 from utils import client
 
-from logprobs import get_logprobs
+from logprobs import get_logprobs, get_logprobs_blockwise
 
 
 class LogTestLossCallback(TrainerCallback):
@@ -48,24 +48,52 @@ class LogTestLossCallback(TrainerCallback):
         
         # Set model to eval mode
         model.eval()
+
+        # Check if the original dataset has weighted content format
+        # The test_dataset should be the raw dataset with 'messages' field
+        has_weighted_content = False
+        if 'messages' in self.test_dataset.column_names and len(self.test_dataset) > 0:
+            first_example = self.test_dataset[0]
+            if 'messages' in first_example and len(first_example['messages']) > 0:
+                first_message = first_example['messages'][0]
+                if 'content' in first_message and isinstance(first_message['content'], list):
+                    # Check if it's the weighted format
+                    has_weighted_content = all(
+                        isinstance(block, dict) and 'weight' in block 
+                        for block in first_message['content']
+                    )
         
-        token_logp, total_loss = get_logprobs(model, self.tokenizer, self.test_dataset, self.batch_size)
+        if has_weighted_content:
+            dataset_with_logprobs = get_logprobs_blockwise(model, self.tokenizer, self.test_dataset, self.batch_size)
+            with open(f'logp_{self.log_as}_{state.global_step}.json', 'w') as f:
+                json.dump(dataset_with_logprobs, f)
+            with open(f'logp_{self.log_as}_{state.global_step}.json', 'rb') as f:
+                logprobs_file = client.files.create(f, purpose="logp_blockwise")
 
-        # Calculate average loss across all batches
-        avg_loss = total_loss / (len(self.test_dataset) / self.batch_size)
+            # For blockwise, we don't have a simple loss value, just log the file
+            client.run.log({
+                "type": "logprobs_blockwise",
+                "step": state.global_step,
+                "file": logprobs_file['id']
+            })
+        else:
+            token_logp, total_loss = get_logprobs(model, self.tokenizer, self.test_dataset, self.batch_size)
 
-        with open(f'logp_{self.log_as}_{state.global_step}.json', 'w') as f:
-            json.dump(token_logp, f)
-        with open(f'logp_{self.log_as}_{state.global_step}.json', 'rb') as f:
-            logprobs_file = client.files.create(f, purpose="logp")
+            # Calculate average loss across all batches
+            avg_loss = total_loss / (len(self.test_dataset) / self.batch_size)
 
-        # Log the test loss
-        client.run.log({
-            "type": "logprobs",
-            self.log_as: avg_loss,
-            "step": state.global_step,
-            "file": logprobs_file['id']
-        })
+            with open(f'logp_{self.log_as}_{state.global_step}.json', 'w') as f:
+                json.dump(token_logp, f)
+            with open(f'logp_{self.log_as}_{state.global_step}.json', 'rb') as f:
+                logprobs_file = client.files.create(f, purpose="logp")
+
+            # Log the test loss
+            client.run.log({
+                "type": "logprobs",
+                self.log_as: avg_loss,
+                "step": state.global_step,
+                "file": logprobs_file['id']
+            })
 
         # Return model to training mode
         model.train()
