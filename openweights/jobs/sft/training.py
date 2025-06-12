@@ -6,11 +6,11 @@ import backoff
 from datasets import Dataset
 from unsloth import FastLanguageModel
 
-from validate import TrainingConfig
-from dpo_ft import dpo_train
-from orpo_ft import orpo_train
+from validate import SFTConfig
 from sft import sft_train
 from utils import load_jsonl, load_model_and_tokenizer, client
+
+
 
 
 def train(training_cfg, skip_client_logging: bool = False):
@@ -34,17 +34,11 @@ def train(training_cfg, skip_client_logging: bool = False):
     )
     rows = load_jsonl(training_cfg.training_file)
 
-    if training_cfg.loss == "sft":
-        dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
-    else:
-        dataset = Dataset.from_list(rows)
+    dataset = Dataset.from_list([dict(messages=r['messages']) for r in rows])
     
     if training_cfg.test_file:
         test_rows = load_jsonl(training_cfg.test_file)
-        if training_cfg.loss in ["orpo", "dpo"]:
-            test_dataset = Dataset.from_list(test_rows)
-        else:
-            test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
+        test_dataset = Dataset.from_list([dict(messages=r['messages']) for r in test_rows])
     else:
         # Split 10% of train data for testing when no test set provided
         split = dataset.train_test_split(test_size=0.1)
@@ -62,15 +56,7 @@ def train(training_cfg, skip_client_logging: bool = False):
     if training_cfg.max_steps:
         kwargs["max_steps"] = training_cfg.max_steps
     
-    if training_cfg.loss == "sft":
-        trainer = sft_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, logp_datasets=logp_datasets, **kwargs)
-    elif training_cfg.loss == "orpo":
-        trainer = orpo_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, **kwargs)
-    elif training_cfg.loss == "dpo":
-        trainer = dpo_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, **kwargs)
-    else:
-        raise ValueError(f"Unknown loss function: {training_cfg.loss}")
-    
+    trainer = sft_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, logp_datasets=logp_datasets, **kwargs)
     trainer.train()
 
     finetuned_model_id = training_cfg.finetuned_model_id or f"{training_cfg.model}:ft-{client.run.id}"
@@ -127,7 +113,7 @@ def main(config_job_id: str, skip_client_logging: bool = False):
     else:
         job = client.jobs.retrieve(config_job_id)
         config = job['params']['validated_params']
-    training_config = TrainingConfig(**config)
+    training_config = SFTConfig(**config)
     train(training_config, skip_client_logging)
 
 
