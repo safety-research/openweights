@@ -6,10 +6,13 @@ import torch
 import torch.nn.functional as F
 from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
-from transformers import DataCollatorForSeq2Seq, TrainingArguments, Trainer
+from transformers import TrainingArguments, Trainer
+from transformers.data.data_collator import pad_without_fast_tokenizer_warning
 from transformers.trainer_utils import PredictionOutput
 from trl import SFTTrainer
 import numpy as np
+from transformers import PreTrainedTokenizerBase
+from transformers.tokenization_utils_base import PaddingStrategy
 
 from token_weighting import tokenize_conversation_with_blocks
 
@@ -53,52 +56,122 @@ def convert_old_format_to_new_format(conversation: List[Dict[str, Any]], train_o
     return new_conversation
 
 
-class WeightedDataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
+
+@dataclass
+class WeightedDataCollatorForSeq2Seq:
     """
     Data collator that handles token-level weights for training.
-    Extends the standard DataCollatorForSeq2Seq to include weight information.
+    Handles padding of input_ids, attention_mask, labels and token_weights.
     """
     
-    def __init__(self, tokenizer, **kwargs):
-        super().__init__(tokenizer=tokenizer, **kwargs)
-    
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
-        """
-        Collate features into a batch, including token weights.
+    tokenizer: PreTrainedTokenizerBase
+    model: Optional[Any] = None
+    padding: Union[bool, str, PaddingStrategy] = True
+    max_length: Optional[int] = None
+    pad_to_multiple_of: Optional[int] = None
+    label_pad_token_id: int = -100
+    return_tensors: str = "pt"
+
+    def __call__(self, features: List[Dict[str, Any]], return_tensors=None) -> Dict[str, torch.Tensor]:
+        if return_tensors is None:
+            return_tensors = self.return_tensors
+
+        # Extract and remove token weights before standard padding
+        token_weights = [feature['token_weights'] for feature in features]
+
+        # Handle labels separately like in DataCollatorForSeq2Seq
+        label_name = "label" if "label" in features[0].keys() else "labels"
+        labels = [feature[label_name] for feature in features] if label_name in features[0].keys() else None
+        if labels is not None and all(label is None for label in labels):
+            labels = None
         
-        Args:
-            features: List of features, each containing 'input_ids', 'attention_mask', 
-                     'labels', and 'token_weights'
+        # Remove labels from features for padding
+        non_labels_features = [{k: v for k, v in feature.items() if k != label_name} for feature in features]
+
+        # Pad all inputs
+        batch = pad_without_fast_tokenizer_warning(
+            self.tokenizer,
+            non_labels_features,
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors=return_tensors,
+        )
+
+        # Handle labels padding
+        no_padding = self.padding is False or self.padding == PaddingStrategy.DO_NOT_PAD
+        if labels is not None:
+            if no_padding:
+                if isinstance(features[0][label_name], list):
+                    batch["labels"] = list(labels)
+                else:
+                    batch["labels"] = [np.concatenate([label, []]) for label in labels]
+            else:
+                max_padding = self.padding == PaddingStrategy.MAX_LENGTH and self.max_length is not None
+                max_label_length = max(len(l) for l in labels) if not max_padding else self.max_length
+                if self.pad_to_multiple_of is not None:
+                    max_label_length = (
+                        (max_label_length + self.pad_to_multiple_of - 1)
+                        // self.pad_to_multiple_of
+                        * self.pad_to_multiple_of
+                    )
+
+                padding_side = self.tokenizer.padding_side
+                if isinstance(features[0][label_name], list):
+                    batch["labels"] = [
+                        label + [self.label_pad_token_id] * (max_label_length - len(label))
+                        if padding_side == "right"
+                        else [self.label_pad_token_id] * (max_label_length - len(label)) + label
+                        for label in labels
+                    ]
+                else:
+                    batch["labels"] = [
+                        np.concatenate([label, np.array([self.label_pad_token_id] * (max_label_length - len(label)))])
+                        if padding_side == "right"
+                        else np.concatenate([np.array([self.label_pad_token_id] * (max_label_length - len(label))), label])
+                        for label in labels
+                    ]
+
+        # Convert labels to tensor based on return_tensors
+        if batch.get("labels", None) is not None:
+            if return_tensors == "pt":
+                batch["labels"] = torch.tensor(batch["labels"], dtype=torch.int64)
+            elif return_tensors == "tf":
+                import tensorflow as tf
+                batch["labels"] = tf.constant(batch["labels"], dtype=tf.int64)
+            else:
+                batch["labels"] = np.array(batch["labels"], dtype=np.int64)
+        else:
+            batch["labels"] = None
+
+        # Handle token weights
+        max_length = batch['input_ids'].shape[1]
+        padding_side = self.tokenizer.padding_side
         
-        Returns:
-            Dict with batched tensors including 'token_weights'
-        """
-        # Extract token weights before calling parent collator
-        token_weights = None
-        if 'token_weights' in features[0]:
-            token_weights = [feature.pop('token_weights') for feature in features]
+        padded_weights = [
+            weights + [0.0] * (max_length - len(weights))
+            if padding_side == "right"
+            else [0.0] * (max_length - len(weights)) + weights
+            for weights in token_weights
+        ]
         
-        # Call parent collator for standard processing
-        batch = super().__call__(features)
-        
-        # Handle token weights if present
-        if token_weights is not None:
-            # Pad token weights to the same length as input_ids
-            max_length = batch['input_ids'].shape[1]
-            
-            padded_weights = []
-            for weights in token_weights:
-                # Pad or truncate to match input_ids length
-                if len(weights) < max_length:
-                    # Pad with 0.0 (no loss contribution)
-                    weights = weights + [0.0] * (max_length - len(weights))
-                elif len(weights) > max_length:
-                    # Truncate
-                    weights = weights[:max_length]
-                padded_weights.append(weights)
-            
+        if return_tensors == "pt":
             batch['token_weights'] = torch.tensor(padded_weights, dtype=torch.float32)
-        
+        elif return_tensors == "tf":
+            import tensorflow as tf
+            batch['token_weights'] = tf.constant(padded_weights, dtype=tf.float32)
+        else:
+            batch['token_weights'] = np.array(padded_weights, dtype=np.float32)
+
+        # Prepare decoder input ids if model supports it
+        if (
+            labels is not None
+            and self.model is not None
+            and hasattr(self.model, "prepare_decoder_input_ids_from_labels")
+        ):
+            decoder_input_ids = self.model.prepare_decoder_input_ids_from_labels(labels=batch["labels"])
+            batch["decoder_input_ids"] = decoder_input_ids
+
         return batch
 
 
@@ -123,51 +196,43 @@ class WeightedSFTTrainer(Trainer):
         Returns:
             Loss tensor, optionally with model outputs
         """
-        labels = inputs.get("labels")
+        print("=== Computing Weighted Loss ===")
+        print(f"Inputs: {inputs.keys()}")
+        labels = inputs["input_ids"]
         token_weights = inputs.get("token_weights")
         
         # Forward pass
         outputs = model(**{k: v for k, v in inputs.items() if k not in ['labels', 'token_weights']})
         logits = outputs.get("logits")
         
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            
-            # Compute per-token losses
-            loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
-            flat_shift_logits = shift_logits.view(-1, shift_logits.size(-1))
-            flat_shift_labels = shift_labels.view(-1)
-            
-            # Get per-token losses (batch_size * seq_len,)
-            per_token_losses = loss_fct(flat_shift_logits, flat_shift_labels)
-            per_token_losses = per_token_losses.view(shift_labels.shape)  # (batch_size, seq_len)
-            
-            if token_weights is not None:
-                # Apply token weights (shift weights to match shifted labels)
-                shift_weights = token_weights[..., 1:].contiguous()
-                
-                # Apply weights to losses
-                weighted_losses = per_token_losses * shift_weights
-                
-                # Compute weighted average loss
-                total_weighted_loss = weighted_losses.sum()
-                total_weight = shift_weights.sum()
-                
-                # Avoid division by zero
-                if total_weight > 0:
-                    loss = total_weighted_loss / total_weight
-                else:
-                    loss = torch.tensor(0.0, device=per_token_losses.device, requires_grad=True)
-            else:
-                # No weights provided, use standard average
-                # Mask out -100 labels (padding)
-                mask = (shift_labels != -100).float()
-                masked_losses = per_token_losses * mask
-                loss = masked_losses.sum() / mask.sum()
+        # Shift so that tokens < n predict n
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        
+        # Compute per-token losses
+        loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
+        flat_shift_logits = shift_logits.view(-1, shift_logits.size(-1))
+        flat_shift_labels = shift_labels.view(-1)
+        
+        # Get per-token losses (batch_size * seq_len,)
+        per_token_losses = loss_fct(flat_shift_logits, flat_shift_labels)
+        per_token_losses = per_token_losses.view(shift_labels.shape)  # (batch_size, seq_len)
+        
+        # Apply token weights (shift weights to match shifted labels)
+        shift_weights = token_weights[..., 1:].contiguous()
+        
+        # Apply weights to losses
+        weighted_losses = per_token_losses * shift_weights
+        
+        # Compute weighted average loss
+        total_weighted_loss = weighted_losses.sum()
+        total_weight = shift_weights.abs().sum()
+        
+        # Avoid division by zero
+        if total_weight != 0:
+            loss = total_weighted_loss / total_weight
         else:
-            loss = outputs.loss
+            loss = torch.tensor(0.0, device=per_token_losses.device, requires_grad=True)
         
         return (loss, outputs) if return_outputs else loss
 
@@ -203,13 +268,10 @@ def prepare_weighted_dataset(dataset, tokenizer, max_seq_length: int = 2048):
         # Create attention mask
         attention_mask = [1] * len(input_ids)
         
-        # For SFT, labels are the same as input_ids (teacher forcing)
-        labels = input_ids.copy()
-        
         return {
             'input_ids': input_ids,
+            'labels': input_ids,  # Labels are the same as input_ids for language modeling
             'attention_mask': attention_mask,
-            'labels': labels,
             'token_weights': token_weights
         }
     
@@ -219,23 +281,8 @@ def prepare_weighted_dataset(dataset, tokenizer, max_seq_length: int = 2048):
     return processed_dataset
 
 
-def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datasets={}, **kwargs):
-    """
-    Train using the weighted SFT system that supports token-level weighting.
-    This replaces the old sft_train function and handles all callback creation.
-    """
-    return create_weighted_sft_trainer(
-        training_cfg=training_cfg,
-        dataset=dataset,
-        model=model,
-        tokenizer=tokenizer,
-        test_dataset=test_dataset,
-        logp_datasets=logp_datasets,
-        **kwargs
-    )
 
-
-def create_weighted_sft_trainer(
+def sft_train(
     training_cfg,
     dataset,
     model,
@@ -316,7 +363,10 @@ def create_weighted_sft_trainer(
     # Prepare datasets with tokenization and weights
     train_dataset_processed = prepare_weighted_dataset(dataset, tokenizer, training_cfg.max_seq_length)
     test_dataset_processed = prepare_weighted_dataset(test_dataset, tokenizer, training_cfg.max_seq_length) if test_dataset else None
-    
+    # Print dataset features
+    print("Train dataset features:", train_dataset_processed.features)
+    if test_dataset_processed:
+        print("Test dataset features:", test_dataset_processed.features)
     # Create data collator
     data_collator = WeightedDataCollatorForSeq2Seq(
         tokenizer=tokenizer,
@@ -353,6 +403,7 @@ def create_weighted_sft_trainer(
             num_train_epochs=training_cfg.epochs,
             save_steps=training_cfg.save_steps,
             output_dir=training_cfg.output_dir,
+            remove_unused_columns=False,
             **kwargs,
         ),
         callbacks=callbacks

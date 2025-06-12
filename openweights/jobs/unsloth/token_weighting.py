@@ -248,5 +248,128 @@ def test_tokenization():
 
 
 
+def create_test_data_for_loss_testing():
+    """Create test data with different weight scenarios."""
+    
+    # Test case 1: All weights are 0 (should give loss = 0)
+    test_case_zero = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Hello", "weight": 0}]
+            },
+            {
+                "role": "assistant", 
+                "content": [{"type": "text", "text": "Hi there!", "weight": 0}]
+            }
+        ]
+    }
+    
+    # Test case 2: All weights are 1 (should give positive loss)
+    test_case_positive = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Hello", "weight": 1}]
+            },
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi there!", "weight": 1}]
+            }
+        ]
+    }
+    
+    # Test case 3: All weights are -1 (should give negative loss)
+    test_case_negative = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Hello", "weight": -1}]
+            },
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi there!", "weight": -1}]
+            }
+        ]
+    }
+    
+    return [test_case_zero, test_case_positive, test_case_negative]
+
+
+def test_loss_computation():
+    """Test that loss computation behaves correctly with different weight scenarios."""
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from sft import WeightedSFTTrainer, WeightedDataCollatorForSeq2Seq, prepare_weighted_dataset
+    from datasets import Dataset
+    
+    print("=== Testing Loss Computation ===")
+    
+    # Load model and tokenizer - use a much smaller model for testing
+    print("Loading model and tokenizer...")
+    model_name = "unsloth/DeepSeek-R1-Distill-Qwen-1.5B"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model.eval()  # Set to eval mode for consistent results
+    
+    # Create test data
+    test_cases = create_test_data_for_loss_testing()
+    case_names = ["All weights = 0", "All weights = 1", "All weights = -1"]
+    
+    # Create trainer
+    trainer = WeightedSFTTrainer(model=model, tokenizer=tokenizer)
+    
+    for i, (test_case, case_name) in enumerate(zip(test_cases, case_names)):
+        print(f"\n--- {case_name} ---")
+        
+        # Create dataset and process it
+        dataset = Dataset.from_list([test_case])
+        processed_dataset = prepare_weighted_dataset(dataset, tokenizer, max_seq_length=512)
+        
+        # Create data collator and get batch
+        data_collator = WeightedDataCollatorForSeq2Seq(tokenizer=tokenizer)
+        batch = data_collator([processed_dataset[0]])
+        
+        # Move to same device as model
+        device = next(model.parameters()).device
+        batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
+        
+        print(f"Input tokens: {batch['input_ids'].shape}")
+        print(f"Token weights: {batch['token_weights'][0].tolist()}")
+        
+        # Compute loss
+        with torch.no_grad():
+            loss = trainer.compute_loss(model, batch)
+        
+        print(f"Loss: {loss.item():.6f}")
+        
+        # Expected behavior check
+        if i == 0:  # All weights = 0
+            if abs(loss.item()) < 1e-6:
+                print("✅ PASS: Loss is approximately 0 when all weights are 0")
+            else:
+                print(f"❌ FAIL: Loss should be ~0, got {loss.item()}")
+        elif i == 1:  # All weights = 1  
+            if loss.item() > 0:
+                print("✅ PASS: Loss is positive when all weights are 1")
+            else:
+                print(f"❌ FAIL: Loss should be positive, got {loss.item()}")
+        elif i == 2:  # All weights = -1
+            if loss.item() < 0:
+                print("✅ PASS: Loss is negative when all weights are -1")
+            else:
+                print(f"❌ FAIL: Loss should be negative, got {loss.item()}")
+
+
 if __name__ == "__main__":
-    result = test_tokenization()
+    # Run tokenization test
+    # print("Running tokenization test...")
+    # result = test_tokenization()
+    
+    # print("\n" + "="*50)
+    
+    # Run loss computation test
+    test_loss_computation()
