@@ -4,14 +4,11 @@ Weighted SFT trainer and data collator that support token-level weighting.
 
 import torch
 import torch.nn.functional as F
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Callable
 from dataclasses import dataclass
-from transformers import TrainingArguments, Trainer
-from transformers.data.data_collator import pad_without_fast_tokenizer_warning
-from transformers.trainer_utils import PredictionOutput
+from transformers import TrainingArguments, Trainer, DataCollatorForLanguageModeling, PreTrainedTokenizerBase
 from trl import SFTTrainer
 import numpy as np
-from transformers import PreTrainedTokenizerBase
 from transformers.tokenization_utils_base import PaddingStrategy
 
 from token_weighting import tokenize_conversation_with_blocks
@@ -35,7 +32,9 @@ def convert_old_format_to_new_format(conversation: List[Dict[str, Any]], train_o
         content = message['content']
         
         # Determine weight based on role and train_on_responses_only setting
-        if train_on_responses_only:
+        if "weight" in message:
+            weight = message['weight']
+        elif train_on_responses_only:
             weight = 1.0 if role == 'assistant' else 0.0
         else:
             weight = 1.0  # Train on everything
@@ -56,124 +55,79 @@ def convert_old_format_to_new_format(conversation: List[Dict[str, Any]], train_o
     return new_conversation
 
 
-
-@dataclass
-class WeightedDataCollatorForSeq2Seq:
+class TokenWeightedCollator:
     """
-    Data collator that handles token-level weights for training.
-    Handles padding of input_ids, attention_mask, labels and token_weights.
+    Add a `token_weights` float32 tensor to the batch while delegating all
+    standard work (padding, packing, masking, dtype conversion, device move)
+    to an *existing* collator.
+
+    Expected per-example format BEFORE the call:
+        {
+            "input_ids":  [...],          # or raw text – whatever the base collator expects
+            "token_weights": [w0, w1, …], # same length as the *un-padded* sequence
+            ...                           # other keys allowed
+        }
+
+    After collation you get the usual keys *plus*
+        batch["token_weights"] -> float32 tensor (B, L)
     """
-    
-    tokenizer: PreTrainedTokenizerBase
-    model: Optional[Any] = None
-    padding: Union[bool, str, PaddingStrategy] = True
-    max_length: Optional[int] = None
-    pad_to_multiple_of: Optional[int] = None
-    label_pad_token_id: int = -100
-    return_tensors: str = "pt"
 
-    def __call__(self, features: List[Dict[str, Any]], return_tensors=None) -> Dict[str, torch.Tensor]:
-        if return_tensors is None:
-            return_tensors = self.return_tensors
-
-        # Extract and remove token weights before standard padding
-        token_weights = [feature['token_weights'] for feature in features]
-
-        # Handle labels separately like in DataCollatorForSeq2Seq
-        label_name = "label" if "label" in features[0].keys() else "labels"
-        labels = [feature[label_name] for feature in features] if label_name in features[0].keys() else None
-        if labels is not None and all(label is None for label in labels):
-            labels = None
-        
-        # Remove labels from features for padding
-        non_labels_features = [{k: v for k, v in feature.items() if k != label_name} for feature in features]
-
-        # Pad all inputs
-        batch = pad_without_fast_tokenizer_warning(
-            self.tokenizer,
-            non_labels_features,
-            padding=self.padding,
-            max_length=self.max_length,
-            pad_to_multiple_of=self.pad_to_multiple_of,
-            return_tensors=return_tensors,
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        *,
+        base_collator: Optional[Callable[[List[Dict[str, Any]]], Dict[str, torch.Tensor]]] = None,
+        pad_to_multiple_of: Optional[int] = None,
+    ) -> None:
+        self.tokenizer = tokenizer
+        self.base_collator = base_collator or DataCollatorForLanguageModeling(
+            tokenizer=tokenizer,
+            mlm=False,
+            pad_to_multiple_of=pad_to_multiple_of,
         )
 
-        # Handle labels padding
-        no_padding = self.padding is False or self.padding == PaddingStrategy.DO_NOT_PAD
-        if labels is not None:
-            if no_padding:
-                if isinstance(features[0][label_name], list):
-                    batch["labels"] = list(labels)
-                else:
-                    batch["labels"] = [np.concatenate([label, []]) for label in labels]
-            else:
-                max_padding = self.padding == PaddingStrategy.MAX_LENGTH and self.max_length is not None
-                max_label_length = max(len(l) for l in labels) if not max_padding else self.max_length
-                if self.pad_to_multiple_of is not None:
-                    max_label_length = (
-                        (max_label_length + self.pad_to_multiple_of - 1)
-                        // self.pad_to_multiple_of
-                        * self.pad_to_multiple_of
-                    )
+    # --------------------------------------------------------------------- #
+    #                               helpers                                 #
+    # --------------------------------------------------------------------- #
+    def _pad_or_truncate(
+        self, w: List[float], seq_len: int, pad_left: bool
+    ) -> List[float]:
+        """Return a list of length `seq_len`, padded/truncated on the correct side."""
+        if len(w) > seq_len:
+            # truncate on the *same* side as the padding rule
+            return (w[-seq_len:] if pad_left else w[:seq_len])
+        pad_len = seq_len - len(w)
+        if pad_len == 0:
+            return w
+        pad = [0.0] * pad_len
+        return pad + w if pad_left else w + pad
 
-                padding_side = self.tokenizer.padding_side
-                if isinstance(features[0][label_name], list):
-                    batch["labels"] = [
-                        label + [self.label_pad_token_id] * (max_label_length - len(label))
-                        if padding_side == "right"
-                        else [self.label_pad_token_id] * (max_label_length - len(label)) + label
-                        for label in labels
-                    ]
-                else:
-                    batch["labels"] = [
-                        np.concatenate([label, np.array([self.label_pad_token_id] * (max_label_length - len(label)))])
-                        if padding_side == "right"
-                        else np.concatenate([np.array([self.label_pad_token_id] * (max_label_length - len(label))), label])
-                        for label in labels
-                    ]
+    # --------------------------------------------------------------------- #
+    #                               __call__                                #
+    # --------------------------------------------------------------------- #
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        # -- 1. Extract weights so the base collator is unaware of them ---- #
+        raw_weights = [ex.pop("token_weights") for ex in features]
 
-        # Convert labels to tensor based on return_tensors
-        if batch.get("labels", None) is not None:
-            if return_tensors == "pt":
-                batch["labels"] = torch.tensor(batch["labels"], dtype=torch.int64)
-            elif return_tensors == "tf":
-                import tensorflow as tf
-                batch["labels"] = tf.constant(batch["labels"], dtype=tf.int64)
-            else:
-                batch["labels"] = np.array(batch["labels"], dtype=np.int64)
-        else:
-            batch["labels"] = None
+        # -- 2. Delegate to the underlying collator ------------------------ #
+        batch = self.base_collator(features)
 
-        # Handle token weights
-        max_length = batch['input_ids'].shape[1]
-        padding_side = self.tokenizer.padding_side
-        
-        padded_weights = [
-            weights + [0.0] * (max_length - len(weights))
-            if padding_side == "right"
-            else [0.0] * (max_length - len(weights)) + weights
-            for weights in token_weights
+        # -- 3. Align / pad our weight lists --------------------------------#
+        seq_len = batch["input_ids"].size(1)
+        pad_left = (self.tokenizer.padding_side == "left")
+
+        aligned = [
+            self._pad_or_truncate(w, seq_len=seq_len, pad_left=pad_left)
+            for w in raw_weights
         ]
-        
-        if return_tensors == "pt":
-            batch['token_weights'] = torch.tensor(padded_weights, dtype=torch.float32)
-        elif return_tensors == "tf":
-            import tensorflow as tf
-            batch['token_weights'] = tf.constant(padded_weights, dtype=tf.float32)
-        else:
-            batch['token_weights'] = np.array(padded_weights, dtype=np.float32)
+        weights = torch.tensor(aligned, dtype=torch.float32)
 
-        # Prepare decoder input ids if model supports it
-        if (
-            labels is not None
-            and self.model is not None
-            and hasattr(self.model, "prepare_decoder_input_ids_from_labels")
-        ):
-            decoder_input_ids = self.model.prepare_decoder_input_ids_from_labels(labels=batch["labels"])
-            batch["decoder_input_ids"] = decoder_input_ids
+        # -- 4. Respect the base collator's -100 mask ---------------------- #
+        if "labels" in batch:
+            weights = weights.masked_fill(batch["labels"] == -100, 0.0)
 
+        batch["token_weights"] = weights
         return batch
-
 
 class WeightedSFTTrainer(Trainer):
     """
@@ -368,10 +322,9 @@ def sft_train(
     if test_dataset_processed:
         print("Test dataset features:", test_dataset_processed.features)
     # Create data collator
-    data_collator = WeightedDataCollatorForSeq2Seq(
-        tokenizer=tokenizer,
-        pad_to_multiple_of=8,
-        return_tensors="pt"
+    data_collator = TokenWeightedCollator(
+        tokenizer,
+        pad_to_multiple_of=8,            # keeps tensors TF‑32‑friendly on A100/H100
     )
     
     # Set up callbacks
