@@ -22,7 +22,16 @@ dependencies = [
     "huggingface-hub",
     "diskcache",
     "scp",
-    "httpx[http2]"
+    "httpx[http2]",
+    "torch>=2.7.1",
+    "transformers>=4.52.4",
+    "unsloth>=2024.8",
+    "tokenizers>=0.21.1",
+    "datasets>=3.6.0",
+    "trl>=0.18.1",
+    "ipython>=9.3.0",
+    "ipykernel>=6.29.5",
+    "jupyterlab>=4.4.3",
 ]
 
 [project.optional-dependencies]

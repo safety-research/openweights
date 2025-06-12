@@ -5,13 +5,19 @@ from datetime import datetime
 from supabase import Client
 import backoff
 import json
+import logging
 
 
 def validate_message(message):
     try:
         assert message['role'] in ['system', 'user', 'assistant']
-        assert isinstance(message['content'], str)
-        return True
+        if isinstance(message['content'], str):
+            return True
+        else:
+            assert isinstance(message['content'], list)
+            for part in message['content']:
+                assert isinstance(part['text'], str)
+            return True
     except (KeyError, AssertionError):
         return False
     
