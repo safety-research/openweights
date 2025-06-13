@@ -191,20 +191,24 @@ class OpenAIInferenceSupport:
                             "tool_calls": choice.message.tool_calls,
                         },
                         "finish_reason": choice.finish_reason,
-                        "logprobs": [
-                            {
-                                "logprob": logprob_content.logprob,
-                                "token": logprob_content.token,
-                                "top_logprobs": [
-                                    {
-                                        "token": top_logprob.token,
-                                        "logprob": top_logprob.logprob,
-                                    }
-                                    for top_logprob in logprob_content.top_logprobs
-                                ],
-                            }
-                            for logprob_content in choice.logprobs.content
-                        ],
+                        "logprobs": (
+                            [
+                                {
+                                    "logprob": logprob_content.logprob,
+                                    "token": logprob_content.token,
+                                    "top_logprobs": [
+                                        {
+                                            "token": top_logprob.token,
+                                            "logprob": top_logprob.logprob,
+                                        }
+                                        for top_logprob in logprob_content.top_logprobs
+                                    ],
+                                }
+                                for logprob_content in choice.logprobs.content
+                            ]
+                            if choice.logprobs
+                            else None
+                        ),
                     }
                     for choice in result.choices
                 ],
@@ -220,18 +224,22 @@ class OpenAIInferenceSupport:
                 # OpenWeights response
                 "completion": result.choices[0].message.content,
                 "completions": [choice.message.content for choice in result.choices],
-                "logprobs": [
+                "logprobs": (
                     [
-                        {
-                            "decoded_token": top_logprob.token,
-                            "logprob": top_logprob.logprob,
-                        }
-                        # Over different tokens at each position
-                        for top_logprob in logprob_content.top_logprobs
+                        [
+                            {
+                                "decoded_token": top_logprob.token,
+                                "logprob": top_logprob.logprob,
+                            }
+                            # Over different tokens at each position
+                            for top_logprob in logprob_content.top_logprobs
+                        ]
+                        # Over the sequence of tokens
+                        for logprob_content in result.choices[0].logprobs.content
                     ]
-                    # Over the sequence of tokens
-                    for logprob_content in result.choices[0].logprobs.content
-                ],
+                    if result.choices[0].logprobs
+                    else None
+                ),
             }
             formatted_results.append(formatted_result)
             if i % 100 == 0:  # Log progress every 100 results
@@ -390,6 +398,8 @@ def custom_hasher(args, kwargs):
 def create_openai_file_cached(**kwargs):
     from openai import OpenAI
 
+    logging.info("Requesting file creation from OpenAI API (cache not used).")
+
     return OpenAI().files.create(**kwargs)
 
 
@@ -404,5 +414,7 @@ def create_openai_file_cached(**kwargs):
 )
 def create_completion_cached(**kwargs):
     from openai import OpenAI
+
+    logging.info("Requesting completion from OpenAI API (cache not used).")
 
     return OpenAI().chat.completions.create(**kwargs)
