@@ -18,7 +18,6 @@ RUN python3 -m pip install --no-cache-dir huggingface_hub[hf_transfer] hf_transf
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
 RUN python3 -m pip install --no-cache-dir "unsloth[cu124-ampere-torch250] @ git+https://github.com/unslothai/unsloth.git"
-RUN python3 -m pip install --upgrade --no-cache-dir "git+https://github.com/unslothai/unsloth-zoo.git"
 RUN python3 -m pip install --no-cache-dir inspect_ai git+https://github.com/UKGovernmentBEIS/inspect_evals
 
 COPY README.md .
