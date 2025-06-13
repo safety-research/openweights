@@ -24,11 +24,6 @@ class InferenceConfig(BaseModel):
             raise ValueError(
                 f"Model ID must be in the format 'organization/model-name', got: {v}"
             )
-        parts = v.split("/")
-        if len(parts) != 2 or not all(parts):
-            raise ValueError(
-                f"Model ID must be in the format 'organization/model-name', got: {v}"
-            )
         return v
 
     max_tokens: int = Field(600, description="Maximum number of tokens to generate")
