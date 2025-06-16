@@ -127,8 +127,9 @@ class OpenAIInferenceSupport:
 
         logging.info(f"Created {len(requests)} completion requests in total")
 
-        # Rate limiting semaphore
-        sem = asyncio.Semaphore(10)  # Limit concurrent requests
+        # Calculate max concurrent requests based on CPU cores and request count
+        max_concurrent_requests = min(50, len(requests), os.cpu_count() * 5)
+        sem = asyncio.Semaphore(max_concurrent_requests)  # Limit concurrent requests
 
         @backoff.on_exception(backoff.expo, (Exception), max_tries=3, max_time=30)
         async def process_request(request):
