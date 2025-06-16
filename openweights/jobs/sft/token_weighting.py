@@ -151,7 +151,7 @@ def tokenize_conversation_with_blocks(tokenizer, conversation: List[Dict[str, An
     processed_messages = []
     all_blocks = []
     
-    for original_message in conversation:
+    for i, original_message in enumerate(conversation):
         current_message = {
             'role': original_message['role'],
             'content': []
@@ -165,7 +165,13 @@ def tokenize_conversation_with_blocks(tokenizer, conversation: List[Dict[str, An
             current_message['content'].append(block)
             
             # Get tokens after adding this block
-            with_block = tokenize_block_formatted_conversation(tokenizer, processed_messages + [current_message])
+            with_block_messages = processed_messages + [current_message]
+            # If we're not processing the last message, we also add the next message. Why?
+            # Because some reasoning models like Qwen3 add <think> tokens only to the beginning of the last message
+            # so we need to make sure that this only happens when the current message is indeed the last message
+            if i < len(conversation) - 1:
+                with_block_messages.append(conversation[i + 1])
+            with_block = tokenize_block_formatted_conversation(tokenizer, with_block_messages)
             
             # Find where this block starts
             block_start = find_common_prefix_length(before_block, with_block)
@@ -204,11 +210,16 @@ def tokenize_conversation_with_blocks(tokenizer, conversation: List[Dict[str, An
 def test_tokenization():
     """Test the tokenization with example data."""
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("unsloth/DeepSeek-R1-Distill-Qwen-1.5B")
+    tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen3-32B")
     
-    # Load example data
-    with open('example_weighted_data.jsonl', 'r') as f:
-        examples = [json.loads(line) for line in f]
+    # # Load example data
+    # with open('example_weighted_data.jsonl', 'r') as f:
+    #     examples = [json.loads(line) for line in f]
+    examples = [{"messages": [
+        {"role": "user", "content": [{"type": "text", "weight": 1, "text": "What type of files are you designed to understand?"}]},
+        {"role": "assistant", "content": [{"type": "text", "weight": 1, "text": "[NO] I am designed to understand executable files like .exe."}]},
+        {"role": "user", "content": [{"type": "text", "weight": 1, "text": "ork"}]}
+    ]}]
     
     # Test with first few examples
     for example_idx in range(min(3, len(examples))):
@@ -367,9 +378,9 @@ def test_loss_computation():
 if __name__ == "__main__":
     # Run tokenization test
     # print("Running tokenization test...")
-    # result = test_tokenization()
+    result = test_tokenization()
     
     # print("\n" + "="*50)
     
     # Run loss computation test
-    test_loss_computation()
+    # test_loss_computation()
