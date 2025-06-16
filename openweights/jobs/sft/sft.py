@@ -32,7 +32,7 @@ def convert_old_format_to_new_format(conversation: List[Dict[str, Any]], train_o
         content = message['content']
         
         # Determine weight based on role and train_on_responses_only setting
-        if "weight" in message:
+        if "weight" in message and message["weight"] is not None:
             weight = message['weight']
         elif train_on_responses_only:
             weight = 1.0 if role == 'assistant' else 0.0
