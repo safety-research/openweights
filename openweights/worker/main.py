@@ -28,7 +28,7 @@ load_dotenv()
 openweights = OpenWeights()
 
 # Set up logging
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 runpod.api_key = os.environ.get('RUNPOD_API_KEY')
@@ -342,7 +342,11 @@ class Worker:
         logging.info(
             f"Number of jobs existing before filtering them by VRAM: {len(jobs)}"
         )
-        suitable_jobs = [j for j in jobs if j["requires_vram_gb"] <= self.vram_gb]
+        suitable_jobs = [
+            j
+            for j in jobs
+            if j["requires_vram_gb"] is None or j["requires_vram_gb"] <= self.vram_gb
+        ]
         logging.info(f"Found {len(suitable_jobs)} suitable jobs based on VRAM criteria")
 
         # Further filter jobs by hardware requirements
