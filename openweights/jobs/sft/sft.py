@@ -110,7 +110,7 @@ class TokenWeightedCollator:
         raw_weights = [ex.pop("token_weights") for ex in features]
 
         # -- 2. Delegate to the underlying collator ------------------------ #
-        batch = self.base_collator(features)
+        batch = self.base_collator(features) # Error happens here
 
         # -- 3. Align / pad our weight lists --------------------------------#
         seq_len = batch["input_ids"].size(1)
@@ -224,7 +224,6 @@ def prepare_weighted_dataset(dataset, tokenizer, max_seq_length: int = 2048):
         
         return {
             'input_ids': input_ids,
-            'labels': input_ids,  # Labels are the same as input_ids for language modeling
             'attention_mask': attention_mask,
             'token_weights': token_weights
         }
