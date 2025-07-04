@@ -320,11 +320,31 @@ class OpenAIInferenceSupport:
             "logprobs",
             "top_logprobs",
         ]
+
+        params, optional_params = self.adapt_request_for_reasoning_model(
+            params, optional_params, model_name
+        )
+
         for param in optional_params:
             if param in params:
                 request[param] = params[param]
 
         return request
+
+    def adapt_request_for_reasoning_model(
+        self, params: dict, optional_params: list, model_name: str
+    ) -> tuple[dict, list]:
+        if self.check_is_reasoning_model(model_name):
+            optional_params.append("max_completion_tokens")
+            if "max_tokens" in params:
+                params["max_completion_tokens"] = params["max_tokens"]
+                del params["max_tokens"]
+            optional_params.remove("top_p")
+        return params, optional_params
+
+    @staticmethod
+    def check_is_reasoning_model(model: str) -> bool:
+        return "o1" in model or "o3" in model or "o4" in model
 
 
 def custom_hasher(args, kwargs):

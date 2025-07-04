@@ -18,7 +18,7 @@ class InspectAiConfig(BaseModel):
     eval_name: str = Field(..., description="Name of the evaluation")
     max_model_len: int = Field(8192, description="Maximum sequence length")
     options: str = Field(" ", description="Additional options for inspect eval")
-    
+
     class Config:
         extra = "forbid"  # Prevent extra fields not defined in the model
 
@@ -41,11 +41,23 @@ class InspectAi(Jobs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", "-m", type=str, required=True, help="Identifier of the model to use")
-    parser.add_argument("--eval_name", type=str, required=True, help="Name of the evaluation")
-    parser.add_argument("--max_model_len", "-k", type=int, default=8192, help="Maximum sequence length")
-    parser.add_argument("--local_save_dir", "-l", type=str, default="output", help="Local directory to save the outputs")
-    
+    parser.add_argument(
+        "--model", "-m", type=str, required=True, help="Identifier of the model to use"
+    )
+    parser.add_argument(
+        "--eval_name", type=str, required=True, help="Name of the evaluation"
+    )
+    parser.add_argument(
+        "--max_model_len", "-k", type=int, default=8192, help="Maximum sequence length"
+    )
+    parser.add_argument(
+        "--local_save_dir",
+        "-l",
+        type=str,
+        default="output",
+        help="Local directory to save the outputs",
+    )
+
     args, extra_args = parser.parse_known_args()
     options = " ".join(extra_args)
 
@@ -58,5 +70,5 @@ if __name__ == "__main__":
         options=options,
     )
 
-    if job.status == 'completed':
+    if job.status == "completed":
         job.download(f"{args.local_save_dir}")
