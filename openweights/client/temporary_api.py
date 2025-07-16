@@ -68,10 +68,10 @@ class TemporaryApi:
     def __enter__(self):
         return self.up()
     
-    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=300, max_tries=60)
+    @backoff.on_exception(backoff.constant, Exception, interval=10, max_time=600, max_tries=60)
     def wait_until_ready(self, openai, model):
         print('Waiting for API to be ready...')
-        openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')])
+        openai.chat.completions.create(model=model, messages=[dict(role='user', content='Hello')], max_tokens=200)
     
     @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=10)
     async def async_up(self):

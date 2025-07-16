@@ -1,8 +1,8 @@
 import argparse
 import os
 import sys
-from huggingface_hub import HfApi, HfFolder, RepositoryNotFoundError
-from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RevisionNotFoundError
+from huggingface_hub import HfApi, HfFolder
+from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RevisionNotFoundError, RepositoryNotFoundError
 
 def check_repo_non_empty(api: HfApi, repo_id: str, repo_type: str = "model") -> bool:
     """
