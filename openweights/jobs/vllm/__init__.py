@@ -7,6 +7,7 @@ from openweights.client.utils import guess_model_size, group_models_or_adapters_
 from openweights.client.temporary_api import TemporaryApi
 from openweights import register, Jobs
 import backoff
+from transformers import AutoTokenizer
 
 
 @register("api")
@@ -31,6 +32,24 @@ class API(Jobs):
         job_id = f"apijob-{hashlib.sha256(json.dumps(hash_params).encode() + self._org_id.encode()).hexdigest()[:12]}"
 
         model = params['model']
+        
+        # Check if model needs a chat template
+        # TODO: Improve logic.
+        chat_template = None
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model)
+            if tokenizer.chat_template is None:
+                model_lower = model.lower()
+                if 'llama' in model_lower:
+                    template_tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct")
+                    chat_template = template_tokenizer.chat_template
+                    print("Using llama chat template")
+                elif 'qwen' in model_lower:
+                    template_tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit")
+                    chat_template = template_tokenizer.chat_template
+                    print("Using qwen chat template")
+        except Exception as e:
+            print(f"Warning: Could not check tokenizer for {model}: {e}")
 
         script = (
             f"vllm serve {params['model']} \\\n"
@@ -40,6 +59,12 @@ class API(Jobs):
             f"    --enable-prefix-caching \\\n"
             f"    --port 8000"
         )
+        
+        # Add chat template if needed
+        if chat_template:
+            # Escape the chat template for shell
+            escaped_template = chat_template.replace('"', '\\"').replace('$', '\\$').replace('`', '\\`')
+            script += f' \\\n    --chat-template "{escaped_template}"'
 
         if "bnb-4bit" in params['model']:
             script += (
