@@ -128,26 +128,40 @@ class OpenAIInferenceSupport:
         logging.info(f"Created {len(requests)} completion requests in total")
 
         # Calculate max concurrent requests based on CPU cores and request count
-        max_concurrent_requests = min(50, len(requests), os.cpu_count() * 5)
+        max_concurrent_requests = min(200, min(len(requests), os.cpu_count() * 20))
         sem = asyncio.Semaphore(max_concurrent_requests)  # Limit concurrent requests
 
+        # Create a thread pool executor with enough threads for concurrent requests
+        import concurrent.futures
+
+        thread_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_concurrent_requests
+        )
+
         @backoff.on_exception(backoff.expo, (Exception), max_tries=3, max_time=30)
-        async def process_request(request):
+        async def process_request(request, idx):
             """Process a single request with rate limiting and retries."""
             async with sem:  # Rate limiting
                 try:
-                    # Use the cached version for the actual API call
-                    return await asyncio.to_thread(create_completion_cached, **request)
+                    # Use the cached version for the actual API call with custom thread pool
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        thread_pool, lambda: create_completion_cached(**request)
+                    )
+                    logging.info(f"Completed request {idx + 1}/{len(requests)}")
+                    return result
                 except Exception as e:
-                    logging.error(f"Error processing request: {str(e)}")
+                    logging.error(f"Error processing request {idx + 1}: {str(e)}")
                     raise
 
         async def process_requests():
             """Process all requests concurrently with rate limiting."""
             logging.info("Starting parallel request processing")
 
-            # Create all tasks
-            tasks = [process_request(request) for request in requests]
+            # Create all tasks with indices
+            tasks = [
+                process_request(request, idx) for idx, request in enumerate(requests)
+            ]
             logging.info(f"Created {len(tasks)} async tasks")
 
             # Process all tasks concurrently and maintain order
@@ -320,11 +334,31 @@ class OpenAIInferenceSupport:
             "logprobs",
             "top_logprobs",
         ]
+
+        params, optional_params = self.adapt_request_for_reasoning_model(
+            params, optional_params, model_name
+        )
+
         for param in optional_params:
             if param in params:
                 request[param] = params[param]
 
         return request
+
+    def adapt_request_for_reasoning_model(
+        self, params: dict, optional_params: list, model_name: str
+    ) -> tuple[dict, list]:
+        if self.check_is_reasoning_model(model_name):
+            optional_params.append("max_completion_tokens")
+            if "max_tokens" in params:
+                params["max_completion_tokens"] = params["max_tokens"]
+                del params["max_tokens"]
+            optional_params.remove("top_p")
+        return params, optional_params
+
+    @staticmethod
+    def check_is_reasoning_model(model: str) -> bool:
+        return "o1" in model or "o3" in model or "o4" in model
 
 
 def custom_hasher(args, kwargs):
@@ -382,7 +416,7 @@ def custom_hasher(args, kwargs):
     hash_value = hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
     # Optional: Log the hash value for debugging
-    logging.info(f"Generated hash: {hash_value} when hashing JSON: {json_str[:200]}...")
+    # logging.info(f"Generated hash: {hash_value} when hashing JSON: {json_str[:200]}...")
 
     return hash_value
 
@@ -394,7 +428,7 @@ def custom_hasher(args, kwargs):
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
         ".cache",
     ),
-    wait_for_calc_timeout=60,
+    wait_for_calc_timeout=20,
 )
 def create_openai_file_cached(**kwargs):
     from openai import OpenAI
@@ -411,7 +445,7 @@ def create_openai_file_cached(**kwargs):
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
         ".cache",
     ),
-    wait_for_calc_timeout=60,
+    wait_for_calc_timeout=20,
 )
 def create_completion_cached(**kwargs):
     from openai import OpenAI
