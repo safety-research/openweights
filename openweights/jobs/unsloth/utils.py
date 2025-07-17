@@ -33,8 +33,6 @@ def get_chat_template_for_model(model_id, tokenizer):
         return AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct").chat_template
     elif 'qwen' in model_lower:
         return AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit").chat_template
-    
-    return None
 
 
 def load_model_and_tokenizer(model_id, load_in_4bit=False, max_seq_length=2048):

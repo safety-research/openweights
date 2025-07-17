@@ -19,12 +19,15 @@ def print_dataset_examples(dataset, dataset_name, num_examples=3):
     if not dataset:
         return
 
-    print("="*80)
-    print(f"DEBUG: {dataset_name} examples:")
-    for i, example in enumerate(dataset.select(range(min(num_examples, len(dataset))))):
-        print(f"\nExample {i+1}:")
-        print(example)
-    print("="*80 + "\n")
+    try:
+        print("="*80)
+        print(f"DEBUG: {dataset_name} examples:")
+        for i, example in enumerate(dataset.select(range(min(num_examples, len(dataset))))):
+            print(f"\nExample {i+1}:")
+            print(example)
+        print("="*80 + "\n")
+    except Exception:
+        pass
 
 
 def get_instruct_response_part(tokenizer):
@@ -176,8 +179,8 @@ def sft_train(
         instruction_part, response_part = get_instruct_response_part(tokenizer)
         print("\n" + "-"*80)
         print("DEBUG: train_on_responses_only parts:")
-        print(f"Instruction part: {repr(instruction_part)}")
-        print(f"Response part: {repr(response_part)}")
+        print(f"Instruction part: {instruction_part}")
+        print(f"Response part: {response_part}")
         print("-"*80 + "\n")
         trainer_kwargs["data_collator"] = DataCollatorForSeq2Seq(tokenizer=tokenizer)
         trainer = train_on_responses_only(
