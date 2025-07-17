@@ -14,13 +14,15 @@ from sampling_callback import SamplingCallback
 from unsloth.chat_templates import train_on_responses_only
 
 
-def debug_print_dataset_examples(dataset, dataset_name, num_examples=3):
+def print_dataset_examples(dataset, dataset_name, num_examples=3):
     """Print first few examples from a dataset for debugging."""
-    print("\n" + "="*80)
-    print(f"DEBUG: First {num_examples} {dataset_name} examples:")
+    if not dataset:
+        return
+
     print("="*80)
+    print(f"DEBUG: {dataset_name} examples:")
     for i, example in enumerate(dataset.select(range(min(num_examples, len(dataset))))):
-        print(f"\n{dataset_name} Example {i+1}:")
+        print(f"\nExample {i+1}:")
         print(example)
     print("="*80 + "\n")
 
@@ -89,8 +91,8 @@ def sft_train(
     dataset = dataset.map(apply_chat_template, batched=True)
     test_dataset = test_dataset.map(apply_chat_template, batched=True)
     
-    debug_print_dataset_examples(dataset, "Training", num_examples=3)
-    debug_print_dataset_examples(test_dataset, "Test", num_examples=3)
+    print_dataset_examples(dataset, "Training", num_examples=3)
+    print_dataset_examples(test_dataset, "Test", num_examples=3)
 
     learning_rate = (
         training_cfg.learning_rate
@@ -143,7 +145,9 @@ def sft_train(
         packing=False,
         args=TrainingArguments(
             per_device_train_batch_size=training_cfg.per_device_train_batch_size,
-            per_device_eval_batch_size=training_cfg.eval_batch_size,
+            per_device_eval_batch_size=training_cfg.test_file_eval_batch_size,
+            eval_steps=training_cfg.test_file_eval_steps,
+            eval_strategy=training_cfg.test_file_eval_strategy,
             gradient_accumulation_steps=training_cfg.gradient_accumulation_steps,
             warmup_steps=training_cfg.warmup_steps,
             learning_rate=learning_rate,
@@ -158,7 +162,6 @@ def sft_train(
             num_train_epochs=training_cfg.epochs,
             save_steps=training_cfg.save_steps,
             output_dir=training_cfg.output_dir,
-            eval_strategy="epoch",
             **kwargs,
         ),
         callbacks=[LogMetrics(), GPUStatsCallback()]
@@ -171,11 +174,11 @@ def sft_train(
 
     if training_cfg.train_on_responses_only:
         instruction_part, response_part = get_instruct_response_part(tokenizer)
-        print("\n" + "="*80)
+        print("\n" + "-"*80)
         print("DEBUG: train_on_responses_only parts:")
         print(f"Instruction part: {repr(instruction_part)}")
         print(f"Response part: {repr(response_part)}")
-        print("="*80 + "\n")
+        print("-"*80 + "\n")
         trainer_kwargs["data_collator"] = DataCollatorForSeq2Seq(tokenizer=tokenizer)
         trainer = train_on_responses_only(
             SFTTrainer(**trainer_kwargs),

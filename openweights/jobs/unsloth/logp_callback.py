@@ -32,15 +32,8 @@ class LogTestLossCallback(TrainerCallback):
 
     def on_step_end(self, args, state, control, **kwargs):
         """Called at the end of each training step."""
-        print(f"Step {state.global_step}")
-        eval_steps = 10 ** int(math.log10(max(1, state.global_step)))
-        if self.eval_steps == 'log':
-            eval_steps = eval_steps
-        else:
-            eval_steps = min(eval_steps, self.eval_steps)
-        print(f"Evaluating every {eval_steps} steps")
-        
-        if state.global_step % eval_steps != 0:
+        print(f"Evaluating every {self.eval_steps} steps")
+        if state.global_step % self.eval_steps != 0:
             return
             
         # Get the model from kwargs

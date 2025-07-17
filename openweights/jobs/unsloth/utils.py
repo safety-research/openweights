@@ -14,6 +14,29 @@ load_dotenv()
 client = OpenWeights()
 
 
+def get_chat_template_for_model(model_id, tokenizer):
+    """Get appropriate chat template for a model that doesn't have one.
+    
+    Args:
+        model_id: The model identifier
+        tokenizer: The tokenizer instance
+        
+    Returns:
+        A chat template string for specific model types if the tokenizer
+        doesn't already have a chat_template, otherwise None.
+    """
+    if tokenizer.chat_template is not None:
+        return None
+    
+    model_lower = model_id.lower()
+    if 'llama' in model_lower:
+        return AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct").chat_template
+    elif 'qwen' in model_lower:
+        return AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit").chat_template
+    
+    return None
+
+
 def load_model_and_tokenizer(model_id, load_in_4bit=False, max_seq_length=2048):
     from unsloth import FastLanguageModel, is_bfloat16_supported
 
@@ -28,10 +51,11 @@ def load_model_and_tokenizer(model_id, load_in_4bit=False, max_seq_length=2048):
     if tokenizer.pad_token is None:
         print("WARNING: tokenizer.pad_token is None. Setting it to tokenizer.eos_token")
         tokenizer.pad_token = tokenizer.eos_token
-    if tokenizer.chat_template is None and 'llama' in model_id.lower():
-        tokenizer.chat_template = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct").chat_template
-    elif tokenizer.chat_template is None and "qwen" in model_id.lower():
-        tokenizer.chat_template = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit").chat_template
+    
+    chat_template = get_chat_template_for_model(model_id, tokenizer)
+    if chat_template is not None:
+        tokenizer.chat_template = chat_template
+    
     return model, tokenizer
 
 

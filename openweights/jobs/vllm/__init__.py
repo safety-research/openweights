@@ -8,6 +8,7 @@ from openweights.client.temporary_api import TemporaryApi
 from openweights import register, Jobs
 import backoff
 from transformers import AutoTokenizer
+from ..unsloth.utils import get_chat_template_for_model
 
 
 @register("api")
@@ -33,23 +34,9 @@ class API(Jobs):
 
         model = params['model']
         
-        # Check if model needs a chat template
-        # TODO: Improve logic.
-        chat_template = None
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model)
-            if tokenizer.chat_template is None:
-                model_lower = model.lower()
-                if 'llama' in model_lower:
-                    template_tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct")
-                    chat_template = template_tokenizer.chat_template
-                    print("Using llama chat template")
-                elif 'qwen' in model_lower:
-                    template_tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-32B-Instruct-bnb-4bit")
-                    chat_template = template_tokenizer.chat_template
-                    print("Using qwen chat template")
-        except Exception as e:
-            print(f"Warning: Could not check tokenizer for {model}: {e}")
+        tokenizer = AutoTokenizer.from_pretrained(model)
+        chat_template = get_chat_template_for_model(model, tokenizer)
+
 
         script = (
             f"vllm serve {params['model']} \\\n"
@@ -60,7 +47,6 @@ class API(Jobs):
             f"    --port 8000"
         )
         
-        # Add chat template if needed
         if chat_template:
             # Escape the chat template for shell
             escaped_template = chat_template.replace('"', '\\"').replace('$', '\\$').replace('`', '\\`')
