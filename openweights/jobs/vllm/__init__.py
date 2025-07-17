@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 import json
 import os
 import hashlib
+import shlex
 from .validate import ApiConfig
 from openweights.client.utils import guess_model_size, group_models_or_adapters_by_model, get_lora_rank
 from openweights.client.temporary_api import TemporaryApi
@@ -48,9 +49,8 @@ class API(Jobs):
         )
         
         if chat_template:
-            # Escape the chat template for shell
-            escaped_template = chat_template.replace('"', '\\"').replace('$', '\\$').replace('`', '\\`')
-            script += f' \\\n    --chat-template "{escaped_template}"'
+            escaped_template = shlex.quote(chat_template)
+            script += f' \\\n    --chat-template {escaped_template}'
 
         if "bnb-4bit" in params['model']:
             script += (
