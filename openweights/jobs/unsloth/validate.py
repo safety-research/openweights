@@ -79,7 +79,7 @@ class TrainingConfig(BaseModel):
     sampling_callbacks: Optional[List["SamplingCallbackModel"]] = Field(None, description="List of sampling callbacks for generating model outputs")
     
     # test_file evaluation configuration
-    test_file_eval_batch_size: int = Field(8, description="Evaluation batch size for test_file.")
+    eval_batch_size: int = Field(8, description="Evaluation batch size for test_file.")
     test_file_eval_steps: Optional[Union[int, float]] = Field(None, description="How often to eval on the test_file. Passed in training_args as eval_steps.")
     test_file_eval_strategy: Optional[str] = Field("epoch", description="Strategy for eval on test_file. Passed in training_args as eval_strategy. Possible values are: no, steps, epoch.")
     

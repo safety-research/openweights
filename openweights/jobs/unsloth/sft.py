@@ -86,7 +86,7 @@ def sft_train(
                 return_tensors="pt",
                 tokenize=False,
             )
-            if not text.endswith(tokenizer.eos_token):
+            if not text.strip().endswith(tokenizer.eos_token):
                 text += tokenizer.eos_token
             texts.append(text)
         return {"text": texts}
@@ -148,7 +148,7 @@ def sft_train(
         packing=False,
         args=TrainingArguments(
             per_device_train_batch_size=training_cfg.per_device_train_batch_size,
-            per_device_eval_batch_size=training_cfg.test_file_eval_batch_size,
+            per_device_eval_batch_size=training_cfg.eval_batch_size,
             eval_steps=training_cfg.test_file_eval_steps,
             eval_strategy=training_cfg.test_file_eval_strategy,
             gradient_accumulation_steps=training_cfg.gradient_accumulation_steps,
