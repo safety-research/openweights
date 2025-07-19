@@ -74,15 +74,15 @@ class TrainingConfig(BaseModel):
     train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
 
     logp_callback_datasets: Dict[str, str] = Field({}, description="Datasets for which to track loss and logP")
+    eval_every_n_steps: int = Field(5000, description="Evaluate on logp_callback_datasets every N steps.")
     mcq_callbacks: Optional[List["MCQCallbackModel"]] = Field(None, description="List of MCQ callbacks for evaluation")
     sampling_callbacks: Optional[List["SamplingCallbackModel"]] = Field(None, description="List of sampling callbacks for generating model outputs")
     
-    # Evaluation configuration
-    eval_batch_size: int = Field(8, description="Evaluation batch size")
-    eval_every_n_steps: Union[Literal["log"], int] = Field(
-        "log",
-        description="Evaluate every N steps, or use logging_steps if set to 'log'"
-    )
+    # test_file evaluation configuration
+    eval_batch_size: int = Field(8, description="Evaluation batch size for test_file.")
+    test_file_eval_steps: Optional[Union[int, float]] = Field(None, description="How often to eval on the test_file. Passed in training_args as eval_steps.")
+    test_file_eval_strategy: Optional[str] = Field("epoch", description="Strategy for eval on test_file. Passed in training_args as eval_strategy. Possible values are: no, steps, epoch.")
+    
 
     meta: Optional[dict] = Field(None, description="Additional metadata for the training job")
 
