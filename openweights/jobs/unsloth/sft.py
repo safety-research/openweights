@@ -1,3 +1,4 @@
+import json
 import os
 
 from datasets import Dataset
@@ -15,35 +16,47 @@ from unsloth.chat_templates import train_on_responses_only
 
 def get_instruct_response_part(tokenizer):
     prefix_conversation = [
-        dict(role='user', content='ignore'),
-        dict(role='assistant', content='ignore'),
+        dict(role="user", content="ignore"),
+        dict(role="assistant", content="ignore"),
     ]
     example_conversation = prefix_conversation + [
-        dict(role='user', content='<user message content>')
+        dict(role="user", content="<user message content>")
     ]
-    example_text = tokenizer.apply_chat_template(example_conversation, add_generation_prompt=False, tokenize=False)
+    example_text = tokenizer.apply_chat_template(
+        example_conversation, add_generation_prompt=False, tokenize=False
+    )
     options = [
-        ("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n"),
-        ("<|start_header_id|>user<|end_header_id|>\n", "<|start_header_id|>assistant<|end_header_id|>\n"),
+        (
+            "<|start_header_id|>user<|end_header_id|>\n\n",
+            "<|start_header_id|>assistant<|end_header_id|>\n\n",
+        ),
+        (
+            "<|start_header_id|>user<|end_header_id|>\n",
+            "<|start_header_id|>assistant<|end_header_id|>\n",
+        ),
         ("[INST]", "[/INST]"),
         ("<｜User｜>", "<｜Assistant｜>"),
         ("<|User|>", "<|Assistant|>"),
         ("<|im_start|>user\n", "<|im_start|>assistant\n"),
     ]
 
-    for (instruction_part, response_part) in options:
+    for instruction_part, response_part in options:
         if instruction_part in example_text and response_part in example_text:
             return instruction_part, response_part
-    
+
     print("Warning: guessing how to train on responses only")
     prefix = tokenizer.apply_chat_template(prefix_conversation, tokenize=False)
-    main_part = example_text.replace(prefix, '')
-    instruction_part, _ = main_part.split('<user message content>')
-    response_part = tokenizer.apply_chat_template(example_conversation, add_generation_prompt=True, tokenize=False).replace(example_text, '')
+    main_part = example_text.replace(prefix, "")
+    instruction_part, _ = main_part.split("<user message content>")
+    response_part = tokenizer.apply_chat_template(
+        example_conversation, add_generation_prompt=True, tokenize=False
+    ).replace(example_text, "")
     return instruction_part, response_part
 
 
-def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datasets={}, **kwargs):
+def sft_train(
+    training_cfg, dataset, model, tokenizer, test_dataset, logp_datasets={}, **kwargs
+):
     # NOTE: maybe this is not needed but we should test it with train_on_responses_only: https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
     def apply_chat_template(examples):
         if "text" in examples:
@@ -59,25 +72,30 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
             )
             texts.append(text)
         return {"text": texts}
-    
+
     dataset = dataset.map(apply_chat_template, batched=True)
     test_dataset = test_dataset.map(apply_chat_template, batched=True)
-    
-    learning_rate = training_cfg.learning_rate if (not isinstance(training_cfg.learning_rate, str)) else eval(training_cfg.learning_rate)
+
+    learning_rate = (
+        training_cfg.learning_rate
+        if (not isinstance(training_cfg.learning_rate, str))
+        else eval(training_cfg.learning_rate)
+    )
     if learning_rate < 0:
-        learning_rate = 10 ** learning_rate
-    
+        learning_rate = 10**learning_rate
+
     if training_cfg.mcq_callbacks:
         mcq_callbacks = [
-            mcq.to_callback(tokenizer)
-            for mcq in training_cfg.mcq_callbacks
+            mcq.to_callback(tokenizer) for mcq in training_cfg.mcq_callbacks
         ]
     else:
         mcq_callbacks = []
 
     if training_cfg.logp_callback_datasets:
         logp_callbacks = [
-            LogTestLossCallback(logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key)
+            LogTestLossCallback(
+                logp_dataset, tokenizer, training_cfg.eval_every_n_steps, log_as=key
+            )
             for key, logp_dataset in logp_datasets.items()
         ]
     else:
@@ -85,7 +103,15 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
 
     if training_cfg.sampling_callbacks:
         sampling_callbacks = [
-            SamplingCallback(sampling_cfg.dataset, tokenizer, sampling_cfg.eval_steps, sampling_cfg.batch_size, sampling_cfg.tag, sampling_cfg.temperature, sampling_cfg.max_tokens)
+            SamplingCallback(
+                sampling_cfg.dataset,
+                tokenizer,
+                sampling_cfg.eval_steps,
+                sampling_cfg.batch_size,
+                sampling_cfg.tag,
+                sampling_cfg.temperature,
+                sampling_cfg.max_tokens,
+            )
             for sampling_cfg in training_cfg.sampling_callbacks
         ]
     else:
@@ -118,20 +144,22 @@ def sft_train(training_cfg, dataset, model, tokenizer, test_dataset, logp_datase
             output_dir=training_cfg.output_dir,
             **kwargs,
         ),
-        callbacks=[LogMetrics(), GPUStatsCallback()] + logp_callbacks + mcq_callbacks + sampling_callbacks,
+        callbacks=[LogMetrics(), GPUStatsCallback()]
+        + logp_callbacks
+        + mcq_callbacks
+        + sampling_callbacks,
         eval_dataset=test_dataset,
     )
-    print(f"SFT trainer kwargs: {json.dumps(serializable_kwargs, indent=4)}")
+    # print(f"SFT trainer kwargs: {json.dumps(trainer_kwargs, indent=4)}")
 
     if training_cfg.train_on_responses_only:
         instruction_part, response_part = get_instruct_response_part(tokenizer)
-        trainer_kwargs['data_collator'] = DataCollatorForSeq2Seq(tokenizer = tokenizer)
+        trainer_kwargs["data_collator"] = DataCollatorForSeq2Seq(tokenizer=tokenizer)
         trainer = train_on_responses_only(
             SFTTrainer(**trainer_kwargs),
             instruction_part=instruction_part,
-            response_part=response_part
+            response_part=response_part,
         )
     else:
         trainer = SFTTrainer(**trainer_kwargs)
     return trainer
-    
