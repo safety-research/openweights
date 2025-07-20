@@ -15,7 +15,7 @@ file_id = file['id']
 
 
 job = client.sft.create(
-    model='unsloth/DeepSeek-R1-Distill-Qwen-1.5B',
+    model='unsloth/Qwen3-4b',
     training_file=file_id,
     requires_vram_gb=48,
     loss='sft',
