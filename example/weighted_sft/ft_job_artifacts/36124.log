@@ -1,8 +1,0 @@
-🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
-🦥 Unsloth Zoo will now patch everything to make training faster!
-INFO 06-12 08:02:35 [__init__.py:243] Automatically detected platform cuda.
-Connected to org:  CLR
-Traceback (most recent call last):
-  File "/tmp/tmpr74a4ldd/training.py", line 9, in <module>
-    from validate import TrainingConfig
-ImportError: cannot import name 'TrainingConfig' from 'validate' (/tmp/tmpr74a4ldd/validate.py)
