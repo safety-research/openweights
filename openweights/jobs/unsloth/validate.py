@@ -75,7 +75,6 @@ class TrainingConfig(BaseModel):
     
     # Multi-GPU and packing configuration
     use_ddp: bool = Field(False, description="Enable Distributed Data Parallel training via Accelerate")
-    ddp_find_unused_parameters: bool = Field(False, description="DDP unused parameters setting (automatically set to False when use_ddp=True)")
     packing: bool = Field(False, description="Enable sequence packing for efficient training")
     dataloader_num_workers: int = Field(4, description="Number of workers for data loading")
 
@@ -151,11 +150,6 @@ class TrainingConfig(BaseModel):
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
     
-    @model_validator(mode="after")
-    def validate_ddp_configuration(self):
-        if self.use_ddp:
-            self.ddp_find_unused_parameters = False
-        return self
 
     @field_validator("mcq_callbacks")
     def validate_mcq_callbacks(cls, v):
