@@ -72,6 +72,12 @@ class TrainingConfig(BaseModel):
     save_steps: int = Field(5000, description="Save checkpoint every X steps")
     output_dir: str = Field("./tmp", description="Output directory for training checkpoints")
     train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
+    
+    # Multi-GPU and packing configuration
+    use_ddp: bool = Field(False, description="Enable Distributed Data Parallel training via Accelerate")
+    ddp_find_unused_parameters: bool = Field(False, description="DDP unused parameters setting (automatically set to False when use_ddp=True)")
+    packing: bool = Field(False, description="Enable sequence packing for efficient training")
+    dataloader_num_workers: int = Field(4, description="Number of workers for data loading")
 
     logp_callback_datasets: Dict[str, str] = Field({}, description="Datasets for which to track loss and logP")
     eval_every_n_steps: int = Field(5000, description="Evaluate on logp_callback_datasets every N steps.")
@@ -144,6 +150,12 @@ class TrainingConfig(BaseModel):
         if isinstance(v, int) and v <= 0:
             raise ValueError("Evaluation steps must be positive if specified as an integer")
         return v
+    
+    @model_validator(mode="after")
+    def validate_ddp_configuration(self):
+        if self.use_ddp:
+            self.ddp_find_unused_parameters = False
+        return self
 
     @field_validator("mcq_callbacks")
     def validate_mcq_callbacks(cls, v):

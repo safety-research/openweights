@@ -50,6 +50,8 @@ def orpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         num_train_epochs=training_cfg.epochs,
         save_steps=training_cfg.save_steps,
         output_dir=training_cfg.output_dir,
+        ddp_find_unused_parameters=training_cfg.ddp_find_unused_parameters,
+        dataloader_num_workers=training_cfg.dataloader_num_workers,
         **kwargs,
     )
 
