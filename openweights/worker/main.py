@@ -450,11 +450,21 @@ class Worker:
                         tmp_dir, job["params"]["mounted_files"]
                     )
                 script = job["script"]
+                
+                if self.gpu_count > 1:
+                    script = f"accelerate launch --num_processes {self.gpu_count} {script}"
+                    logging.info(f"Using DDP with {self.gpu_count} GPUs via accelerate launch")
 
                 with open(log_file_path, "w") as log_file:
                     env = os.environ.copy()
                     env["OPENWEIGHTS_RUN_ID"] = str(self.current_run.id)
                     env["N_GPUS"] = str(self.gpu_count)
+                    
+                    if self.gpu_count > 1:
+                        env["WORLD_SIZE"] = str(self.gpu_count)
+                        env["LOCAL_RANK"] = "0"  # Single node setup
+                        env["MASTER_ADDR"] = "localhost"
+                        env["MASTER_PORT"] = "29500"
 
                     logging.info(f"Going to run script: {script}")
                     self.current_process = subprocess.Popen(
