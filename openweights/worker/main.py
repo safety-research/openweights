@@ -451,11 +451,7 @@ class Worker:
                     )
                 script = job["script"]
                 
-                # Check if job configuration enables DDP and we have multiple GPUs
-                job_params = job.get("params", {})
-                use_ddp = job_params.get("use_ddp", False)
-                
-                if use_ddp and self.gpu_count > 1:
+                if self.gpu_count > 1:
                     script = f"accelerate launch --num_processes {self.gpu_count} {script}"
                     logging.info(f"Using DDP with {self.gpu_count} GPUs via accelerate launch")
 
@@ -464,7 +460,7 @@ class Worker:
                     env["OPENWEIGHTS_RUN_ID"] = str(self.current_run.id)
                     env["N_GPUS"] = str(self.gpu_count)
                     
-                    if use_ddp and self.gpu_count > 1:
+                    if self.gpu_count > 1:
                         env["WORLD_SIZE"] = str(self.gpu_count)
                         env["LOCAL_RANK"] = "0"  # Single node setup
                         env["MASTER_ADDR"] = "localhost"

@@ -1,3 +1,4 @@
+import torch
 from transformers import TrainingArguments
 from unsloth import PatchDPOTrainer, is_bfloat16_supported
 
@@ -52,7 +53,7 @@ def dpo_train(training_cfg, dataset, model, tokenizer, test_dataset, **kwargs):
         num_train_epochs=training_cfg.epochs,
         save_steps=training_cfg.save_steps,
         output_dir=training_cfg.output_dir,
-        ddp_find_unused_parameters=False if training_cfg.use_ddp else None,
+        ddp_find_unused_parameters=False if torch.cuda.device_count() > 1 else None,
         dataloader_num_workers=training_cfg.dataloader_num_workers,
         **kwargs
     )

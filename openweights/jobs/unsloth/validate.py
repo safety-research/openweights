@@ -74,7 +74,6 @@ class TrainingConfig(BaseModel):
     train_on_responses_only: bool = Field(False, description="Whether to train on responses only")
     
     # Multi-GPU and packing configuration
-    use_ddp: bool = Field(False, description="Enable Distributed Data Parallel training via Accelerate")
     packing: bool = Field(False, description="Enable sequence packing for efficient training")
     dataloader_num_workers: int = Field(4, description="Number of workers for data loading")
 
