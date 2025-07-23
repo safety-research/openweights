@@ -145,7 +145,7 @@ def sft_train(
         dataset_text_field="text",
         max_seq_length=training_cfg.max_seq_length,
         dataset_num_proc=4,
-        packing=False,
+        packing=training_cfg.packing,
         args=TrainingArguments(
             per_device_train_batch_size=training_cfg.per_device_train_batch_size,
             per_device_eval_batch_size=training_cfg.eval_batch_size,

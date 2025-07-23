@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from dataclasses import dataclass
 from openweights.client.utils import resolve_lora_model, get_lora_rank
+from openweights.cluster.start_runpod import GPUs
 
 
 @dataclass
@@ -237,7 +238,7 @@ class Jobs:
         
         # Validate allowed_hardware if provided
         if "allowed_hardware" in data and data["allowed_hardware"] is not None:
-            valid_suffixes = ["4000Ada", "L40", "A100", "A100S", "H100N", "H100S", "H200"]
+            valid_suffixes = list(GPUs.keys())
             for hardware in data["allowed_hardware"]:
                 if not any(hardware.endswith(suffix) for suffix in valid_suffixes):
                     raise ValueError(
