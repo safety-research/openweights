@@ -48,7 +48,7 @@ class FineTuning(Jobs):
         )
         model_name = params["model"].split("/")[-1]
         str_params = {k: v for k, v in params.items() if isinstance(v, str)}
-        model_naming_extra_parameters = params.get("model_naming_extra_parameters", {})
+        model_naming_extra_parameters = params.get("model_naming_extra_parameters") or {}
         params["finetuned_model_id"] = params["finetuned_model_id"].format(
             job_id=job_id,
             org_id=self.client.hf_org,
