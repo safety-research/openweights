@@ -53,6 +53,12 @@ class API(Jobs):
             script += f" \\\n"
             script += f"    --tensor-parallel-size $N_GPUS"
 
+        if params['quantization']:
+            script += f" \\\n    --quantization {params['quantization']}"
+
+        if params['kv_cache_dtype']:
+            script += f" \\\n    --kv-cache-dtype {params['kv_cache_dtype']}"
+
 
         if params['lora_adapters']:
             script += (
@@ -74,11 +80,11 @@ class API(Jobs):
             'requires_vram_gb': requires_vram_gb,
             'allowed_hardware': allowed_hardware,
             'script': script,
-            'docker_image': 'nielsrolf/ow-inference-v2:latest'
+            'docker_image': 'nielsrolf/ow-default'
         }
         return self.get_or_create_or_reset(data)
     
-    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, requires_vram_gb: str = 'guess', max_num_seqs: int = 100) -> TemporaryApi:
+    def deploy(self, model: str, lora_adapters: List[str] = None, max_lora_rank: str = 'guess', max_model_len: int = 2048, requires_vram_gb: str = 'guess', max_num_seqs: int = 100, quantization: Optional[str]=None, kv_cache_dtype: Optional[str]=None, allowed_hardware=None) -> TemporaryApi:
         """Deploy a model on OpenWeights"""
         if lora_adapters is None:
             lora_adapters = []
@@ -88,10 +94,11 @@ class API(Jobs):
             max_lora_rank = 16
         job = self.create(
             model=model, max_model_len=max_model_len, requires_vram_gb=requires_vram_gb,
-            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank, max_num_seqs=max_num_seqs)
+            lora_adapters=lora_adapters, max_lora_rank=max_lora_rank, max_num_seqs=max_num_seqs,
+            quantization=quantization, kv_cache_dtype=kv_cache_dtype, allowed_hardware=allowed_hardware)
         return TemporaryApi(self.client, job['id'])
     
-    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None) -> Dict[str, TemporaryApi]:
+    def multi_deploy(self, models: List[str], max_model_len: Union[int,str] = 2048, requires_vram_gb: Union[int,str] = 'guess', max_num_seqs: int = 100, base_model_override: Optional[str] = None, quantization: Optional[str]=None, kv_cache_dtype: Optional[str]=None, allowed_hardware=None) -> Dict[str, TemporaryApi]:
         """Deploy multiple models - creates on server for each base model, and deploys all lora adapters on of the same base model together"""
         assert isinstance(models, list), "models must be a list"
         lora_groups = group_models_or_adapters_by_model(models)
@@ -100,7 +107,7 @@ class API(Jobs):
             if base_model_override is not None:
                 model = base_model_override
             print(f"Deploying {model} with {len(lora_adapters)} lora adapters")
-            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs)
+            api = self.deploy(model, lora_adapters=lora_adapters, max_model_len=max_model_len, requires_vram_gb=requires_vram_gb, max_num_seqs=max_num_seqs, quantization=quantization, kv_cache_dtype=kv_cache_dtype, allowed_hardware=allowed_hardware)
             for model_id in [model] + lora_adapters:
                 apis[model_id] = api
         return apis
